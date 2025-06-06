@@ -22,7 +22,7 @@ namespace backend.Models
         [Required]
         public DateTime GeneratedDate { get; set; }
 
-        [ForeignKey("UserID")]
+        [ForeignKey("UserId")]
         public User User { get; set; } = null!;
     }
 }

@@ -2,6 +2,9 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Models;
 using backend.Data;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using backend.DTOs;
 
 namespace backend.Controllers
 {
@@ -66,6 +69,23 @@ namespace backend.Controllers
 
             return NoContent();
         }
+        
+        [Authorize]
+        [HttpPut("me")]
+        public async Task<IActionResult> UpdateCurrentUser([FromBody] UpdateUserDto dto)
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return NotFound();
+
+            user.Name = dto.Name;
+            user.Email = dto.Email;
+            user.Phone = dto.Phone;
+            user.Address = dto.Address;
+
+            await _context.SaveChangesAsync();
+            return Ok("Mise à jour réussie !");
+        }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUser(int id)
@@ -79,5 +99,50 @@ namespace backend.Controllers
 
             return NoContent();
         }
+        
+        [HttpGet("me")]
+        [Authorize]
+        public IActionResult GetCurrentUser()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null) return Unauthorized();
+
+            int userId = int.Parse(userIdClaim.Value);
+            var user = _context.Users.FirstOrDefault(u => u.UserId == userId);
+
+            if (user == null) return NotFound();
+
+            return Ok(new
+            {
+                user.UserId,
+                user.Name,
+                user.Email,
+                user.Address,
+                user.Phone,
+                user.Role
+            });
+        }
+        
+        [Authorize(Roles = "Admin")]
+        [HttpPut("{id}/role")]
+        public async Task<IActionResult> UpdateUserRole(int id, [FromBody] UpdateUserRoleDTO dto)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
+                return NotFound("Utilisateur non trouvé.");
+
+            var validRoles = new[] { "User", "Librarian", "Admin" };
+            if (!validRoles.Contains(dto.Role))
+                return BadRequest("Rôle invalide.");
+
+            user.Role = dto.Role;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = $"Rôle de l'utilisateur mis à jour en {dto.Role}."
+            });
+        }
+
     }
 }

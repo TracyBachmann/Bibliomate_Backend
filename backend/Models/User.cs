@@ -24,13 +24,21 @@ namespace backend.Models
         public string Phone { get; set; } = string.Empty;
 
         [Required, MaxLength(100)]
-        public string Role { get; set; } = "User"; // ou UserRole enum si adopté
+        public string Role { get; set; } = "User";
+        
+        public bool IsEmailConfirmed { get; set; } = false;
+        
+        [MaxLength(1000)]
+        public string? EmailConfirmationToken { get; set; }
+        
+        [MaxLength(1000)]
+        public string? PasswordResetToken { get; set; }
+        
+        public DateTime? PasswordResetTokenExpires { get; set; }
 
         public ICollection<Loan>? Loans { get; set; }
         public ICollection<Reservation>? Reservations { get; set; }
         public HistoryService? HistoryService { get; set; }
-        public AccountService? AccountService { get; set; }
-        public AuthenticationService? AuthenticationService { get; set; }
         public ICollection<Report>? Reports { get; set; }
         public ICollection<RecommendationService>? Recommendations { get; set; }
         public ICollection<Notification>? Notifications { get; set; }

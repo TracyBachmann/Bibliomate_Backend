@@ -16,11 +16,7 @@ namespace backend.Data
         public DbSet<Loan> Loans { get; set; }
         public DbSet<Reservation> Reservations { get; set; }
         public DbSet<Notification> Notifications { get; set; }
-        public DbSet<AuthenticationService> AuthenticationServices { get; set; }
         public DbSet<Report> Reports { get; set; }
-        public DbSet<HistoryService> HistoryServices { get; set; }
-        public DbSet<AccountService> AccountServices { get; set; }
-        public DbSet<RecommendationService> RecommendationServices { get; set; }
         public DbSet<Zone> Zones { get; set; }
         public DbSet<Genre> Genres { get; set; }
         public DbSet<Shelf> Shelves { get; set; }
