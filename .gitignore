@@ -1,0 +1,23 @@
+# Rider
+.idea/
+*.sln.iml
+
+# Build
+bin/
+obj/
+*.exe
+*.dll
+*.pdb
+
+# User-specific
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
