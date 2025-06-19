@@ -6,7 +6,7 @@ namespace backend.Models
     public class Stock
     {
         [Key]
-        public int Id { get; set; }
+        public int StockId { get; set; }
 
         [Required]
         public int BookId { get; set; }

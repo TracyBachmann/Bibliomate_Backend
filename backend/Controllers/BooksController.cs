@@ -2,14 +2,13 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using backend.DTOs;
 using Microsoft.AspNetCore.Authorization;
 
 namespace backend.Controllers
 {
     /// <summary>
     /// Controller for managing books in the library catalog.
-    /// Publicly accessible for viewing books.
-    /// Restricted access for creation, modification, and deletion.
     /// </summary>
     [Authorize]
     [ApiController]
@@ -25,91 +24,129 @@ namespace backend.Controllers
 
         // GET: api/Books
         /// <summary>
-        /// Retrieves the list of all books with their genres and shelf levels.
+        /// Retrieves all books with detailed information (public access).
         /// </summary>
         [AllowAnonymous]
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Book>>> GetBooks()
+        public async Task<ActionResult<IEnumerable<BookReadDto>>> GetBooks()
         {
-            return await _context.Books
+            var books = await _context.Books
                 .Include(b => b.Genre)
+                .Include(b => b.Author)
+                .Include(b => b.Editor)
                 .Include(b => b.ShelfLevel)
+                .Include(b => b.BookTags)
+                    .ThenInclude(bt => bt.Tag)
                 .ToListAsync();
+
+            var result = books.Select(book => new BookReadDto
+            {
+                BookId = book.BookId,
+                Title = book.Title,
+                Isbn = book.Isbn,
+                PublicationYear = book.PublicationDate.Year,
+                AuthorName = book.Author?.Name ?? "Unknown",
+                GenreName = book.Genre?.Name ?? "Unknown",
+                EditorName = book.Editor?.Name ?? "Unknown",
+                Tags = book.BookTags.Select(bt => new TagDto
+                {
+                    TagId = bt.TagId,
+                    Name = bt.Tag.Name
+                }).ToList()
+            });
+
+            return Ok(result);
         }
 
         // GET: api/Books/{id}
         /// <summary>
-        /// Retrieves details of a single book by ID, including genre and shelf level.
+        /// Retrieves a single book by ID.
         /// </summary>
-        /// <param name="id">ID of the book.</param>
         [AllowAnonymous]
         [HttpGet("{id}")]
-        public async Task<ActionResult<Book>> GetBook(int id)
+        public async Task<ActionResult<BookReadDto>> GetBook(int id)
         {
             var book = await _context.Books
                 .Include(b => b.Genre)
+                .Include(b => b.Author)
+                .Include(b => b.Editor)
                 .Include(b => b.ShelfLevel)
+                .Include(b => b.BookTags)
+                    .ThenInclude(bt => bt.Tag)
                 .FirstOrDefaultAsync(b => b.BookId == id);
 
             if (book == null)
                 return NotFound();
 
-            return book;
+            var dto = new BookReadDto
+            {
+                BookId = book.BookId,
+                Title = book.Title,
+                Isbn = book.Isbn,
+                PublicationYear = book.PublicationDate.Year,
+                AuthorName = book.Author?.Name ?? "Unknown",
+                GenreName = book.Genre?.Name ?? "Unknown",
+                EditorName = book.Editor?.Name ?? "Unknown",
+                Tags = book.BookTags.Select(bt => new TagDto
+                {
+                    TagId = bt.TagId,
+                    Name = bt.Tag.Name
+                }).ToList()
+            };
+
+            return Ok(dto);
         }
 
         // POST: api/Books
         /// <summary>
-        /// Creates a new book entry.
-        /// Only accessible to Librarians and Admins.
+        /// Creates a new book.
         /// </summary>
-        /// <param name="book">Book data to create.</param>
         [Authorize(Roles = "Librarian,Admin")]
         [HttpPost]
         public async Task<ActionResult<Book>> CreateBook(Book book)
         {
             _context.Books.Add(book);
             await _context.SaveChangesAsync();
-
             return CreatedAtAction(nameof(GetBook), new { id = book.BookId }, book);
         }
 
         // PUT: api/Books/{id}
         /// <summary>
         /// Updates an existing book.
-        /// Only accessible to Librarians and Admins.
         /// </summary>
-        /// <param name="id">ID of the book to update.</param>
-        /// <param name="book">Updated book data.</param>
         [Authorize(Roles = "Librarian,Admin")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateBook(int id, Book book)
+        public async Task<IActionResult> UpdateBook(int id, Book updatedBook)
         {
-            if (id != book.BookId)
-                return BadRequest("Mismatch avec l'ID du livre.");
+            if (id != updatedBook.BookId)
+                return BadRequest("Book ID mismatch.");
 
-            _context.Entry(book).State = EntityState.Modified;
+            var existingBook = await _context.Books
+                .Include(b => b.BookTags)
+                .FirstOrDefaultAsync(b => b.BookId == id);
 
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Books.Any(b => b.BookId == id))
-                    return NotFound();
-                else
-                    throw;
-            }
+            if (existingBook == null)
+                return NotFound();
 
+            // Update scalar fields
+            existingBook.Title = updatedBook.Title;
+            existingBook.Isbn = updatedBook.Isbn;
+            existingBook.PublicationDate = updatedBook.PublicationDate;
+            existingBook.GenreId = updatedBook.GenreId;
+            existingBook.AuthorId = updatedBook.AuthorId;
+            existingBook.EditorId = updatedBook.EditorId;
+            existingBook.ShelfLevelId = updatedBook.ShelfLevelId;
+
+            // (Optionally) handle BookTags update logic here
+
+            await _context.SaveChangesAsync();
             return NoContent();
         }
 
         // DELETE: api/Books/{id}
         /// <summary>
         /// Deletes a book from the catalog.
-        /// Only accessible to Librarians and Admins.
         /// </summary>
-        /// <param name="id">ID of the book to delete.</param>
         [Authorize(Roles = "Librarian,Admin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteBook(int id)
@@ -120,8 +157,81 @@ namespace backend.Controllers
 
             _context.Books.Remove(book);
             await _context.SaveChangesAsync();
-
             return NoContent();
+        }
+
+        // POST: api/Books/search
+        /// <summary>
+        /// Performs an advanced search for books.
+        /// </summary>
+        [HttpPost("search")]
+        [Authorize]
+        public async Task<ActionResult<IEnumerable<BookReadDto>>> SearchBooks([FromBody] BookSearchDto dto)
+        {
+            var query = _context.Books
+                .Include(b => b.Genre)
+                .Include(b => b.Author)
+                .Include(b => b.Editor)
+                .Include(b => b.ShelfLevel)
+                .Include(b => b.BookTags)
+                    .ThenInclude(bt => bt.Tag)
+                .Include(b => b.Stock)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(dto.Title))
+                query = query.Where(b => b.Title.Contains(dto.Title));
+
+            if (!string.IsNullOrWhiteSpace(dto.Author))
+                query = query.Where(b => b.Author.Name.Contains(dto.Author));
+
+            if (!string.IsNullOrWhiteSpace(dto.Genre))
+                query = query.Where(b => b.Genre.Name.Contains(dto.Genre));
+
+            if (!string.IsNullOrWhiteSpace(dto.Publisher))
+                query = query.Where(b => b.Editor.Name.Contains(dto.Publisher));
+
+            if (!string.IsNullOrWhiteSpace(dto.Isbn))
+                query = query.Where(b => b.Isbn.Contains(dto.Isbn));
+
+            if (dto.YearMin.HasValue)
+                query = query.Where(b => b.PublicationDate.Year >= dto.YearMin.Value);
+
+            if (dto.YearMax.HasValue)
+                query = query.Where(b => b.PublicationDate.Year <= dto.YearMax.Value);
+
+            if (dto.IsAvailable.HasValue)
+            {
+                if (dto.IsAvailable.Value)
+                    query = query.Where(b => b.Stock != null && b.Stock.Quantity > 0);
+                else
+                    query = query.Where(b => b.Stock == null || b.Stock.Quantity == 0);
+            }
+
+            if (dto.TagIds != null && dto.TagIds.Any())
+            {
+                query = query.Where(b =>
+                    b.BookTags.Any(bt => dto.TagIds.Contains(bt.TagId)));
+            }
+
+            var books = await query.ToListAsync();
+
+            var results = books.Select(book => new BookReadDto
+            {
+                BookId = book.BookId,
+                Title = book.Title,
+                Isbn = book.Isbn,
+                PublicationYear = book.PublicationDate.Year,
+                AuthorName = book.Author?.Name ?? "Unknown",
+                GenreName = book.Genre?.Name ?? "Unknown",
+                EditorName = book.Editor?.Name ?? "Unknown",
+                Tags = book.BookTags.Select(bt => new TagDto
+                {
+                    TagId = bt.TagId,
+                    Name = bt.Tag.Name
+                }).ToList()
+            });
+
+            return Ok(results);
         }
     }
 }

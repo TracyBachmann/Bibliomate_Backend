@@ -47,7 +47,7 @@ namespace backend.Controllers
         {
             var stock = await _context.Stocks
                 .Include(s => s.Book)
-                .FirstOrDefaultAsync(s => s.Id == id);
+                .FirstOrDefaultAsync(s => s.StockId == id);
 
             if (stock == null)
                 return NotFound();
@@ -74,7 +74,7 @@ namespace backend.Controllers
             _context.Stocks.Add(stock);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetStock), new { id = stock.Id }, stock);
+            return CreatedAtAction(nameof(GetStock), new { id = stock.StockId }, stock);
         }
 
         // PUT: api/Stocks/5
@@ -85,7 +85,7 @@ namespace backend.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateStock(int id, Stock stock)
         {
-            if (id != stock.Id)
+            if (id != stock.StockId)
                 return BadRequest();
 
             _context.Entry(stock).State = EntityState.Modified;
@@ -96,7 +96,7 @@ namespace backend.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!_context.Stocks.Any(s => s.Id == id))
+                if (!_context.Stocks.Any(s => s.StockId == id))
                     return NotFound();
                 else
                     throw;
