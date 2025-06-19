@@ -9,7 +9,7 @@
 - 📚 **Les bibliothécaires** : gérer les stocks, les retours, les utilisateurs et suivre les emprunts.
 - 🛡 **Les administrateurs** : superviser l’ensemble du système et gérer les rôles utilisateurs.
 
-### Fonctionnalités principales :
+## Fonctionnalités principales :
 - 🔍 Recherche avancée (titre, auteur, genre, disponibilité, etc.)
 - 🔐 Authentification sécurisée avec JWT
 - 📦 Gestion des stocks avec ajustement de quantité
