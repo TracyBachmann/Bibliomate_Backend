@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿// Public controller dedicated to authentication and operations without prior authentication
+// Exceptions: ApproveUser requires an Admin role
+
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -8,6 +11,7 @@ using backend.Models;
 using backend.Data;
 using backend.DTOs;
 using backend.Services;
+using Microsoft.AspNetCore.Authorization;
 
 namespace backend.Controllers
 {
@@ -26,6 +30,11 @@ namespace backend.Controllers
             _emailService = emailService;
         }
 
+        // POST: api/Auth/register
+        /// <summary>
+        /// Registers a new user and sends a confirmation email.
+        /// </summary>
+        /// <param name="dto">User registration data.</param>
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDTO dto)
         {
@@ -49,15 +58,19 @@ namespace backend.Controllers
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            var token = Guid.NewGuid().ToString(); // tu pourras le remplacer par un vrai token plus tard
-            var confirmationUrl = $"http://localhost:4200/confirm-email?token={token}";
-
+            var confirmationUrl = $"http://localhost:4200/confirm-email?token={confirmationToken}";
+            
             await _emailService.SendEmailAsync(user.Email, "Confirme ton inscription", 
                 $"<p>Bienvenue {user.Name} !</p><p>Merci de confirmer ton email en cliquant ici : <a href='{confirmationUrl}'>Confirmer mon email</a></p>");
 
             return Ok("Inscription réussie. Vérifie ton email pour le lien de confirmation.");
         }
 
+        // POST: api/Auth/login
+        /// <summary>
+        /// Authenticates a user and returns a JWT if credentials are valid.
+        /// </summary>
+        /// <param name="dto">User login credentials.</param>
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDTO dto)
         {
@@ -75,6 +88,11 @@ namespace backend.Controllers
             return Ok(new { token });
         }
 
+        // GET: api/Auth/confirm-email?token=...
+        /// <summary>
+        /// Confirms a user's email address using a token.
+        /// </summary>
+        /// <param name="token">The email confirmation token.</param>
         [HttpGet("confirm-email")]
         public async Task<IActionResult> ConfirmEmail([FromQuery] string token)
         {
@@ -91,6 +109,10 @@ namespace backend.Controllers
             return Ok("✅ Ton email a bien été confirmé !");
         }
 
+        /// <summary>
+        /// Generates a JWT token for a valid user.
+        /// </summary>
+        /// <param name="user">The authenticated user.</param>
         private string GenerateJwtToken(User user)
         {
             var claims = new[]
@@ -113,7 +135,12 @@ namespace backend.Controllers
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
-        
+
+        // POST: api/Auth/request-password-reset
+        /// <summary>
+        /// Sends a password reset email to the user if the email exists.
+        /// </summary>
+        /// <param name="dto">DTO containing the user's email.</param>
         [HttpPost("request-password-reset")]
         public async Task<IActionResult> RequestPasswordReset([FromBody] RequestPasswordResetDTO dto)
         {
@@ -133,8 +160,13 @@ namespace backend.Controllers
             await _emailService.SendEmailAsync(user.Email, "🔐 Réinitialisation du mot de passe", html);
 
             return Ok("Si cet email est enregistré, un lien de réinitialisation a été envoyé.");
-        }                                                                                     
-        
+        }
+
+        // POST: api/Auth/reset-password
+        /// <summary>
+        /// Resets the user's password using a valid token.
+        /// </summary>
+        /// <param name="dto">DTO containing the reset token and new password.</param>
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(ResetPasswordDTO dto)
         {
@@ -153,7 +185,12 @@ namespace backend.Controllers
 
             return Ok("Mot de passe réinitialisé avec succès !");
         }
-        
+
+        // POST: api/Auth/approve/{id}
+        /// <summary>
+        /// Approves a user account. Only accessible by Admins.
+        /// </summary>
+        /// <param name="id">ID of the user to approve.</param>
         [Authorize(Roles = "Admin")]
         [HttpPost("approve/{id}")]
         public async Task<IActionResult> ApproveUser(int id)
@@ -166,6 +203,5 @@ namespace backend.Controllers
 
             return Ok($"L'utilisateur {user.Name} a été approuvé.");
         }
-
     }
 }

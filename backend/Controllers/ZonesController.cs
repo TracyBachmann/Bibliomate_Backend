@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace backend.Controllers
 {
@@ -17,13 +18,28 @@ namespace backend.Controllers
         }
 
         // GET: api/Zones
+        /// <summary>
+        /// Retrieves all zones with optional pagination. Requires authentication.
+        /// </summary>
+        /// <param name="page">Page number (default is 1).</param>
+        /// <param name="pageSize">Items per page (default is 10).</param>
+        [Authorize]
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Zone>>> GetZones()
+        public async Task<ActionResult<IEnumerable<Zone>>> GetZones(int page = 1, int pageSize = 10)
         {
-            return await _context.Zones.ToListAsync();
+            var zones = await _context.Zones
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return Ok(zones);
         }
 
         // GET: api/Zones/5
+        /// <summary>
+        /// Retrieves a specific zone by ID. Requires authentication.
+        /// </summary>
+        [Authorize]
         [HttpGet("{id}")]
         public async Task<ActionResult<Zone>> GetZone(int id)
         {
@@ -35,6 +51,10 @@ namespace backend.Controllers
         }
 
         // POST: api/Zones
+        /// <summary>
+        /// Creates a new zone. Only Librarians and Admins are authorized.
+        /// </summary>
+        [Authorize(Roles = "Librarian,Admin")]
         [HttpPost]
         public async Task<ActionResult<Zone>> CreateZone(Zone zone)
         {
@@ -45,6 +65,10 @@ namespace backend.Controllers
         }
 
         // PUT: api/Zones/5
+        /// <summary>
+        /// Updates an existing zone. Only Librarians and Admins are authorized.
+        /// </summary>
+        [Authorize(Roles = "Librarian,Admin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateZone(int id, Zone zone)
         {
@@ -69,6 +93,10 @@ namespace backend.Controllers
         }
 
         // DELETE: api/Zones/5
+        /// <summary>
+        /// Deletes a zone by ID. Only Librarians and Admins are authorized.
+        /// </summary>
+        [Authorize(Roles = "Librarian,Admin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteZone(int id)
         {

@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace backend.Controllers
 {
@@ -16,16 +17,35 @@ namespace backend.Controllers
             _context = context;
         }
 
-        // GET: api/ShelfLevels
+// GET: api/ShelfLevels
+        /// <summary>
+        /// Retrieves all shelf levels, with optional filtering by shelf and pagination.
+        /// </summary>
+        /// <param name="shelfId">Optional shelf ID to filter shelf levels.</param>
+        /// <param name="page">Page number (default is 1).</param>
+        /// <param name="pageSize">Items per page (default is 10).</param>
+        [Authorize]
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ShelfLevel>>> GetShelfLevels()
+        public async Task<ActionResult<IEnumerable<ShelfLevel>>> GetShelfLevels(int? shelfId, int page = 1, int pageSize = 10)
         {
-            return await _context.ShelfLevels
-                .Include(sl => sl.Shelf)
+            var query = _context.ShelfLevels.Include(sl => sl.Shelf).AsQueryable();
+
+            if (shelfId.HasValue)
+                query = query.Where(sl => sl.ShelfId == shelfId.Value);
+
+            var shelfLevels = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
+
+            return Ok(shelfLevels);
         }
 
         // GET: api/ShelfLevels/5
+        /// <summary>
+        /// Retrieves a specific shelf level by ID, including its shelf. Requires authentication.
+        /// </summary>
+        [Authorize]
         [HttpGet("{id}")]
         public async Task<ActionResult<ShelfLevel>> GetShelfLevel(int id)
         {
@@ -40,6 +60,10 @@ namespace backend.Controllers
         }
 
         // POST: api/ShelfLevels
+        /// <summary>
+        /// Creates a new shelf level. Only Admins and Librarians can perform this action.
+        /// </summary>
+        [Authorize(Roles = "Admin,Librarian")]
         [HttpPost]
         public async Task<ActionResult<ShelfLevel>> CreateShelfLevel(ShelfLevel shelfLevel)
         {
@@ -50,6 +74,10 @@ namespace backend.Controllers
         }
 
         // PUT: api/ShelfLevels/5
+        /// <summary>
+        /// Updates an existing shelf level. Only Admins and Librarians can perform this action.
+        /// </summary>
+        [Authorize(Roles = "Admin,Librarian")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateShelfLevel(int id, ShelfLevel shelfLevel)
         {
@@ -74,6 +102,10 @@ namespace backend.Controllers
         }
 
         // DELETE: api/ShelfLevels/5
+        /// <summary>
+        /// Deletes a shelf level by ID. Only Admins and Librarians can perform this action.
+        /// </summary>
+        [Authorize(Roles = "Admin,Librarian")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteShelfLevel(int id)
         {

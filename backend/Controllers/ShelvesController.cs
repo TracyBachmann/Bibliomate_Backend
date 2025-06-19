@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace backend.Controllers
 {
@@ -17,30 +18,52 @@ namespace backend.Controllers
         }
 
         // GET: api/Shelves
-                [HttpGet]
-                public async Task<ActionResult<IEnumerable<Shelf>>> GetShelves()
-                {
-                    return await _context.Shelves
-                        .Include(s => s.Zone)
-                        .ToListAsync(); 
-                }
+        /// <summary>
+        /// Retrieves all shelves, with optional filtering by zone and pagination.
+        /// </summary>
+        /// <param name="zoneId">Optional zone ID to filter shelves.</param>
+        /// <param name="page">Page number (default is 1).</param>
+        /// <param name="pageSize">Items per page (default is 10).</param>
+        [Authorize]
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<Shelf>>> GetShelves(int? zoneId, int page = 1, int pageSize = 10)
+        {
+            var query = _context.Shelves.Include(s => s.Zone).AsQueryable();
+
+            if (zoneId.HasValue)
+                query = query.Where(s => s.ZoneId == zoneId.Value);
+
+            var shelves = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return Ok(shelves);
+        }
 
         // GET: api/Shelves/5
-                [HttpGet("{id}")]
-                public async Task<ActionResult<Shelf>> GetShelf(int id)
-                {
-                    var shelf = await _context.Shelves
-                        .Include(s => s.Zone)
-                        .FirstOrDefaultAsync(s => s.ShelfId == id);
+        /// <summary>
+        /// Retrieves a specific shelf by ID, including its zone. Requires authentication.
+        /// </summary>
+        [Authorize]
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Shelf>> GetShelf(int id)
+        {
+            var shelf = await _context.Shelves
+                .Include(s => s.Zone)
+                .FirstOrDefaultAsync(s => s.ShelfId == id);
 
-                    if (shelf == null)
-                        return NotFound();
+            if (shelf == null)
+                return NotFound();
 
-                    return shelf;
-                }
-
+            return shelf;
+        }
 
         // POST: api/Shelves
+        /// <summary>
+        /// Creates a new shelf. Only Admins and Librarians are authorized.
+        /// </summary>
+        [Authorize(Roles = "Admin,Librarian")]
         [HttpPost]
         public async Task<ActionResult<Shelf>> CreateShelf(Shelf shelf)
         {
@@ -51,6 +74,10 @@ namespace backend.Controllers
         }
 
         // PUT: api/Shelves/5
+        /// <summary>
+        /// Updates an existing shelf. Only Admins and Librarians are authorized.
+        /// </summary>
+        [Authorize(Roles = "Admin,Librarian")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateShelf(int id, Shelf shelf)
         {
@@ -75,6 +102,10 @@ namespace backend.Controllers
         }
 
         // DELETE: api/Shelves/5
+        /// <summary>
+        /// Deletes a shelf by ID. Only Admins and Librarians are authorized.
+        /// </summary>
+        [Authorize(Roles = "Admin,Librarian")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteShelf(int id)
         {

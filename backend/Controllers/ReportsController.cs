@@ -2,9 +2,12 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace backend.Controllers
 {
+    [Authorize(Roles = "Admin,Librarian")]
     [ApiController]
     [Route("api/[controller]")]
     public class ReportsController : ControllerBase
@@ -17,15 +20,22 @@ namespace backend.Controllers
         }
 
         // GET: api/Reports
+        /// <summary>
+        /// Retrieves all reports, ordered by generation date (newest first).
+        /// </summary>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Report>>> GetReports()
         {
             return await _context.Reports
                 .Include(r => r.User)
+                .OrderByDescending(r => r.GeneratedDate)
                 .ToListAsync();
         }
 
         // GET: api/Reports/5
+        /// <summary>
+        /// Retrieves a specific report by its ID.
+        /// </summary>
         [HttpGet("{id}")]
         public async Task<ActionResult<Report>> GetReport(int id)
         {
@@ -40,9 +50,16 @@ namespace backend.Controllers
         }
 
         // POST: api/Reports
+        /// <summary>
+        /// Creates a new report for the current user.
+        /// </summary>
         [HttpPost]
         public async Task<ActionResult<Report>> CreateReport(Report report)
         {
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            report.UserId = currentUserId;
+            report.GeneratedDate = DateTime.UtcNow;
+
             _context.Reports.Add(report);
             await _context.SaveChangesAsync();
 
@@ -50,11 +67,28 @@ namespace backend.Controllers
         }
 
         // PUT: api/Reports/5
+        /// <summary>
+        /// Updates an existing report. Only the author or an admin can perform this action.
+        /// </summary>
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateReport(int id, Report report)
         {
             if (id != report.ReportId)
                 return BadRequest();
+
+            var existing = await _context.Reports.AsNoTracking().FirstOrDefaultAsync(r => r.ReportId == id);
+            if (existing == null)
+                return NotFound();
+
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+            // Authorization: only author or admin can update
+            if (existing.UserId != currentUserId && !User.IsInRole("Admin"))
+                return Forbid("Seul l'auteur ou un administrateur peut modifier ce rapport.");
+
+            // Preserve immutable fields
+            report.GeneratedDate = existing.GeneratedDate;
+            report.UserId = existing.UserId;
 
             _context.Entry(report).State = EntityState.Modified;
 
@@ -74,6 +108,9 @@ namespace backend.Controllers
         }
 
         // DELETE: api/Reports/5
+        /// <summary>
+        /// Deletes a specific report.
+        /// </summary>
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteReport(int id)
         {

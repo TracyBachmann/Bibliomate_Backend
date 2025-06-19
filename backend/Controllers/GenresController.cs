@@ -2,9 +2,11 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace backend.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class GenresController : ControllerBase
@@ -17,6 +19,10 @@ namespace backend.Controllers
         }
 
         // GET: api/Genres
+        /// <summary>
+        /// Retrieves all genres.
+        /// </summary>
+        [AllowAnonymous]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Genre>>> GetGenres()
         {
@@ -24,6 +30,11 @@ namespace backend.Controllers
         }
 
         // GET: api/Genres/5
+        /// <summary>
+        /// Retrieves a specific genre by ID.
+        /// </summary>
+        /// <param name="id">The ID of the genre.</param>
+        [AllowAnonymous]
         [HttpGet("{id}")]
         public async Task<ActionResult<Genre>> GetGenre(int id)
         {
@@ -35,6 +46,11 @@ namespace backend.Controllers
         }
 
         // POST: api/Genres
+        /// <summary>
+        /// Creates a new genre.
+        /// </summary>
+        /// <param name="genre">The genre object to create.</param>
+        [Authorize(Roles = "Librarian,Admin")]
         [HttpPost]
         public async Task<ActionResult<Genre>> CreateGenre(Genre genre)
         {
@@ -45,6 +61,12 @@ namespace backend.Controllers
         }
 
         // PUT: api/Genres/5
+        /// <summary>
+        /// Updates an existing genre.
+        /// </summary>
+        /// <param name="id">The ID of the genre to update.</param>
+        /// <param name="genre">The updated genre object.</param>
+        [Authorize(Roles = "Librarian,Admin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateGenre(int id, Genre genre)
         {
@@ -69,6 +91,11 @@ namespace backend.Controllers
         }
 
         // DELETE: api/Genres/5
+        /// <summary>
+        /// Deletes a genre by ID.
+        /// </summary>
+        /// <param name="id">The ID of the genre to delete.</param>
+        [Authorize(Roles = "Librarian,Admin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteGenre(int id)
         {

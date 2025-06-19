@@ -2,6 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace backend.Controllers
 {
@@ -17,6 +19,10 @@ namespace backend.Controllers
         }
 
         // GET: api/Reservations
+        /// <summary>
+        /// Retrieves all reservations (Admin and Librarian only).
+        /// </summary>
+        [Authorize(Roles = "Admin,Librarian")]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Reservation>>> GetReservations()
         {
@@ -27,6 +33,10 @@ namespace backend.Controllers
         }
 
         // GET: api/Reservations/5
+        /// <summary>
+        /// Retrieves a specific reservation if user is owner or staff.
+        /// </summary>
+        [Authorize]
         [HttpGet("{id}")]
         public async Task<ActionResult<Reservation>> GetReservation(int id)
         {
@@ -38,13 +48,32 @@ namespace backend.Controllers
             if (reservation == null)
                 return NotFound();
 
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var isOwner = reservation.UserId == currentUserId;
+            var isAdminOrStaff = User.IsInRole("Admin") || User.IsInRole("Librarian");
+
+            if (!isOwner && !isAdminOrStaff)
+                return Forbid();
+
             return reservation;
         }
 
         // POST: api/Reservations
+        /// <summary>
+        /// Creates a reservation for the currently authenticated user.
+        /// </summary>
+        [Authorize(Roles = "User")]
         [HttpPost]
         public async Task<ActionResult<Reservation>> CreateReservation(Reservation reservation)
         {
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+            // Prevents booking on behalf of another user
+            if (reservation.UserId != currentUserId)
+                return Forbid();
+
+            reservation.ReservationDate = DateTime.UtcNow;
+
             _context.Reservations.Add(reservation);
             await _context.SaveChangesAsync();
 
@@ -52,6 +81,10 @@ namespace backend.Controllers
         }
 
         // PUT: api/Reservations/5
+        /// <summary>
+        /// Updates an existing reservation (Admin and Librarian only).
+        /// </summary>
+        [Authorize(Roles = "Admin,Librarian")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateReservation(int id, Reservation reservation)
         {
@@ -76,12 +109,23 @@ namespace backend.Controllers
         }
 
         // DELETE: api/Reservations/5
+        /// <summary>
+        /// Deletes a reservation if user is owner or staff.
+        /// </summary>
+        [Authorize]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteReservation(int id)
         {
             var reservation = await _context.Reservations.FindAsync(id);
             if (reservation == null)
                 return NotFound();
+
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var isOwner = reservation.UserId == currentUserId;
+            var isAdminOrStaff = User.IsInRole("Admin") || User.IsInRole("Librarian");
+
+            if (!isOwner && !isAdminOrStaff)
+                return Forbid();
 
             _context.Reservations.Remove(reservation);
             await _context.SaveChangesAsync();

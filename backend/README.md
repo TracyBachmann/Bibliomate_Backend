@@ -5,14 +5,19 @@
 ## 🚀 Présentation du projet
 
 **BiblioMate** propose une expérience utilisateur fluide pour :
-- **Les membres** : consulter le catalogue, réserver et emprunter des livres, recevoir des recommandations personnalisées.
-- **Les bibliothécaires** : gérer les emprunts, les retours et le stock ainsi que superviser l'ensemble des opérations
+- 👤 **Les membres** : consulter le catalogue, réserver et emprunter des livres, recevoir des recommandations.
+- 📚 **Les bibliothécaires** : gérer les stocks, les retours, les utilisateurs et suivre les emprunts.
+- 🛡 **Les administrateurs** : superviser l’ensemble du système et gérer les rôles utilisateurs.
 
 ### Fonctionnalités principales :
-- Recherche avancée avec filtres (titre, auteur, genre, disponibilité, etc.).
-- Notifications automatiques pour les rappels et les disponibilités.
-- Recommandations personnalisées basées sur les préférences des utilisateurs.
-- Interface responsive et accessible pour tous types d’appareils.
+- 🔍 Recherche avancée (titre, auteur, genre, disponibilité, etc.)
+- 🔐 Authentification sécurisée avec JWT
+- 📦 Gestion des stocks avec ajustement de quantité
+- 📅 Suivi des emprunts et historiques
+- 📬 Notifications et rappels automatiques
+- 📊 Dashboard pour les rôles métiers
+- 📁 Architecture en couches et logique métier claire
+- 📘 Documentation Swagger générée automatiquement
 
 ## 🎯 Objectifs
 
@@ -22,35 +27,39 @@
 
 ## 🛠️ Technologies utilisées
 
-- **Back-end** : API RESTful avec .NetCore.
-- **Front-end** : Angular et Tailwind CSS.
-- **Base de données** : SQL Server avec Entity Framework.
-- **CI/CD** : Microsoft Azure et Azure DevOps.
-- **Notifications en temps réel** : SignalR.
-- **Conception UI/UX** : Figma.
-
+- **Back-end** : ASP.NET Core 8 (API RESTful)
+- **Base de données** : SQL Server + Entity Framework Core
+- **Front-end** : Angular + Tailwind CSS (dans un projet séparé)
+- **Authentification** : JWT Bearer Tokens
+- **CI/CD** : Azure DevOps + Microsoft Azure
+- **Notifications** : SignalR (en développement)
+- **Design/Prototype** : Figma
+- 
 ## 🧩 Architecture
 
-BiblioMate repose sur une architecture **MVC** et une structure multicouche (**n-tier**), garantissant une modularité et une évolutivité optimales. Voici un aperçu des principaux composants :
+Le projet suit une **architecture en couches (n-tier)** avec séparation claire des responsabilités :
 
-1. **Modèle** : Représente les entités principales comme les livres, les utilisateurs et les emprunts.
-2. **Vue** : Interface utilisateur dynamique et responsive.
-3. **Contrôleur** : Gère les interactions entre la vue et le modèle.
+- **Controllers** : exposent des routes RESTful, valident les accès (via `[Authorize]`)
+- **Models (EF)** : entités représentant la base de données
+- **DTOs** : formats spécifiques pour lecture, création ou mise à jour, évitant toute surexposition de la base
+- **Middleware & Config** : gestion de l’authentification, autorisation, Swagger, CORS, etc.
 
-## 🗺️ Routes principales
+Le front-end Angular consomme cette API. Il n’y a **pas de vues Razor**, contrairement à une app ASP.NET MVC classique.
 
-### 🌐 Web
-- `/` : Accueil et catalogue.
-- `/connexion` : Connexion des utilisateurs.
-- `/profil` : Espace personnel des membres.
-- `/bibliothecaire` : Tableau de bord des bibliothécaires.
-- `/administrateur` : Outils avancés pour les administrateurs.
+## 📌 Routes représentatives de l’API
 
-### 🛠️ API
-- `GET /api/books` : Liste des livres avec options de recherche.
-- `POST /api/auth/register` : Inscription des utilisateurs.
-- `POST /api/loans` : Création d’un emprunt.
-- `GET /api/stats` : Statistiques pour les administrateurs.
+Quelques exemples parmi les plus pertinentes :
+
+| Méthode | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/auth/register` | Inscription utilisateur avec email de confirmation |
+| `POST` | `/api/auth/login` | Authentification, génération de JWT |
+| `GET` | `/api/users/me` | Récupération du profil connecté |
+| `PUT` | `/api/users/{id}/role` | Modification du rôle d’un utilisateur (Admin only) |
+| `PATCH` | `/api/stocks/{id}/adjust` | Ajustement intelligent du stock (positif/négatif) |
+| `GET` | `/api/shelves?page=1&zoneId=` | Pagination + filtrage des étagères |
+| `POST` | `/api/loans` | Création d’un emprunt (stock vérifié) |
+| `PUT` | `/api/reports/{id}` | Modification contrôlée (auteur uniquement) |
 
 ## 🔮 Fonctionnalités futures
 
@@ -81,8 +90,12 @@ BiblioMate repose sur une architecture **MVC** et une structure multicouche (**n
 
 ## 📖 Documentation
 
-- API Documentation : Disponible via Swagger à http://localhost:<port>/swagger.
-- Diagrammes UML : Consultez le dossier docs/uml pour les diagrammes de classes et cas d’utilisation.
+- **API RESTful complète** avec contrôleurs revus et droits d'accès sécurisés.
+- **Commentaires XML** générant automatiquement une documentation claire via Swagger.
+- **Contrôleurs métiers** : 100% testés, commentés et alignés avec les besoins fonctionnels (CDA).
+- 🔗 Swagger disponible à : http://localhost:<port>/swagger
+- 📂 Diagrammes UML : docs/uml
+- 📄 DTOs disponibles dans `/backend/DTOs`, séparés proprement du modèle EF.
 
 ## 👥 Équipe
 - Développement : Juste moi :)
