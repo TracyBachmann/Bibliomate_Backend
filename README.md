@@ -98,8 +98,6 @@ Quelques exemples parmi les plus pertinentes :
 - 📄 DTOs disponibles dans `/backend/DTOs`, séparés proprement du modèle EF.
 
 ## 👥 Équipe
-- Développement : Juste moi :)
-- Design : Juste moi :)
 
 - 💻 Développement : Tracy Bachmann
 - 🎨 Design & UX : Tracy Bachmann
