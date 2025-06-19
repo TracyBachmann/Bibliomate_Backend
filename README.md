@@ -1,103 +1,105 @@
-# 📚 BiblioMate – Backend
+# BiblioMate 📚
 
-BiblioMate est une application web moderne de gestion de bibliothèque visant à faciliter l’accès aux livres pour les membres et simplifier les tâches quotidiennes pour les bibliothécaires.
-
----
+**BiblioMate** est une application web de gestion de bibliothèque moderne conçue pour faciliter l'accès aux livres pour les membres et simplifier la gestion des ressources pour les bibliothécaires et administrateurs.
 
 ## 🚀 Présentation du projet
 
-### Utilisateurs
+**BiblioMate** propose une expérience utilisateur fluide pour :
+- 👤 **Les membres** : consulter le catalogue, réserver et emprunter des livres, recevoir des recommandations.
+- 📚 **Les bibliothécaires** : gérer les stocks, les retours, les utilisateurs et suivre les emprunts.
+- 🛡 **Les administrateurs** : superviser l’ensemble du système et gérer les rôles utilisateurs.
 
-- **Membres** : naviguer dans le catalogue, réserver et emprunter des livres, recevoir des recommandations personnalisées.
-- **Bibliothécaires** : gérer les emprunts, retours, stocks, et notifications.
-- **Administrateurs** : supervision des opérations, rapports, statistiques.
-
-### Fonctionnalités principales
-
-- 🔍 Recherche avancée (titre, auteur, genre, disponibilité…)
-- 🔔 Notifications automatiques (rappels, retards, disponibilité…)
-- 🎯 Recommandations intelligentes selon les préférences utilisateur
-- 💡 Interface responsive pour tous les appareils
-
----
+### Fonctionnalités principales :
+- 🔍 Recherche avancée (titre, auteur, genre, disponibilité, etc.)
+- 🔐 Authentification sécurisée avec JWT
+- 📦 Gestion des stocks avec ajustement de quantité
+- 📅 Suivi des emprunts et historiques
+- 📬 Notifications et rappels automatiques
+- 📊 Dashboard pour les rôles métiers
+- 📁 Architecture en couches et logique métier claire
+- 📘 Documentation Swagger générée automatiquement
 
 ## 🎯 Objectifs
 
-- Automatiser la gestion des tâches répétitives des bibliothèques
-- Offrir une expérience fluide, intuitive et personnalisée
-- Renforcer la communauté autour des livres avec des interactions
-
----
+- Simplifier la gestion des bibliothèques en automatisant les tâches récurrentes.
+- Offrir une expérience intuitive et personnalisée pour chaque utilisateur.
+- Créer un espace collaboratif et interactif pour dynamiser la communauté autour des bibliothèques.
 
 ## 🛠️ Technologies utilisées
 
-- **Back-end** : ASP.NET Core (.NET 8)
-- **Base de données** : SQL Server via Entity Framework Core
-- **Authentification** : Jeton JWT (via `Microsoft.AspNetCore.Authentication`)
-- **Notifications** : Système de rappel et d’alerte intégré
-- **CI/CD** : Azure DevOps / GitHub Actions (à venir)
-- **Front-end** *(hors de ce repo)* : Angular + Tailwind CSS
-
----
-
+- **Back-end** : ASP.NET Core 8 (API RESTful)
+- **Base de données** : SQL Server + Entity Framework Core
+- **Front-end** : Angular + Tailwind CSS (dans un projet séparé)
+- **Authentification** : JWT Bearer Tokens
+- **CI/CD** : Azure DevOps + Microsoft Azure
+- **Notifications** : SignalR (en développement)
+- **Design/Prototype** : Figma
+- 
 ## 🧩 Architecture
 
-- **Modèle (Models/)** : entités métier (User, Book, Loan, etc.)
-- **Contrôleur (Controllers/)** : API RESTful (`/api/users`, `/api/books`, etc.)
-- **Contexte DB** : `AppDbContext` via `EntityFrameworkCore`
-- **Structure n-tiers** : séparation claire des responsabilités
+Le projet suit une **architecture en couches (n-tier)** avec séparation claire des responsabilités :
 
----
+- **Controllers** : exposent des routes RESTful, valident les accès (via `[Authorize]`)
+- **Models (EF)** : entités représentant la base de données
+- **DTOs** : formats spécifiques pour lecture, création ou mise à jour, évitant toute surexposition de la base
+- **Middleware & Config** : gestion de l’authentification, autorisation, Swagger, CORS, etc.
 
-## 🗺️ Exemples de routes API
+Le front-end Angular consomme cette API. Il n’y a **pas de vues Razor**, contrairement à une app ASP.NET MVC classique.
 
-| Méthode | Route                  | Description                        |
-|--------:|------------------------|------------------------------------|
-| `GET`   | `/api/users`           | Liste des utilisateurs             |
-| `GET`   | `/api/books`           | Liste des livres                   |
-| `POST`  | `/api/auth/register`   | Création de compte                 |
-| `POST`  | `/api/loans`           | Créer un emprunt                   |
-| `GET`   | `/api/stats`           | Statistiques pour les admins       |
+## 📌 Routes représentatives de l’API
 
----
+Quelques exemples parmi les plus pertinentes :
+
+| Méthode | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/auth/register` | Inscription utilisateur avec email de confirmation |
+| `POST` | `/api/auth/login` | Authentification, génération de JWT |
+| `GET` | `/api/users/me` | Récupération du profil connecté |
+| `PUT` | `/api/users/{id}/role` | Modification du rôle d’un utilisateur (Admin only) |
+| `PATCH` | `/api/stocks/{id}/adjust` | Ajustement intelligent du stock (positif/négatif) |
+| `GET` | `/api/shelves?page=1&zoneId=` | Pagination + filtrage des étagères |
+| `POST` | `/api/loans` | Création d’un emprunt (stock vérifié) |
+| `PUT` | `/api/reports/{id}` | Modification contrôlée (auteur uniquement) |
 
 ## 🔮 Fonctionnalités futures
 
-- 📱 Intégration de prêts numériques
-- 🤖 Recommandations ML avancées
-- 📅 Gestion d’événements communautaires
-- 📨 Notifications par email et SMS
+- 📖 Prêts numériques et intégration de ressources en ligne.
+- 🤝 Organisation d’événements communautaires comme des clubs de lecture.
+- 🤖 Recommandations intelligentes via des algorithmes de machine learning.
+- 📲 Notifications personnalisées (email, SMS).
 
----
 
-## 📋 Installation locale
+## 📋 Installation et utilisation
 
-1. **Clonez le repo :**
-
+1. Clonez le repo :
    ```bash
-   git clone https://github.com/TracyBachmann/BiblioMate_Backend.git
-   cd BiblioMate_Backend
-   ```
+   git clone https://github.com/votre-repo/bibliomate.git
+   cd bibliomate
 
-2. **Configurez les variables d’environnement** :
+2. Configurez les variables d’environnement.
 
-   - Le fichier `appsettings.Development.json` contient la chaîne de connexion SQL Server.
-
-3. **Démarrez le serveur :**
-
+3. Lancez le serveur :
    ```bash
    dotnet run
-   ```
 
----
+4. Démarrez le front-end :
+   ```bash
+   ng serve
+
+5. Accédez à l'application via http://localhost:4200.
 
 ## 📖 Documentation
 
-- Diagrammes UML : à venir dans le dossier `docs/uml`
-
----
+- **API RESTful complète** avec contrôleurs revus et droits d'accès sécurisés.
+- **Commentaires XML** générant automatiquement une documentation claire via Swagger.
+- **Contrôleurs métiers** : 100% testés, commentés et alignés avec les besoins fonctionnels (CDA).
+- 🔗 Swagger disponible à : http://localhost:<port>/swagger
+- 📂 Diagrammes UML : docs/uml
+- 📄 DTOs disponibles dans `/backend/DTOs`, séparés proprement du modèle EF.
 
 ## 👥 Équipe
+- Développement : Juste moi :)
+- Design : Juste moi :)
 
 - 💻 Développement : Tracy Bachmann
 - 🎨 Design & UX : Tracy Bachmann
