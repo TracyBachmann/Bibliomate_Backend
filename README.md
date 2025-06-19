@@ -34,7 +34,7 @@
 - **CI/CD** : Azure DevOps + Microsoft Azure
 - **Notifications** : SignalR (en développement)
 - **Design/Prototype** : Figma
-- 
+  
 ## 🧩 Architecture
 
 Le projet suit une **architecture en couches (n-tier)** avec séparation claire des responsabilités :
