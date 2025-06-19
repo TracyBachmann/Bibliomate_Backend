@@ -67,6 +67,9 @@ namespace backend.Controllers
 
             if (!user.IsEmailConfirmed)
                 return Unauthorized(new { error = "Veuillez confirmer votre adresse email avant de vous connecter." });
+            
+            if (!user.IsApproved)
+                return Unauthorized(new { error = "Votre compte est en attente de validation par un administrateur." });
 
             var token = GenerateJwtToken(user);
             return Ok(new { token });
@@ -130,7 +133,7 @@ namespace backend.Controllers
             await _emailService.SendEmailAsync(user.Email, "🔐 Réinitialisation du mot de passe", html);
 
             return Ok("Si cet email est enregistré, un lien de réinitialisation a été envoyé.");
-        }
+        }                                                                                     
         
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword(ResetPasswordDTO dto)
@@ -150,5 +153,19 @@ namespace backend.Controllers
 
             return Ok("Mot de passe réinitialisé avec succès !");
         }
+        
+        [Authorize(Roles = "Admin")]
+        [HttpPost("approve/{id}")]
+        public async Task<IActionResult> ApproveUser(int id)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null) return NotFound();
+
+            user.IsApproved = true;
+            await _context.SaveChangesAsync();
+
+            return Ok($"L'utilisateur {user.Name} a été approuvé.");
+        }
+
     }
 }

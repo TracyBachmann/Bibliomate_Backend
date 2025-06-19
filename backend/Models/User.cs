@@ -35,6 +35,8 @@ namespace backend.Models
         public string? PasswordResetToken { get; set; }
         
         public DateTime? PasswordResetTokenExpires { get; set; }
+        
+        public bool IsApproved { get; set; } = false;
 
         public ICollection<Loan>? Loans { get; set; }
         public ICollection<Reservation>? Reservations { get; set; }
