@@ -1,15 +1,36 @@
-﻿using backend.DTOs;
+﻿using System.ComponentModel.DataAnnotations;
 
-public class BookReadDto
+namespace backend.DTOs
 {
-    public int BookId { get; set; }
-    public string Title { get; set; } = string.Empty;
-    public string Isbn { get; set; } = string.Empty;
-    public int PublicationYear { get; set; }
+    public class BookReadDto
+    {
+        public int BookId { get; set; }
 
-    public string AuthorName { get; set; } = string.Empty;
-    public string GenreName { get; set; } = string.Empty;
-    public string EditorName { get; set; } = string.Empty;
+        [Required]
+        [StringLength(255)]
+        public string Title { get; set; } = string.Empty;
 
-    public List<TagDto> Tags { get; set; } = new();
+        [Required]
+        [StringLength(13, MinimumLength = 10)]
+        public string Isbn { get; set; } = string.Empty;
+
+        [Range(0, 2100)]
+        public int PublicationYear { get; set; }
+
+        [Required]
+        [StringLength(100)]
+        public string AuthorName { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(100)]
+        public string GenreName { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(100)]
+        public string EditorName { get; set; } = string.Empty;
+
+        public bool IsAvailable { get; set; }
+
+        public List<string> Tags { get; set; } = new();
+    }
 }

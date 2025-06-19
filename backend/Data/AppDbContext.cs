@@ -72,6 +72,10 @@ namespace backend.Data
             modelBuilder.Entity<Book>()
                 .HasIndex(b => b.PublicationDate);
 
+            modelBuilder.Entity<Book>()
+                .HasIndex(b => b.Isbn)
+                .IsUnique(); // ISBN must be unique
+
             modelBuilder.Entity<Author>()
                 .HasIndex(a => a.Name)
                 .IsUnique();
@@ -83,6 +87,25 @@ namespace backend.Data
             modelBuilder.Entity<Genre>()
                 .HasIndex(g => g.Name)
                 .IsUnique();
+
+            // Restrict cascade deletes on key relations
+            modelBuilder.Entity<Book>()
+                .HasOne(b => b.Author)
+                .WithMany(a => a.Books)
+                .HasForeignKey(b => b.AuthorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Book>()
+                .HasOne(b => b.Editor)
+                .WithMany(e => e.Books)
+                .HasForeignKey(b => b.EditorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Book>()
+                .HasOne(b => b.Genre)
+                .WithMany(g => g.Books)
+                .HasForeignKey(b => b.GenreId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

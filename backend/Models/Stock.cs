@@ -11,7 +11,7 @@ namespace backend.Models
         [Required]
         public int BookId { get; set; }
 
-        [Range(0, int.MaxValue, ErrorMessage = "Quantity cannot be negative.")]
+        [Range(0, int.MaxValue, ErrorMessage = "La quantité ne peut pas être négative.")]
         public int Quantity { get; set; }
 
         public bool IsAvailable { get; set; }

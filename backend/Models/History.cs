@@ -3,21 +3,15 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace backend.Models
 {
-    public class RecommendationService
+    public class History
     {
         [Key]
-        public int RecommendationId { get; set; }
+        public int HistoryServiceId { get; set; }
 
         [Required]
         public int UserId { get; set; }
 
-        [Required]
-        public int RecommendationBookId { get; set; }
-
         [ForeignKey("UserId")]
         public User User { get; set; } = null!;
-
-        [ForeignKey("RecommendationBookId")]
-        public Book RecommendationBook { get; set; } = null!;
     }
 }

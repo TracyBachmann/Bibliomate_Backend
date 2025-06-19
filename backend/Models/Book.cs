@@ -36,9 +36,9 @@ namespace backend.Models
         [ForeignKey(nameof(ShelfLevelId))]
         public ShelfLevel ShelfLevel { get; set; } = null!;
 
-        public ICollection<Loan>? Loans { get; set; }
-        public ICollection<Reservation>? Reservations { get; set; }
-        public ICollection<BookTag>? BookTags { get; set; }
+        public ICollection<Loan> Loans { get; set; } = new List<Loan>();
+        public ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();
+        public ICollection<BookTag> BookTags { get; set; } = new List<BookTag>();
         public Stock? Stock { get; set; }
     }
 }

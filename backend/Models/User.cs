@@ -38,11 +38,10 @@ namespace backend.Models
         
         public bool IsApproved { get; set; } = false;
 
-        public ICollection<Loan>? Loans { get; set; }
-        public ICollection<Reservation>? Reservations { get; set; }
-        public HistoryService? HistoryService { get; set; }
-        public ICollection<Report>? Reports { get; set; }
-        public ICollection<RecommendationService>? Recommendations { get; set; }
-        public ICollection<Notification>? Notifications { get; set; }
+        public ICollection<Loan>? Loans { get; set; } = new List<Loan>();
+        public ICollection<Reservation>? Reservations { get; set; } = new List<Reservation>();
+        public ICollection<Report> Reports { get; set; } = new List<Report>();
+        public ICollection<Recommendation>? Recommendations { get; set; }
+        public ICollection<Notification>? Notifications { get; set; } = new List<Notification>();
     }
 }
