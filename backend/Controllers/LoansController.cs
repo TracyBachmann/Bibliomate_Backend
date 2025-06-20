@@ -7,11 +7,6 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace backend.Controllers
 {
-    /// <summary>
-    /// Manages loan operations including creating, returning, and listing book loans.
-    /// Restricted to Librarian and Admin roles.
-    /// </summary>
-    [Authorize(Roles = "Librarian,Admin")]
     [ApiController]
     [Route("api/[controller]")]
     public class LoansController : ControllerBase
@@ -28,7 +23,9 @@ namespace backend.Controllers
         // GET: api/Loans
         /// <summary>
         /// Retrieves all loans.
+        /// Only Admins and Librarians.
         /// </summary>
+        [Authorize(Roles = "Librarian,Admin")]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Loan>>> GetLoans()
         {
@@ -41,7 +38,9 @@ namespace backend.Controllers
         // GET: api/Loans/5
         /// <summary>
         /// Retrieves a specific loan by ID.
+        /// Only Admins and Librarians.
         /// </summary>
+        [Authorize(Roles = "Librarian,Admin")]
         [HttpGet("{id}")]
         public async Task<ActionResult<Loan>> GetLoan(int id)
         {
@@ -59,11 +58,10 @@ namespace backend.Controllers
         // GET: api/Loans/user/5
         /// <summary>
         /// Retrieves all loans for a specific user.
-        /// Admins and librarians can access any user's data.
-        /// Regular users can only access their own loans.
+        /// Users can see their own loans. Admins/Librarians can see all.
         /// </summary>
-        [HttpGet("user/{userId}")]
         [Authorize]
+        [HttpGet("user/{userId}")]
         public async Task<ActionResult<IEnumerable<Loan>>> GetLoansByUser(int userId)
         {
             var currentUserId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
@@ -84,8 +82,10 @@ namespace backend.Controllers
 
         // POST: api/Loans
         /// <summary>
-        /// Creates a new loan for a user if the stock is available and the user has not exceeded the loan limit.
+        /// Creates a new loan.
+        /// Only Admins and Librarians.
         /// </summary>
+        [Authorize(Roles = "Librarian,Admin")]
         [HttpPost]
         public async Task<ActionResult> CreateLoan(Loan loan)
         {
@@ -121,7 +121,9 @@ namespace backend.Controllers
         // PUT: api/Loans/5
         /// <summary>
         /// Updates a loan.
+        /// Only Admins and Librarians.
         /// </summary>
+        [Authorize(Roles = "Librarian,Admin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateLoan(int id, Loan loan)
         {
@@ -148,7 +150,9 @@ namespace backend.Controllers
         // DELETE: api/Loans/5
         /// <summary>
         /// Deletes a loan.
+        /// Only Admins and Librarians.
         /// </summary>
+        [Authorize(Roles = "Librarian,Admin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteLoan(int id)
         {
@@ -164,8 +168,10 @@ namespace backend.Controllers
 
         // PUT: api/Loans/5/return
         /// <summary>
-        /// Marks a loan as returned, calculates any late fine, and updates book stock.
+        /// Marks a loan as returned, calculates any late fine, and updates stock.
+        /// Only Admins and Librarians.
         /// </summary>
+        [Authorize(Roles = "Librarian,Admin")]
         [HttpPut("{id}/return")]
         public async Task<IActionResult> ReturnBook(int id)
         {

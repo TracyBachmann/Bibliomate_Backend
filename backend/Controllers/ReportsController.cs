@@ -7,7 +7,6 @@ using System.Security.Claims;
 
 namespace backend.Controllers
 {
-    [Authorize(Roles = "Admin,Librarian")]
     [ApiController]
     [Route("api/[controller]")]
     public class ReportsController : ControllerBase
@@ -22,7 +21,9 @@ namespace backend.Controllers
         // GET: api/Reports
         /// <summary>
         /// Retrieves all reports, ordered by generation date (newest first).
+        /// Only accessible by Admin or Librarian.
         /// </summary>
+        [Authorize(Roles = "Admin,Librarian")]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Report>>> GetReports()
         {
@@ -35,7 +36,9 @@ namespace backend.Controllers
         // GET: api/Reports/5
         /// <summary>
         /// Retrieves a specific report by its ID.
+        /// Only the owner or Admin can access it.
         /// </summary>
+        [Authorize]
         [HttpGet("{id}")]
         public async Task<ActionResult<Report>> GetReport(int id)
         {
@@ -46,6 +49,10 @@ namespace backend.Controllers
             if (report == null)
                 return NotFound();
 
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            if (report.UserId != currentUserId && !User.IsInRole("Admin"))
+                return Forbid();
+
             return report;
         }
 
@@ -53,6 +60,7 @@ namespace backend.Controllers
         /// <summary>
         /// Creates a new report for the current user.
         /// </summary>
+        [Authorize]
         [HttpPost]
         public async Task<ActionResult<Report>> CreateReport(Report report)
         {
@@ -70,6 +78,7 @@ namespace backend.Controllers
         /// <summary>
         /// Updates an existing report. Only the author or an admin can perform this action.
         /// </summary>
+        [Authorize]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateReport(int id, Report report)
         {
@@ -81,12 +90,9 @@ namespace backend.Controllers
                 return NotFound();
 
             var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-
-            // Authorization: only author or admin can update
             if (existing.UserId != currentUserId && !User.IsInRole("Admin"))
-                return Forbid("Seul l'auteur ou un administrateur peut modifier ce rapport.");
+                return Forbid("Only the author or an admin can modify this report.");
 
-            // Preserve immutable fields
             report.GeneratedDate = existing.GeneratedDate;
             report.UserId = existing.UserId;
 
@@ -110,13 +116,19 @@ namespace backend.Controllers
         // DELETE: api/Reports/5
         /// <summary>
         /// Deletes a specific report.
+        /// Only the author or an admin can perform this action.
         /// </summary>
+        [Authorize]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteReport(int id)
         {
             var report = await _context.Reports.FindAsync(id);
             if (report == null)
                 return NotFound();
+
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            if (report.UserId != currentUserId && !User.IsInRole("Admin"))
+                return Forbid("Only the author or an admin can delete this report.");
 
             _context.Reports.Remove(report);
             await _context.SaveChangesAsync();
