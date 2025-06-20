@@ -2,18 +2,14 @@
 
 namespace backend.DTOs
 {
+    /// <summary>
+    /// DTO used for advanced search filtering of books.
+    /// </summary>
     public class BookSearchDto
     {
-        [StringLength(255)]
         public string? Title { get; set; }
-
-        [StringLength(100)]
         public string? Author { get; set; }
-
-        [StringLength(100)]
         public string? Publisher { get; set; }
-
-        [StringLength(100)]
         public string? Genre { get; set; }
 
         [StringLength(13, MinimumLength = 10)]

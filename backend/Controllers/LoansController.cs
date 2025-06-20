@@ -2,16 +2,19 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using backend.DTOs;
 using backend.Services;
+using backend.Models.Policies;
 using Microsoft.AspNetCore.Authorization;
+using backend.Helpers;
+using backend.Models.Enums;
 
 namespace backend.Controllers
 {
     /// <summary>
-    /// Manages loan operations including creating, returning, and listing book loans.
-    /// Restricted to Librarian and Admin roles.
+    /// Controller for managing book loans.
+    /// Provides endpoints for creating, updating, returning, and listing loans.
     /// </summary>
-    [Authorize(Roles = "Librarian,Admin")]
     [ApiController]
     [Route("api/[controller]")]
     public class LoansController : ControllerBase
@@ -25,50 +28,54 @@ namespace backend.Controllers
             _stockService = stockService;
         }
 
-        // GET: api/Loans
         /// <summary>
-        /// Retrieves all loans.
+        /// GET: api/Loans  
+        /// Retrieves all loans, including related book and user information.  
+        /// Only accessible to Admins and Librarians.
         /// </summary>
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Loan>>> GetLoans()
+        public async Task<ActionResult<IEnumerable<LoanReadDto>>> GetLoans()
         {
-            return await _context.Loans
+            var loans = await _context.Loans
                 .Include(l => l.User)
                 .Include(l => l.Book)
                 .ToListAsync();
+
+            return Ok(loans.Select(ToLoanReadDto));
         }
 
-        // GET: api/Loans/5
         /// <summary>
-        /// Retrieves a specific loan by ID.
+        /// GET: api/Loans/{id}  
+        /// Retrieves a specific loan by ID.  
+        /// Only accessible to Admins and Librarians.
         /// </summary>
+        /// <param name="id">The ID of the loan.</param>
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpGet("{id}")]
-        public async Task<ActionResult<Loan>> GetLoan(int id)
+        public async Task<ActionResult<LoanReadDto>> GetLoan(int id)
         {
             var loan = await _context.Loans
                 .Include(l => l.User)
                 .Include(l => l.Book)
                 .FirstOrDefaultAsync(l => l.LoanId == id);
 
-            if (loan == null)
-                return NotFound();
-
-            return loan;
+            return loan == null ? NotFound() : Ok(ToLoanReadDto(loan));
         }
 
-        // GET: api/Loans/user/5
         /// <summary>
-        /// Retrieves all loans for a specific user.
-        /// Admins and librarians can access any user's data.
+        /// GET: api/Loans/user/{userId}  
+        /// Retrieves loans by user ID.  
         /// Regular users can only access their own loans.
         /// </summary>
-        [HttpGet("user/{userId}")]
+        /// <param name="userId">The ID of the user.</param>
         [Authorize]
-        public async Task<ActionResult<IEnumerable<Loan>>> GetLoansByUser(int userId)
+        [HttpGet("user/{userId}")]
+        public async Task<ActionResult<IEnumerable<LoanReadDto>>> GetLoansByUser(int userId)
         {
-            var currentUserId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+            var currentUserId = TokenHelper.GetUserId(User);
 
-            if (currentUserId != userId && !User.IsInRole("Admin") && !User.IsInRole("Librarian"))
+            if (currentUserId != userId && !User.IsInRole(UserRoles.Admin) && !User.IsInRole(UserRoles.Librarian))
                 return Forbid();
 
             var loans = await _context.Loans
@@ -77,34 +84,42 @@ namespace backend.Controllers
                 .ToListAsync();
 
             if (!loans.Any())
-                return NotFound("Aucun emprunt n'a été trouvé pour cet utilisateur.");
+                return NotFound("No loans were found for this user.");
 
-            return Ok(loans);
+            return Ok(loans.Select(ToLoanReadDto));
         }
 
-        // POST: api/Loans
         /// <summary>
-        /// Creates a new loan for a user if the stock is available and the user has not exceeded the loan limit.
+        /// POST: api/Loans  
+        /// Creates a new loan if user is eligible and stock is available.  
+        /// Only accessible to Admins and Librarians.
         /// </summary>
+        /// <param name="dto">Loan creation data.</param>
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPost]
-        public async Task<ActionResult> CreateLoan(Loan loan)
+        public async Task<ActionResult> CreateLoan(LoanCreateDto dto)
         {
-            var user = await _context.Users.FindAsync(loan.UserId);
+            var user = await _context.Users.FindAsync(dto.UserId);
             if (user == null)
-                return BadRequest(new { error = "Utilisateur non trouvé." });
+                return BadRequest(new { error = "User not found." });
 
             int activeLoans = await _context.Loans.CountAsync(l =>
-                l.UserId == loan.UserId && l.ReturnDate == null);
+                l.UserId == dto.UserId && l.ReturnDate == null);
 
-            if (activeLoans >= 5)
-                return BadRequest(new { error = "Le nombre maximum d'emprunts actifs (5) est déjà atteint." });
+            if (activeLoans >= LoanPolicy.MaxActiveLoansPerUser)
+                return BadRequest(new { error = $"The maximum number of active loans ({LoanPolicy.MaxActiveLoansPerUser}) is already reached." });
 
-            var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.BookId == loan.BookId);
+            var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.BookId == dto.BookId);
             if (stock == null || stock.Quantity <= 0)
-                return BadRequest(new { error = "Le livre n'est actuellement pas disponible." });
+                return BadRequest(new { error = "The requested book is currently unavailable." });
 
-            loan.LoanDate = DateTime.UtcNow;
-            loan.DueDate = DateTime.UtcNow.AddDays(14);
+            var loan = new Loan
+            {
+                UserId = dto.UserId,
+                BookId = dto.BookId,
+                LoanDate = DateTime.UtcNow,
+                DueDate = DateTime.UtcNow.AddDays(LoanPolicy.DefaultLoanDurationDays)
+            };
 
             _context.Loans.Add(loan);
             _stockService.Decrease(stock);
@@ -113,42 +128,47 @@ namespace backend.Controllers
 
             return Ok(new
             {
-                message = "Emprunt créé avec succès.",
+                message = "Loan created successfully.",
                 dueDate = loan.DueDate
             });
         }
 
-        // PUT: api/Loans/5
         /// <summary>
-        /// Updates a loan.
+        /// PUT: api/Loans/{id}  
+        /// Updates an existing loan.  
+        /// Only accessible to Admins and Librarians.
         /// </summary>
+        /// <param name="id">The ID of the loan to update.</param>
+        /// <param name="dto">Updated loan data.</param>
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateLoan(int id, Loan loan)
+        public async Task<IActionResult> UpdateLoan(int id, LoanUpdateDto dto)
         {
-            if (id != loan.LoanId)
+            if (id != dto.LoanId)
                 return BadRequest();
 
-            _context.Entry(loan).State = EntityState.Modified;
+            var loan = await _context.Loans.FindAsync(id);
+            if (loan == null)
+                return NotFound();
 
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Loans.Any(l => l.LoanId == id))
-                    return NotFound();
-                else
-                    throw;
-            }
+            loan.BookId = dto.BookId;
+            loan.UserId = dto.UserId;
+            loan.LoanDate = dto.LoanDate;
+            loan.DueDate = dto.DueDate;
+            loan.ReturnDate = dto.ReturnDate;
+            loan.Fine = dto.Fine;
 
+            await _context.SaveChangesAsync();
             return NoContent();
         }
 
-        // DELETE: api/Loans/5
         /// <summary>
-        /// Deletes a loan.
+        /// DELETE: api/Loans/{id}  
+        /// Deletes a loan by ID.  
+        /// Only accessible to Admins and Librarians.
         /// </summary>
+        /// <param name="id">The loan ID to delete.</param>
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteLoan(int id)
         {
@@ -162,10 +182,13 @@ namespace backend.Controllers
             return NoContent();
         }
 
-        // PUT: api/Loans/5/return
         /// <summary>
-        /// Marks a loan as returned, calculates any late fine, and updates book stock.
+        /// PUT: api/Loans/{id}/return  
+        /// Marks a loan as returned, updates stock and calculates fine if late.  
+        /// Only accessible to Admins and Librarians.
         /// </summary>
+        /// <param name="id">The ID of the loan to return.</param>
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPut("{id}/return")]
         public async Task<IActionResult> ReturnBook(int id)
         {
@@ -174,17 +197,17 @@ namespace backend.Controllers
                 .FirstOrDefaultAsync(l => l.LoanId == id);
 
             if (loan == null)
-                return NotFound("Emprunt non trouvé.");
+                return NotFound("Loan not found.");
 
             if (loan.ReturnDate != null)
-                return BadRequest(new { error = "Livre déjà retourné." });
+                return BadRequest(new { error = "Book already returned." });
 
             loan.ReturnDate = DateTime.UtcNow;
 
             int daysLate = (loan.ReturnDate.Value - loan.DueDate).Days;
-            loan.Fine = daysLate > 0 ? daysLate * 0.5f : 0;
+            loan.Fine = daysLate > 0 ? daysLate * LoanPolicy.LateFeePerDay : 0;
 
-            var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.BookId == loan.Book.BookId);
+            var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.BookId == loan.BookId);
             if (stock != null)
                 _stockService.Increase(stock);
 
@@ -192,11 +215,27 @@ namespace backend.Controllers
 
             return Ok(new
             {
-                message = "Livre retourné avec succès.",
+                message = "Book returned successfully.",
                 fine = loan.Fine,
                 daysLate,
                 returnDate = loan.ReturnDate
             });
         }
+
+        /// <summary>
+        /// Maps a <see cref="Loan"/> entity to its corresponding <see cref="LoanReadDto"/>.
+        /// </summary>
+        private static LoanReadDto ToLoanReadDto(Loan loan) => new()
+        {
+            LoanId     = loan.LoanId,
+            UserId     = loan.UserId,
+            UserName   = loan.User?.Name ?? "Unknown",
+            BookId     = loan.BookId,
+            BookTitle  = loan.Book?.Title ?? "Unknown",
+            LoanDate   = loan.LoanDate,
+            DueDate    = loan.DueDate,
+            ReturnDate = loan.ReturnDate,
+            Fine       = loan.Fine
+        };
     }
 }

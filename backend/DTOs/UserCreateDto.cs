@@ -1,6 +1,9 @@
 ﻿namespace backend.DTOs
 {
-    public class CreateUserDTO
+    /// <summary>
+    /// DTO used by Admins or Librarians to create a new user account manually.
+    /// </summary>
+    public class UserCreateDto
     {
         public string Name { get; set; } = string.Empty;
 

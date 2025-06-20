@@ -2,13 +2,15 @@
 
 namespace backend.DTOs
 {
-    public class BookUpdateDTO
+    /// <summary>
+    /// DTO used to update an existing book.
+    /// </summary>
+    public class BookUpdateDto
     {
         [Required]
         public int BookId { get; set; }
 
         [Required]
-        [StringLength(255)]
         public string Title { get; set; } = string.Empty;
 
         [Required]

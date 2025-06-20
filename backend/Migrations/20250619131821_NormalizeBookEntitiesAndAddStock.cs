@@ -175,7 +175,7 @@ namespace backend.Migrations
                 column: "AuthorId",
                 principalTable: "Authors",
                 principalColumn: "AuthorId",
-                onDelete: ReferentialAction.Cascade);
+                onDelete: ReferentialAction.Restrict);
 
             migrationBuilder.AddForeignKey(
                 name: "FK_Books_Editors_EditorId",
@@ -183,7 +183,7 @@ namespace backend.Migrations
                 column: "EditorId",
                 principalTable: "Editors",
                 principalColumn: "EditorId",
-                onDelete: ReferentialAction.Cascade);
+                onDelete: ReferentialAction.Restrict);
 
             migrationBuilder.AddForeignKey(
                 name: "FK_Books_Genres_GenreId",
@@ -191,7 +191,7 @@ namespace backend.Migrations
                 column: "GenreId",
                 principalTable: "Genres",
                 principalColumn: "GenreId",
-                onDelete: ReferentialAction.Cascade);
+                onDelete: ReferentialAction.Restrict);
         }
 
         /// <inheritdoc />

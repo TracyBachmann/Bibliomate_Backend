@@ -2,10 +2,12 @@
 
 namespace backend.DTOs
 {
-    public class BookCreateDTO
+    /// <summary>
+    /// DTO used to create a new book entry.
+    /// </summary>
+    public class BookCreateDto
     {
         [Required]
-        [StringLength(255)]
         public string Title { get; set; } = string.Empty;
 
         [Required]

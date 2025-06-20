@@ -3,9 +3,15 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using backend.Models.Enums;
+using backend.DTOs;
 
 namespace backend.Controllers
 {
+    /// <summary>
+    /// Controller for managing tags.
+    /// Provides CRUD endpoints that support catalog-wide tagging.
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class TagsController : ControllerBase
@@ -21,75 +27,116 @@ namespace backend.Controllers
         /// <summary>
         /// Retrieves all tags.
         /// </summary>
+        /// <returns>A collection of <see cref="Tag"/>.</returns>
         [HttpGet]
         [AllowAnonymous]
-        public async Task<ActionResult<IEnumerable<Tag>>> GetTags()
+        public async Task<ActionResult<IEnumerable<TagReadDto>>> GetTags()
         {
-            return await _context.Tags.ToListAsync();
+            var tags = await _context.Tags.ToListAsync();
+
+            var dtos = tags.Select(tag => new TagReadDto
+            {
+                TagId = tag.TagId,
+                Name = tag.Name
+            });
+
+            return Ok(dtos);
         }
 
-        // GET: api/Tags/5
+        // GET: api/Tags/{id}
         /// <summary>
-        /// Retrieves a specific tag by ID.
+        /// Retrieves a specific tag by its identifier.
         /// </summary>
+        /// <param name="id">The tag identifier.</param>
+        /// <returns>
+        /// The requested tag if found; otherwise <c>404 NotFound</c>.
+        /// </returns>
         [HttpGet("{id}")]
         [AllowAnonymous]
-        public async Task<ActionResult<Tag>> GetTag(int id)
+        public async Task<ActionResult<TagReadDto>> GetTag(int id)
         {
             var tag = await _context.Tags.FindAsync(id);
             if (tag == null)
                 return NotFound();
 
-            return tag;
+            return new TagReadDto
+            {
+                TagId = tag.TagId,
+                Name = tag.Name
+            };
         }
 
         // POST: api/Tags
         /// <summary>
-        /// Creates a new tag. Admins and librarians only.
+        /// Creates a new tag.
+        /// Accessible to Librarians and Admins only.
         /// </summary>
-        [Authorize(Roles = "Admin,Librarian")]
+        /// <param name="dto">The tag entity to create.</param>
+        /// <returns>
+        /// <c>201 Created</c> with the created tag and its URI.
+        /// </returns>
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPost]
-        public async Task<ActionResult<Tag>> CreateTag(Tag tag)
+        public async Task<ActionResult<TagReadDto>> CreateTag(TagCreateDto dto)
         {
+            var tag = new Tag
+            {
+                Name = dto.Name
+            };
+
             _context.Tags.Add(tag);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetTag), new { id = tag.TagId }, tag);
+            var result = new TagReadDto
+            {
+                TagId = tag.TagId,
+                Name = tag.Name
+            };
+
+            return CreatedAtAction(nameof(GetTag), new { id = tag.TagId }, result);
         }
 
-        // PUT: api/Tags/5
+        // PUT: api/Tags/{id}
         /// <summary>
-        /// Updates an existing tag. Admins and librarians only.
+        /// Updates an existing tag.
+        /// Accessible to Librarians and Admins only.
         /// </summary>
-        [Authorize(Roles = "Admin,Librarian")]
+        /// <param name="id">The identifier of the tag to update.</param>
+        /// <param name="dto">The modified tag entity.</param>
+        /// <returns>
+        /// <c>204 NoContent</c> on success;  
+        /// <c>400 BadRequest</c> if the IDs do not match;  
+        /// <c>404 NotFound</c> if the tag does not exist.
+        /// </returns>
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateTag(int id, Tag tag)
+        public async Task<IActionResult> UpdateTag(int id, TagUpdateDto dto)
         {
-            if (id != tag.TagId)
+            if (id != dto.TagId)
                 return BadRequest();
 
-            _context.Entry(tag).State = EntityState.Modified;
+            var tag = await _context.Tags.FindAsync(id);
+            if (tag == null)
+                return NotFound();
 
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Tags.Any(e => e.TagId == id))
-                    return NotFound();
-                else
-                    throw;
-            }
+            tag.Name = dto.Name;
+
+            await _context.SaveChangesAsync();
 
             return NoContent();
         }
 
-        // DELETE: api/Tags/5
+        // DELETE: api/Tags/{id}
         /// <summary>
-        /// Deletes a tag by ID. Admins and librarians only.
+        /// Deletes a tag.
+        /// Accessible to Librarians and Admins only.
         /// </summary>
-        [Authorize(Roles = "Admin,Librarian")]
+        /// <param name="id">The identifier of the tag to delete.</param>
+        /// <returns>
+        /// <c>204 NoContent</c> when deletion succeeds;  
+        /// <c>404 NotFound</c> if the tag is not found.
+        /// </returns>
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTag(int id)
         {

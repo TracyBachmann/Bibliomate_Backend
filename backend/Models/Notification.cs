@@ -12,6 +12,10 @@ namespace backend.Models
         public int UserId { get; set; }
 
         [Required]
+        [StringLength(100)]
+        public string Title { get; set; } = string.Empty;
+
+        [Required]
         [StringLength(255)]
         public string Message { get; set; } = string.Empty;
 

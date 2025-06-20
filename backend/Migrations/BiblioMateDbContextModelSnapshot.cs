@@ -84,6 +84,9 @@ namespace backend.Migrations
 
                     b.HasIndex("GenreId");
 
+                    b.HasIndex("Isbn")
+                        .IsUnique();
+
                     b.HasIndex("PublicationDate");
 
                     b.HasIndex("ShelfLevelId");
@@ -150,25 +153,6 @@ namespace backend.Migrations
                     b.ToTable("Genres");
                 });
 
-            modelBuilder.Entity("backend.Models.HistoryService", b =>
-                {
-                    b.Property<int>("HistoryServiceId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("HistoryServiceId"));
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("HistoryServiceId");
-
-                    b.HasIndex("UserId")
-                        .IsUnique();
-
-                    b.ToTable("HistoryService");
-                });
-
             modelBuilder.Entity("backend.Models.Loan", b =>
                 {
                     b.Property<int>("LoanId")
@@ -183,8 +167,8 @@ namespace backend.Migrations
                     b.Property<DateTime>("DueDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<float>("Fine")
-                        .HasColumnType("real");
+                    b.Property<decimal>("Fine")
+                        .HasColumnType("decimal(10,2)");
 
                     b.Property<DateTime>("LoanDate")
                         .HasColumnType("datetime2");
@@ -220,6 +204,11 @@ namespace backend.Migrations
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
@@ -230,7 +219,7 @@ namespace backend.Migrations
                     b.ToTable("Notifications");
                 });
 
-            modelBuilder.Entity("backend.Models.RecommendationService", b =>
+            modelBuilder.Entity("backend.Models.Recommendation", b =>
                 {
                     b.Property<int>("RecommendationId")
                         .ValueGeneratedOnAdd()
@@ -250,7 +239,7 @@ namespace backend.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RecommendationService");
+                    b.ToTable("Recommendation");
                 });
 
             modelBuilder.Entity("backend.Models.Report", b =>
@@ -500,6 +489,11 @@ namespace backend.Migrations
                     b.Property<int>("FloorNumber")
                         .HasColumnType("int");
 
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.HasKey("ZoneId");
 
                     b.ToTable("Zones");
@@ -510,19 +504,19 @@ namespace backend.Migrations
                     b.HasOne("backend.Models.Author", "Author")
                         .WithMany("Books")
                         .HasForeignKey("AuthorId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("backend.Models.Editor", "Editor")
                         .WithMany("Books")
                         .HasForeignKey("EditorId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("backend.Models.Genre", "Genre")
-                        .WithMany()
+                        .WithMany("Books")
                         .HasForeignKey("GenreId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("backend.Models.ShelfLevel", "ShelfLevel")
@@ -559,17 +553,6 @@ namespace backend.Migrations
                     b.Navigation("Tag");
                 });
 
-            modelBuilder.Entity("backend.Models.HistoryService", b =>
-                {
-                    b.HasOne("backend.Models.User", "User")
-                        .WithOne("HistoryService")
-                        .HasForeignKey("backend.Models.HistoryService", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("backend.Models.Loan", b =>
                 {
                     b.HasOne("backend.Models.Book", "Book")
@@ -600,7 +583,7 @@ namespace backend.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("backend.Models.RecommendationService", b =>
+            modelBuilder.Entity("backend.Models.Recommendation", b =>
                 {
                     b.HasOne("backend.Models.Book", "RecommendationBook")
                         .WithMany()
@@ -713,6 +696,8 @@ namespace backend.Migrations
 
             modelBuilder.Entity("backend.Models.Genre", b =>
                 {
+                    b.Navigation("Books");
+
                     b.Navigation("Shelves");
                 });
 
@@ -733,8 +718,6 @@ namespace backend.Migrations
 
             modelBuilder.Entity("backend.Models.User", b =>
                 {
-                    b.Navigation("HistoryService");
-
                     b.Navigation("Loans");
 
                     b.Navigation("Notifications");
