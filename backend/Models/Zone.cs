@@ -17,6 +17,6 @@ namespace backend.Models
         [MaxLength(255)]
         public string? Description { get; set; }
 
-        public ICollection<Shelf>? Shelves { get; set; }
+        public ICollection<Shelf> Shelves { get; set; } = new List<Shelf>();
     }
 }

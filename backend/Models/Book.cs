@@ -13,30 +13,32 @@ namespace backend.Models
         public string Title { get; set; } = string.Empty;
 
         [Required]
-        [MaxLength(100)]
-        public string Author { get; set; } = string.Empty;
-
-        [Required]
         [MaxLength(13)]
         public string Isbn { get; set; } = string.Empty;
 
-        [MaxLength(100)]
-        public string Publisher { get; set; } = string.Empty;
-
         [Required]
         public DateTime PublicationDate { get; set; }
+        
+        public int AuthorId { get; set; }
+        [ForeignKey(nameof(AuthorId))]
+        public Author Author { get; set; } = null!;
 
-        [Required]
-        [MaxLength(100)]
-        public string Genre { get; set; } = string.Empty;
+        public int GenreId { get; set; }
+        [ForeignKey(nameof(GenreId))]
+        public Genre Genre { get; set; } = null!;
+
+        public int EditorId { get; set; }
+        [ForeignKey(nameof(EditorId))]
+        public Editor Editor { get; set; } = null!;
 
         [Required]
         public int ShelfLevelId { get; set; }
-
         [ForeignKey(nameof(ShelfLevelId))]
-        public ShelfLevel? ShelfLevel { get; set; }
-        
-        public ICollection<Loan>? Loans { get; set; }
-        public ICollection<Reservation>? Reservations { get; set; }
+        public ShelfLevel ShelfLevel { get; set; } = null!;
+
+        public ICollection<Loan> Loans { get; set; } = new List<Loan>();
+        public ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();
+        public ICollection<BookTag> BookTags { get; set; } = new List<BookTag>();
+        public Stock? Stock { get; set; }
     }
 }
