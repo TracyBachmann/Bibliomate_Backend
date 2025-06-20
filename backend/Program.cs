@@ -1,10 +1,11 @@
 using backend.Data;
+using backend.Services;
+using backend.Hubs;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using backend.Services;
 using Microsoft.OpenApi.Models;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,7 +21,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins("http://localhost:4200")
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials();
+            .AllowCredentials(); // Important pour SignalR
     });
 });
 
@@ -54,7 +55,11 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// -- Services
 builder.Services.AddScoped<SendGridEmailService>();
+
+// -- SignalR
+builder.Services.AddSignalR();
 
 // -- Swagger
 builder.Services.AddSwaggerGen(c =>
@@ -105,6 +110,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 if (app.Environment.IsDevelopment())
 {
