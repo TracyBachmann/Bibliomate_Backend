@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 
 namespace backend.Controllers
@@ -16,10 +17,12 @@ namespace backend.Controllers
     public class LoansController : ControllerBase
     {
         private readonly BiblioMateDbContext _context;
+        private readonly StockService _stockService;
 
-        public LoansController(BiblioMateDbContext context)
+        public LoansController(BiblioMateDbContext context, StockService stockService)
         {
             _context = context;
+            _stockService = stockService;
         }
 
         // GET: api/Loans
@@ -104,7 +107,7 @@ namespace backend.Controllers
             loan.DueDate = DateTime.UtcNow.AddDays(14);
 
             _context.Loans.Add(loan);
-            stock.Quantity -= 1;
+            _stockService.Decrease(stock);
 
             await _context.SaveChangesAsync();
 
@@ -183,7 +186,7 @@ namespace backend.Controllers
 
             var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.BookId == loan.Book.BookId);
             if (stock != null)
-                stock.Quantity += 1;
+                _stockService.Increase(stock);
 
             await _context.SaveChangesAsync();
 

@@ -57,6 +57,7 @@ builder.Services.AddAuthentication(options =>
 
 // -- Services
 builder.Services.AddScoped<SendGridEmailService>();
+builder.Services.AddScoped<StockService>();
 
 // -- SignalR
 builder.Services.AddSignalR();

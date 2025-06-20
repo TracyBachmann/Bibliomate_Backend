@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
 using backend.Models.Dtos;
+using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 
 namespace backend.Controllers
@@ -12,18 +13,18 @@ namespace backend.Controllers
     public class StocksController : ControllerBase
     {
         private readonly BiblioMateDbContext _context;
+        private readonly StockService _stockService;
 
-        public StocksController(BiblioMateDbContext context)
+        public StocksController(BiblioMateDbContext context, StockService stockService)
         {
             _context = context;
+            _stockService = stockService;
         }
 
         // GET: api/Stocks
         /// <summary>
         /// Retrieves all stock entries, with optional pagination.
         /// </summary>
-        /// <param name="page">Page number (default is 1).</param>
-        /// <param name="pageSize">Items per page (default is 10).</param>
         [Authorize]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Stock>>> GetStocks(int page = 1, int pageSize = 10)
@@ -58,19 +59,18 @@ namespace backend.Controllers
         // POST: api/Stocks
         /// <summary>
         /// Creates a new stock entry. Only Admins and Librarians are allowed.
-        /// Prevents duplicates for the same Book.
         /// </summary>
         [Authorize(Roles = "Admin,Librarian")]
         [HttpPost]
         public async Task<ActionResult<Stock>> CreateStock(Stock stock)
         {
-            // Check if a stock already exists for this BookId
             var existingStock = await _context.Stocks.FirstOrDefaultAsync(s => s.BookId == stock.BookId);
             if (existingStock != null)
             {
-                return Conflict(new { message = "Stock already exists for this book. You should update the quantity instead." });
+                return Conflict(new { message = "Une entrée de stock existe déjà pour ce livre. Merci de mettre à jour la quantité à la place." });
             }
 
+            _stockService.UpdateAvailability(stock);
             _context.Stocks.Add(stock);
             await _context.SaveChangesAsync();
 
@@ -88,6 +88,7 @@ namespace backend.Controllers
             if (id != stock.StockId)
                 return BadRequest();
 
+            _stockService.UpdateAvailability(stock);
             _context.Entry(stock).State = EntityState.Modified;
 
             try
@@ -104,36 +105,29 @@ namespace backend.Controllers
 
             return NoContent();
         }
-        
-        // PATCH /api/Stocks/{id}/adjust
+
+        // PATCH: api/Stocks/{id}/adjust
         /// <summary>
-        /// Adjusts the quantity of an existing stock entry (increment or decrement). Only Admins and Librarians are allowed.
+        /// Adjusts stock quantity and availability. Only Admins and Librarians are allowed.
         /// </summary>
-        /// <param name="id">ID of the stock to adjust.</param>
-        /// <param name="dto">DTO containing the adjustment value.</param>
         [Authorize(Roles = "Admin,Librarian")]
         [HttpPatch("{id}/adjust")]
         public async Task<IActionResult> AdjustStockQuantity(int id, [FromBody] StockAdjustmentDto dto)
         {
             if (dto.Adjustment == 0)
-                return BadRequest(new { message = "Adjustment value cannot be zero." });
+                return BadRequest(new { message = "La valeur ajustée ne peut pas être 0." });
 
             var stock = await _context.Stocks.FindAsync(id);
             if (stock == null)
                 return NotFound();
 
-            stock.Quantity += dto.Adjustment;
+            if (stock.Quantity + dto.Adjustment < 0)
+                return BadRequest(new { message = "Le stock ne peut pas être négatif." });
 
-            if (stock.Quantity < 0)
-                return BadRequest(new { message = "Stock quantity cannot be negative." });
-
+            _stockService.AdjustQuantity(stock, dto.Adjustment);
             await _context.SaveChangesAsync();
 
-            return Ok(new
-            {
-                message = "Stock updated successfully.",
-                newQuantity = stock.Quantity
-            });
+            return Ok(new { message = "Stock mis à jour avec succès.", newQuantity = stock.Quantity });
         }
 
         // DELETE: api/Stocks/5
