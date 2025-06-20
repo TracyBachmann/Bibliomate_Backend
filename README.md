@@ -9,7 +9,7 @@
 - 📚 **Les bibliothécaires** : gérer les stocks, les retours, les utilisateurs et suivre les emprunts.
 - 🛡 **Les administrateurs** : superviser l’ensemble du système et gérer les rôles utilisateurs.
 
-## Fonctionnalités principales :
+### Fonctionnalités principales :
 - 🔍 Recherche avancée (titre, auteur, genre, disponibilité, etc.)
 - 🔐 Authentification sécurisée avec JWT
 - 📦 Gestion des stocks avec ajustement de quantité
@@ -27,14 +27,14 @@
 
 ## 🛠️ Technologies utilisées
 
-- **Back-end** : ASP.NET Core 8 (API RESTful)
+- **Back-end** : ASP.NET Core 9 (API RESTful)
 - **Base de données** : SQL Server + Entity Framework Core
 - **Front-end** : Angular + Tailwind CSS (dans un projet séparé)
 - **Authentification** : JWT Bearer Tokens
 - **CI/CD** : Azure DevOps + Microsoft Azure
 - **Notifications** : SignalR (en développement)
 - **Design/Prototype** : Figma
-  
+- 
 ## 🧩 Architecture
 
 Le projet suit une **architecture en couches (n-tier)** avec séparation claire des responsabilités :
@@ -44,7 +44,7 @@ Le projet suit une **architecture en couches (n-tier)** avec séparation claire 
 - **DTOs** : formats spécifiques pour lecture, création ou mise à jour, évitant toute surexposition de la base
 - **Middleware & Config** : gestion de l’authentification, autorisation, Swagger, CORS, etc.
 
-Le front-end Angular consomme cette API. Il n’y a **pas de vues Razor**, contrairement à une app ASP.NET MVC classique.
+Le front-end Angular consomme cette API.
 
 ## 📌 Routes représentatives de l’API
 
@@ -67,35 +67,44 @@ Quelques exemples parmi les plus pertinentes :
 - 🤝 Organisation d’événements communautaires comme des clubs de lecture.
 - 🤖 Recommandations intelligentes via des algorithmes de machine learning.
 - 📲 Notifications personnalisées (email, SMS).
-
+- 🔔 Intégration SignalR pour alertes en temps réel (non implémentée).
 
 ## 📋 Installation et utilisation
 
 1. Clonez le repo :
-   ```bash
-   git clone https://github.com/votre-repo/bibliomate.git
-   cd bibliomate
+```bash
+git clone https://github.com/votre-repo/bibliomate.git
+cd bibliomate
+```
 
-2. Configurez les variables d’environnement.
+2. Configurez les variables d’environnement (`appsettings.json` + tokens secrets)
 
 3. Lancez le serveur :
-   ```bash
-   dotnet run
+```bash
+dotnet run
+```
 
 4. Démarrez le front-end :
-   ```bash
-   ng serve
+```bash
+cd frontend
+ng serve
+```
 
-5. Accédez à l'application via http://localhost:4200.
+5. Accédez à l'application :
+- Back-end API : `http://localhost:5077/swagger`
+- Front-end Angular : `http://localhost:4200`
 
 ## 📖 Documentation
 
-- **API RESTful complète** avec contrôleurs revus et droits d'accès sécurisés.
+- **API RESTful complète** avec contrôleurs et droits d'accès sécurisés.
 - **Commentaires XML** générant automatiquement une documentation claire via Swagger.
-- **Contrôleurs métiers** : 100% testés, commentés et alignés avec les besoins fonctionnels (CDA).
-- 🔗 Swagger disponible à : http://localhost:<port>/swagger
+- 🔗 Swagger disponible à : `http://localhost:5077/swagger`
 - 📂 Diagrammes UML : docs/uml
 - 📄 DTOs disponibles dans `/backend/DTOs`, séparés proprement du modèle EF.
+
+## 👥 Équipe
+- Développement : Juste moi :)
+- Design : Juste moi :)
 
 ## 👥 Équipe
 
