@@ -73,7 +73,7 @@ Quelques exemples parmi les plus pertinentes :
 
 1. Clonez le repo :
 ```bash
-git clone https://github.com/votre-repo/bibliomate.git
+git clone [https://github.com/votre-repo/bibliomate.git](https://github.com/TracyBachmann/Bibliomate_Backend.git)
 cd bibliomate
 ```
 
