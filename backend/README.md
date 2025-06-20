@@ -34,7 +34,7 @@
 - **CI/CD** : Azure DevOps + Microsoft Azure
 - **Notifications** : SignalR (en développement)
 - **Design/Prototype** : Figma
-- 
+-
 ## 🧩 Architecture
 
 Le projet suit une **architecture en couches (n-tier)** avec séparation claire des responsabilités :
@@ -73,8 +73,8 @@ Quelques exemples parmi les plus pertinentes :
 
 1. Clonez le repo :
 ```bash
-git clone https://github.com/votre-repo/bibliomate.git
-cd bibliomate
+git clone https://github.com/TracyBachmann/Bibliomate_Backend.git
+cd backend
 ```
 
 2. Configurez les variables d’environnement (`appsettings.json` + tokens secrets)
@@ -105,3 +105,8 @@ ng serve
 ## 👥 Équipe
 - Développement : Juste moi :)
 - Design : Juste moi :)
+
+## 👥 Équipe
+
+- 💻 Développement : Tracy Bachmann
+- 🎨 Design & UX : Tracy Bachmann
