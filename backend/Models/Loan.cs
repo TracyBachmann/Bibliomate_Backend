@@ -22,7 +22,7 @@ namespace backend.Models
 
         public DateTime? ReturnDate { get; set; }
 
-        public float Fine { get; set; } = 0;
+        public decimal Fine { get; set; } = 0;
 
         [ForeignKey("BookId")]
         public Book Book { get; set; } = null!;

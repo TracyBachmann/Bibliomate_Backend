@@ -1,9 +1,9 @@
-﻿namespace backend.Models.DTOs
+namespace backend.DTOs
 {
     /// <summary>
-    /// DTO representing a tag.
+    /// DTO used to read tag data.
     /// </summary>
-    public class TagDTO
+    public class TagReadDto
     {
         public int TagId { get; set; }
         public string Name { get; set; } = string.Empty;

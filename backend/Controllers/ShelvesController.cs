@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using backend.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using backend.Models.Enums;
 
@@ -29,16 +30,17 @@ namespace backend.Controllers
         /// <param name="zoneId">Optional zone identifier to filter results.</param>
         /// <param name="page">Page index (1-based). Default is 1.</param>
         /// <param name="pageSize">Items per page. Default is 10.</param>
-        /// <returns>A paginated collection of <see cref="Shelf"/>.</returns>
+        /// <returns>A paginated collection of <see cref="ShelfReadDto"/>.</returns>
         [Authorize]
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Shelf>>> GetShelves(
+        public async Task<ActionResult<IEnumerable<ShelfReadDto>>> GetShelves(
             int? zoneId,
             int page = 1,
             int pageSize = 10)
         {
             var query = _context.Shelves
                                 .Include(s => s.Zone)
+                                .Include(s => s.Genre)
                                 .AsQueryable();
 
             if (zoneId.HasValue)
@@ -49,7 +51,19 @@ namespace backend.Controllers
                 .Take(pageSize)
                 .ToListAsync();
 
-            return Ok(shelves);
+            var shelfDtos = shelves.Select(s => new ShelfReadDto
+            {
+                ShelfId = s.ShelfId,
+                Name = s.Name,
+                ZoneId = s.ZoneId,
+                ZoneName = s.Zone?.Name ?? "Unknown",
+                GenreId = s.GenreId,
+                GenreName = s.Genre?.Name ?? "Unknown",
+                Capacity = s.Capacity,
+                CurrentLoad = s.CurrentLoad
+            });
+
+            return Ok(shelfDtos);
         }
 
         // GET: api/Shelves/{id}
@@ -63,16 +77,29 @@ namespace backend.Controllers
         /// </returns>
         [Authorize]
         [HttpGet("{id}")]
-        public async Task<ActionResult<Shelf>> GetShelf(int id)
+        public async Task<ActionResult<ShelfReadDto>> GetShelf(int id)
         {
             var shelf = await _context.Shelves
                 .Include(s => s.Zone)
+                .Include(s => s.Genre)
                 .FirstOrDefaultAsync(s => s.ShelfId == id);
 
             if (shelf == null)
                 return NotFound();
 
-            return shelf;
+            var dto = new ShelfReadDto
+            {
+                ShelfId = shelf.ShelfId,
+                Name = shelf.Name,
+                ZoneId = shelf.ZoneId,
+                ZoneName = shelf.Zone?.Name ?? "Unknown",
+                GenreId = shelf.GenreId,
+                GenreName = shelf.Genre?.Name ?? "Unknown",
+                Capacity = shelf.Capacity,
+                CurrentLoad = shelf.CurrentLoad
+            };
+
+            return Ok(dto);
         }
 
         // POST: api/Shelves
@@ -80,18 +107,42 @@ namespace backend.Controllers
         /// Creates a new shelf.
         /// Accessible to Librarians and Admins only.
         /// </summary>
-        /// <param name="shelf">The shelf entity to create.</param>
+        /// <param name="dto">The shelf entity to create.</param>
         /// <returns>
         /// <c>201 Created</c> with the created shelf and its URI.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPost]
-        public async Task<ActionResult<Shelf>> CreateShelf(Shelf shelf)
+        public async Task<ActionResult<ShelfReadDto>> CreateShelf(ShelfCreateDto dto)
         {
+            var shelf = new Shelf
+            {
+                Name = dto.Name,
+                ZoneId = dto.ZoneId,
+                GenreId = dto.GenreId,
+                Capacity = dto.Capacity,
+                CurrentLoad = 0
+            };
+
             _context.Shelves.Add(shelf);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetShelf), new { id = shelf.ShelfId }, shelf);
+            await _context.Entry(shelf).Reference(s => s.Zone).LoadAsync();
+            await _context.Entry(shelf).Reference(s => s.Genre).LoadAsync();
+
+            var createdDto = new ShelfReadDto
+            {
+                ShelfId = shelf.ShelfId,
+                Name = shelf.Name,
+                ZoneId = shelf.ZoneId,
+                ZoneName = shelf.Zone?.Name ?? "Unknown",
+                GenreId = shelf.GenreId,
+                GenreName = shelf.Genre?.Name ?? "Unknown",
+                Capacity = shelf.Capacity,
+                CurrentLoad = shelf.CurrentLoad
+            };
+
+            return CreatedAtAction(nameof(GetShelf), new { id = shelf.ShelfId }, createdDto);
         }
 
         // PUT: api/Shelves/{id}
@@ -100,7 +151,7 @@ namespace backend.Controllers
         /// Accessible to Librarians and Admins only.
         /// </summary>
         /// <param name="id">The identifier of the shelf to update.</param>
-        /// <param name="shelf">The modified shelf entity.</param>
+        /// <param name="dto">The modified shelf entity.</param>
         /// <returns>
         /// <c>204 NoContent</c> on success;  
         /// <c>400 BadRequest</c> if the IDs do not match;  
@@ -108,23 +159,21 @@ namespace backend.Controllers
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateShelf(int id, Shelf shelf)
+        public async Task<IActionResult> UpdateShelf(int id, ShelfUpdateDto dto)
         {
-            if (id != shelf.ShelfId)
+            if (id != dto.ShelfId)
                 return BadRequest();
 
-            _context.Entry(shelf).State = EntityState.Modified;
+            var shelf = await _context.Shelves.FindAsync(id);
+            if (shelf == null)
+                return NotFound();
 
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Shelves.Any(s => s.ShelfId == id))
-                    return NotFound();
-                throw;
-            }
+            shelf.Name = dto.Name;
+            shelf.ZoneId = dto.ZoneId;
+            shelf.GenreId = dto.GenreId;
+            shelf.Capacity = dto.Capacity;
+
+            await _context.SaveChangesAsync();
 
             return NoContent();
         }

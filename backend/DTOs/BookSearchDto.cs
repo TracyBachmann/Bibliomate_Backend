@@ -1,11 +1,11 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace backend.Models.DTOs
+namespace backend.DTOs
 {
     /// <summary>
     /// DTO used for advanced search filtering of books.
     /// </summary>
-    public class BookSearchDTO
+    public class BookSearchDto
     {
         public string? Title { get; set; }
         public string? Author { get; set; }

@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using backend.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using backend.Models.Enums;
 
@@ -29,9 +30,14 @@ namespace backend.Controllers
         /// <returns>A collection of editors.</returns>
         [HttpGet]
         [AllowAnonymous]
-        public async Task<ActionResult<IEnumerable<Editor>>> GetEditors()
+        public async Task<ActionResult<IEnumerable<EditorReadDto>>> GetEditors()
         {
-            return await _context.Editors.ToListAsync();
+            var editors = await _context.Editors.ToListAsync();
+            return Ok(editors.Select(e => new EditorReadDto
+            {
+                EditorId = e.EditorId,
+                Name     = e.Name
+            }));
         }
 
         // GET: api/Editors/{id}
@@ -44,13 +50,17 @@ namespace backend.Controllers
         /// </returns>
         [HttpGet("{id}")]
         [AllowAnonymous]
-        public async Task<ActionResult<Editor>> GetEditor(int id)
+        public async Task<ActionResult<EditorReadDto>> GetEditor(int id)
         {
             var editor = await _context.Editors.FindAsync(id);
             if (editor == null)
                 return NotFound();
 
-            return editor;
+            return Ok(new EditorReadDto
+            {
+                EditorId = editor.EditorId,
+                Name     = editor.Name
+            });
         }
 
         // POST: api/Editors
@@ -58,18 +68,26 @@ namespace backend.Controllers
         /// Creates a new editor.
         /// Only accessible to Admins and Librarians.
         /// </summary>
-        /// <param name="editor">Editor to create.</param>
+        /// <param name="dto">Editor to create.</param>
         /// <returns>
         /// <c>201 Created</c> with the created entity and its URI;  
         /// <c>400 BadRequest</c> if validation fails.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPost]
-        public async Task<ActionResult<Editor>> CreateEditor(Editor editor)
+        public async Task<ActionResult<EditorReadDto>> CreateEditor(EditorCreateDto dto)
         {
+            var editor = new Editor { Name = dto.Name };
             _context.Editors.Add(editor);
             await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetEditor), new { id = editor.EditorId }, editor);
+
+            return CreatedAtAction(nameof(GetEditor),
+                new { id = editor.EditorId },
+                new EditorReadDto
+                {
+                    EditorId = editor.EditorId,
+                    Name     = editor.Name
+                });
         }
 
         // PUT: api/Editors/{id}
@@ -78,19 +96,20 @@ namespace backend.Controllers
         /// Only accessible to Admins and Librarians.
         /// </summary>
         /// <param name="id">ID of the editor to update.</param>
-        /// <param name="editor">Updated editor data.</param>
+        /// <param name="dto">Updated editor data.</param>
         /// <returns>
         /// <c>204 NoContent</c> on success;  
         /// <c>400 BadRequest</c> if the IDs do not match.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateEditor(int id, Editor editor)
+        public async Task<IActionResult> UpdateEditor(int id, EditorCreateDto dto)
         {
-            if (id != editor.EditorId)
-                return BadRequest();
+            var editor = await _context.Editors.FindAsync(id);
+            if (editor == null)
+                return NotFound();
 
-            _context.Entry(editor).State = EntityState.Modified;
+            editor.Name = dto.Name;
             await _context.SaveChangesAsync();
             return NoContent();
         }

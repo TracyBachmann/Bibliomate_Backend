@@ -1,11 +1,11 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace backend.Models.DTOs
+namespace backend.DTOs
 {
     /// <summary>
     /// DTO used to create a new loan.
     /// </summary>
-    public class LoanCreateDTO
+    public class LoanCreateDto
     {
         [Required]
         public int UserId { get; set; }

@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using backend.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using backend.Models.Enums;
@@ -32,12 +33,22 @@ namespace backend.Controllers
         /// <returns>A collection of reservations with related user and book data.</returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Reservation>>> GetReservations()
+        public async Task<ActionResult<IEnumerable<ReservationReadDto>>> GetReservations()
         {
-            return await _context.Reservations
+            var reservations = await _context.Reservations
                 .Include(r => r.User)
                 .Include(r => r.Book)
                 .ToListAsync();
+
+            return Ok(reservations.Select(r => new ReservationReadDto
+            {
+                ReservationId = r.ReservationId,
+                UserId = r.UserId,
+                UserName = r.User.Name,
+                BookId = r.BookId,
+                BookTitle = r.Book.Title,
+                ReservationDate = r.ReservationDate
+            }));
         }
 
         // GET: api/Reservations/{id}
@@ -51,7 +62,7 @@ namespace backend.Controllers
         /// </returns>
         [Authorize]
         [HttpGet("{id}")]
-        public async Task<ActionResult<Reservation>> GetReservation(int id)
+        public async Task<ActionResult<ReservationReadDto>> GetReservation(int id)
         {
             var reservation = await _context.Reservations
                 .Include(r => r.User)
@@ -68,34 +79,56 @@ namespace backend.Controllers
             if (!isOwner && !isAdminOrStaff)
                 return Forbid();
 
-            return reservation;
+            return new ReservationReadDto
+            {
+                ReservationId = reservation.ReservationId,
+                UserId = reservation.UserId,
+                UserName = reservation.User.Name,
+                BookId = reservation.BookId,
+                BookTitle = reservation.Book.Title,
+                ReservationDate = reservation.ReservationDate
+            };
         }
 
         // POST: api/Reservations
         /// <summary>
         /// Creates a new reservation for the currently authenticated user.
         /// </summary>
-        /// <param name="reservation">The reservation entity to create (BookId required).</param>
+        /// <param name="dto">The reservation entity to create (BookId required).</param>
         /// <returns>
         /// <c>201 Created</c> with the created reservation and its URI;  
         /// <c>403 Forbid</c> if attempting to create for another user.
         /// </returns>
         [Authorize(Roles = UserRoles.User)]
         [HttpPost]
-        public async Task<ActionResult<Reservation>> CreateReservation(Reservation reservation)
+        public async Task<ActionResult<ReservationReadDto>> CreateReservation(ReservationCreateDto dto)
         {
             var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
 
-            if (reservation.UserId != currentUserId)
+            if (dto.UserId != currentUserId)
                 return Forbid();
 
-            reservation.ReservationDate = DateTime.UtcNow;
+            var reservation = new Reservation
+            {
+                UserId = dto.UserId,
+                BookId = dto.BookId,
+                ReservationDate = DateTime.UtcNow
+            };
 
             _context.Reservations.Add(reservation);
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetReservation),
-                new { id = reservation.ReservationId }, reservation);
+                new { id = reservation.ReservationId },
+                new ReservationReadDto
+                {
+                    ReservationId = reservation.ReservationId,
+                    UserId = reservation.UserId,
+                    UserName = (await _context.Users.FindAsync(reservation.UserId))?.Name ?? "",
+                    BookId = reservation.BookId,
+                    BookTitle = (await _context.Books.FindAsync(reservation.BookId))?.Title ?? "",
+                    ReservationDate = reservation.ReservationDate
+                });
         }
 
         // PUT: api/Reservations/{id}
@@ -104,7 +137,7 @@ namespace backend.Controllers
         /// Accessible to Librarians and Admins only.
         /// </summary>
         /// <param name="id">The identifier of the reservation to update.</param>
-        /// <param name="reservation">The modified reservation entity.</param>
+        /// <param name="dto">The modified reservation entity.</param>
         /// <returns>
         /// <c>204 NoContent</c> on success;  
         /// <c>400 BadRequest</c> if IDs mismatch;  
@@ -112,23 +145,20 @@ namespace backend.Controllers
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateReservation(int id, Reservation reservation)
+        public async Task<IActionResult> UpdateReservation(int id, ReservationUpdateDto dto)
         {
-            if (id != reservation.ReservationId)
+            if (id != dto.ReservationId)
                 return BadRequest();
 
-            _context.Entry(reservation).State = EntityState.Modified;
+            var reservation = await _context.Reservations.FindAsync(id);
+            if (reservation == null)
+                return NotFound();
 
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Reservations.Any(r => r.ReservationId == id))
-                    return NotFound();
-                throw;
-            }
+            reservation.UserId = dto.UserId;
+            reservation.BookId = dto.BookId;
+            reservation.ReservationDate = dto.ReservationDate;
+
+            await _context.SaveChangesAsync();
 
             return NoContent();
         }

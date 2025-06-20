@@ -8,6 +8,10 @@ namespace backend.Models
         public int ZoneId { get; set; }
 
         [Required]
+        [StringLength(100)]
+        public string Name { get; set; } = string.Empty; 
+
+        [Required]
         public int FloorNumber { get; set; }
 
         [Required]

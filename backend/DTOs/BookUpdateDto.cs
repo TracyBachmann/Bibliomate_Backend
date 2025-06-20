@@ -1,11 +1,11 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace backend.Models.DTOs
+namespace backend.DTOs
 {
     /// <summary>
     /// DTO used to update an existing book.
     /// </summary>
-    public class BookUpdateDTO
+    public class BookUpdateDto
     {
         [Required]
         public int BookId { get; set; }

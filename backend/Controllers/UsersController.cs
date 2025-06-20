@@ -30,13 +30,13 @@ namespace backend.Controllers
         /// Retrieves all users.
         /// </summary>
         /// <remarks>Admin‐only endpoint.</remarks>
-        /// <returns>A collection of <see cref="UserReadDTO"/>.</returns>
+        /// <returns>A collection of <see cref="UserReadDto"/>.</returns>
         [Authorize(Roles = UserRoles.Admin)]
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<UserReadDTO>>> GetUsers()
+        public async Task<ActionResult<IEnumerable<UserReadDto>>> GetUsers()
         {
             var users = await _context.Users
-                .Select(u => new UserReadDTO
+                .Select(u => new UserReadDto
                 {
                     UserId = u.UserId,
                     Name   = u.Name,
@@ -54,16 +54,16 @@ namespace backend.Controllers
         /// </summary>
         /// <param name="id">The user identifier.</param>
         /// <returns>
-        /// The requested <see cref="UserReadDTO"/> if found; otherwise <c>404 NotFound</c>.
+        /// The requested <see cref="UserReadDto"/> if found; otherwise <c>404 NotFound</c>.
         /// </returns>
         [Authorize(Roles = UserRoles.Admin)]
         [HttpGet("{id}")]
-        public async Task<ActionResult<UserReadDTO>> GetUser(int id)
+        public async Task<ActionResult<UserReadDto>> GetUser(int id)
         {
             var user = await _context.Users.FindAsync(id);
             if (user == null) return NotFound();
 
-            return new UserReadDTO
+            return new UserReadDto
             {
                 UserId = user.UserId,
                 Name   = user.Name,
@@ -77,23 +77,30 @@ namespace backend.Controllers
         /// Creates a new user (via the admin panel).
         /// The supplied plain-text password is hashed automatically.
         /// </summary>
-        /// <param name="user">User object containing registration data.</param>
+        /// <param name="dto">User object containing registration data.</param>
         /// <returns>
         /// <c>201 Created</c> with the created user’s data.
         /// </returns>
         [Authorize(Roles = UserRoles.Admin)]
         [HttpPost]
-        public async Task<ActionResult<UserReadDTO>> PostUser(User user)
+        public async Task<ActionResult<UserReadDto>> PostUser(UserCreateDto dto)
         {
-            user.Password         = BCrypt.Net.BCrypt.HashPassword(user.Password);
-            user.Role             = UserRoles.User;
-            user.IsEmailConfirmed = true;
-            user.IsApproved       = true;
+            var user = new User
+            {
+                Name             = dto.Name,
+                Email            = dto.Email,
+                Password         = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                Address          = dto.Address ?? string.Empty,
+                Phone            = dto.Phone ?? string.Empty,
+                Role             = UserRoles.User,
+                IsEmailConfirmed = true,
+                IsApproved       = true
+            };
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetUser), new { id = user.UserId }, new UserReadDTO
+            return CreatedAtAction(nameof(GetUser), new { id = user.UserId }, new UserReadDto
             {
                 UserId = user.UserId,
                 Name   = user.Name,
@@ -108,7 +115,7 @@ namespace backend.Controllers
         /// Does <b>not</b> allow changing password or role.
         /// </summary>
         /// <param name="id">The user identifier.</param>
-        /// <param name="user">User object containing updated data.</param>
+        /// <param name="dto">DTO containing updated data.</param>
         /// <returns>
         /// <c>204 NoContent</c> on success;  
         /// <c>400 BadRequest</c> if IDs mismatch;  
@@ -116,19 +123,16 @@ namespace backend.Controllers
         /// </returns>
         [Authorize(Roles = UserRoles.Admin)]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUser(int id, User user)
+        public async Task<IActionResult> UpdateUser(int id, UserUpdateDto dto)
         {
-            if (id != user.UserId)
-                return BadRequest();
-
-            var existing = await _context.Users.FindAsync(id);
-            if (existing == null)
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
                 return NotFound();
 
-            existing.Name    = user.Name;
-            existing.Email   = user.Email;
-            existing.Address = user.Address;
-            existing.Phone   = user.Phone;
+            user.Name    = dto.Name;
+            user.Email   = dto.Email;
+            user.Address = dto.Address;
+            user.Phone   = dto.Phone;
 
             await _context.SaveChangesAsync();
             return NoContent();
@@ -142,7 +146,7 @@ namespace backend.Controllers
         /// <returns><c>200 OK</c> with a success message.</returns>
         [Authorize]
         [HttpPut("me")]
-        public async Task<IActionResult> UpdateCurrentUser([FromBody] UpdateUserDTO dto)
+        public async Task<IActionResult> UpdateCurrentUser([FromBody] UserUpdateDto dto)
         {
             int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var user = await _context.Users.FindAsync(userId);
@@ -197,7 +201,7 @@ namespace backend.Controllers
         /// </returns>
         [Authorize(Roles = UserRoles.Admin)]
         [HttpPut("{id}/role")]
-        public async Task<IActionResult> UpdateUserRole(int id, [FromBody] UpdateUserRoleDTO dto)
+        public async Task<IActionResult> UpdateUserRole(int id, [FromBody] UserRoleUpdateDto dto)
         {
             var user = await _context.Users.FindAsync(id);
             if (user == null)

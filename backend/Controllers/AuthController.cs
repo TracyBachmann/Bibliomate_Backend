@@ -12,7 +12,7 @@ using backend.Data;
 using backend.DTOs;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
-using backend.Models.Enums;   // ➕ ajout
+using backend.Models.Enums;  
 
 namespace backend.Controllers
 {
@@ -49,7 +49,7 @@ namespace backend.Controllers
         /// <c>409 Conflict</c> if the e-mail already exists.
         /// </returns>
         [HttpPost("register")]
-        public async Task<IActionResult> Register(RegisterDTO dto)
+        public async Task<IActionResult> Register(RegisterDto dto)
         {
             if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
                 return Conflict(new { error = "Un utilisateur avec cet email existe déjà." });
@@ -95,7 +95,7 @@ namespace backend.Controllers
         /// or the account is not yet approved.
         /// </returns>
         [HttpPost("login")]
-        public async Task<IActionResult> Login(LoginDTO dto)
+        public async Task<IActionResult> Login(LoginDto dto)
         {
             var user = await _context.Users
                                      .FirstOrDefaultAsync(u => u.Email == dto.Email);
@@ -146,7 +146,7 @@ namespace backend.Controllers
         /// <param name="dto">DTO containing the user’s e-mail.</param>
         /// <returns><c>200 OK</c> (always) with a generic message.</returns>
         [HttpPost("request-password-reset")]
-        public async Task<IActionResult> RequestPasswordReset([FromBody] RequestPasswordResetDTO dto)
+        public async Task<IActionResult> RequestPasswordReset([FromBody] RequestPasswordResetDto dto)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
             if (user == null)
@@ -183,7 +183,7 @@ namespace backend.Controllers
         /// <c>400 BadRequest</c> if the token is invalid or expired.
         /// </returns>
         [HttpPost("reset-password")]
-        public async Task<IActionResult> ResetPassword(ResetPasswordDTO dto)
+        public async Task<IActionResult> ResetPassword(ResetPasswordDto dto)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u =>
                 u.PasswordResetToken == dto.Token &&

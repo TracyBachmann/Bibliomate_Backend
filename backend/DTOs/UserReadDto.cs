@@ -1,9 +1,9 @@
-﻿namespace backend.Models.DTOs
+﻿namespace backend.DTOs
 {
     /// <summary>
     /// DTO representing user data for display purposes.
     /// </summary>
-    public class UserReadDTO
+    public class UserReadDto
     {
         public int UserId { get; set; }
         public string Name { get; set; } = string.Empty;

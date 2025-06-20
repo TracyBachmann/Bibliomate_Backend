@@ -35,12 +35,13 @@ namespace backend.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            base.OnModelCreating(modelBuilder);
-
-            // Enforce unique constraint on email
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.Email)
                 .IsUnique();
+
+            modelBuilder.Entity<Loan>()
+                .Property(l => l.Fine)
+                .HasColumnType("decimal(10,2)");
 
             // Configure composite key for Book <-> Tag relation
             modelBuilder.Entity<BookTag>()
@@ -74,7 +75,7 @@ namespace backend.Data
 
             modelBuilder.Entity<Book>()
                 .HasIndex(b => b.Isbn)
-                .IsUnique(); // ISBN must be unique
+                .IsUnique();
 
             modelBuilder.Entity<Author>()
                 .HasIndex(a => a.Name)
@@ -106,6 +107,8 @@ namespace backend.Data
                 .WithMany(g => g.Books)
                 .HasForeignKey(b => b.GenreId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            base.OnModelCreating(modelBuilder);
         }
     }
 }

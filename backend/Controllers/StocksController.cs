@@ -2,7 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
-using backend.Models.Dtos;
+using backend.DTOs;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using backend.Models.Enums;
@@ -35,7 +35,7 @@ namespace backend.Controllers
         /// <returns>A paginated collection of <see cref="Stock"/>.</returns>
         [Authorize]
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Stock>>> GetStocks(
+        public async Task<ActionResult<IEnumerable<StockReadDto>>> GetStocks(
             int page = 1,
             int pageSize = 10)
         {
@@ -45,7 +45,16 @@ namespace backend.Controllers
                 .Take(pageSize)
                 .ToListAsync();
 
-            return Ok(stocks);
+            var dtos = stocks.Select(s => new StockReadDto
+            {
+                StockId = s.StockId,
+                BookId = s.BookId,
+                BookTitle = s.Book.Title,
+                Quantity = s.Quantity,
+                IsAvailable = s.IsAvailable
+            });
+
+            return Ok(dtos);
         }
 
         // GET: api/Stocks/{id}
@@ -58,7 +67,7 @@ namespace backend.Controllers
         /// </returns>
         [Authorize]
         [HttpGet("{id}")]
-        public async Task<ActionResult<Stock>> GetStock(int id)
+        public async Task<ActionResult<StockReadDto>> GetStock(int id)
         {
             var stock = await _context.Stocks
                 .Include(s => s.Book)
@@ -67,7 +76,14 @@ namespace backend.Controllers
             if (stock == null)
                 return NotFound();
 
-            return stock;
+            return Ok(new StockReadDto
+            {
+                StockId = stock.StockId,
+                BookId = stock.BookId,
+                BookTitle = stock.Book.Title,
+                Quantity = stock.Quantity,
+                IsAvailable = stock.IsAvailable
+            });
         }
 
         // POST: api/Stocks
@@ -75,31 +91,46 @@ namespace backend.Controllers
         /// Creates a new stock entry.
         /// Accessible to Librarians and Admins only.
         /// </summary>
-        /// <param name="stock">The stock entity to create.</param>
+        /// <param name="dto">The stock entity to create.</param>
         /// <returns>
         /// <c>201 Created</c> with the created stock and its URI;  
         /// <c>409 Conflict</c> if a stock entry already exists for the book.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPost]
-        public async Task<ActionResult<Stock>> CreateStock(Stock stock)
+        public async Task<ActionResult<StockReadDto>> CreateStock(StockCreateDto dto)
         {
             var existingStock = await _context.Stocks
-                .FirstOrDefaultAsync(s => s.BookId == stock.BookId);
+                .FirstOrDefaultAsync(s => s.BookId == dto.BookId);
 
             if (existingStock != null)
                 return Conflict(new
                 {
-                    message =
-                        "Une entrée de stock existe déjà pour ce livre. Merci de mettre à jour la quantité à la place."
+                    message = "Une entrée de stock existe déjà pour ce livre. Merci de mettre à jour la quantité à la place."
                 });
+
+            var stock = new Stock
+            {
+                BookId = dto.BookId,
+                Quantity = dto.Quantity
+            };
 
             _stockService.UpdateAvailability(stock);
             _context.Stocks.Add(stock);
             await _context.SaveChangesAsync();
 
+            var book = await _context.Books.FindAsync(stock.BookId);
+
             return CreatedAtAction(nameof(GetStock),
-                new { id = stock.StockId }, stock);
+                new { id = stock.StockId },
+                new StockReadDto
+                {
+                    StockId = stock.StockId,
+                    BookId = stock.BookId,
+                    BookTitle = book?.Title ?? "Unknown",
+                    Quantity = stock.Quantity,
+                    IsAvailable = stock.IsAvailable
+                });
         }
 
         // PUT: api/Stocks/{id}
@@ -108,7 +139,7 @@ namespace backend.Controllers
         /// Accessible to Librarians and Admins only.
         /// </summary>
         /// <param name="id">The identifier of the stock entry to update.</param>
-        /// <param name="stock">The modified stock entity.</param>
+        /// <param name="dto">The modified stock entity.</param>
         /// <returns>
         /// <c>204 NoContent</c> on success;  
         /// <c>400 BadRequest</c> if the IDs do not match;  
@@ -116,24 +147,22 @@ namespace backend.Controllers
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateStock(int id, Stock stock)
+        public async Task<IActionResult> UpdateStock(int id, StockUpdateDto dto)
         {
-            if (id != stock.StockId)
+            if (id != dto.StockId)
                 return BadRequest();
 
-            _stockService.UpdateAvailability(stock);
-            _context.Entry(stock).State = EntityState.Modified;
+            var stock = await _context.Stocks.FindAsync(id);
+            if (stock == null)
+                return NotFound();
 
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Stocks.Any(s => s.StockId == id))
-                    return NotFound();
-                throw;
-            }
+            stock.BookId = dto.BookId;
+            stock.Quantity = dto.Quantity;
+            stock.IsAvailable = dto.IsAvailable;
+
+            _stockService.UpdateAvailability(stock);
+
+            await _context.SaveChangesAsync();
 
             return NoContent();
         }
@@ -171,7 +200,7 @@ namespace backend.Controllers
 
             return Ok(new
             {
-                message     = "Stock mis à jour avec succès.",
+                message = "Stock mis à jour avec succès.",
                 newQuantity = stock.Quantity
             });
         }

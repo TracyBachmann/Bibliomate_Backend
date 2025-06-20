@@ -4,6 +4,6 @@
     {
         public const int MaxActiveLoansPerUser = 5;
         public const int DefaultLoanDurationDays = 14;
-        public const float LateFeePerDay = 0.5f;
+        public const decimal LateFeePerDay = 0.5m;    
     }
 }

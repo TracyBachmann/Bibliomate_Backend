@@ -91,7 +91,7 @@ namespace backend.Controllers
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPost]
-        public async Task<ActionResult<Book>> CreateBook(BookCreateDTO dto)
+        public async Task<ActionResult<Book>> CreateBook(BookCreateDto dto)
         {
             var book = new Book
             {
@@ -102,7 +102,8 @@ namespace backend.Controllers
                 GenreId = dto.GenreId,
                 EditorId = dto.EditorId,
                 ShelfLevelId = dto.ShelfLevelId,
-                BookTags = dto.TagIds?.Select(tagId => new BookTag { TagId = tagId }).ToList()
+                BookTags = (dto.TagIds ?? new List<int>())
+                    .Select(tagId => new BookTag { TagId = tagId }).ToList()
             };
 
             _context.Books.Add(book);
@@ -117,7 +118,7 @@ namespace backend.Controllers
                 return Conflict("A book with this ISBN already exists.");
             }
 
-            return CreatedAtAction(nameof(GetBook), new { id = book.BookId }, book);
+            return CreatedAtAction(nameof(GetBook), new { id = book.BookId }, ToBookReadDto(book));
         }
 
         // PUT: api/Books/{id}
@@ -133,7 +134,7 @@ namespace backend.Controllers
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateBook(int id, BookUpdateDTO dto)
+        public async Task<IActionResult> UpdateBook(int id, BookUpdateDto dto)
         {
             if (id != dto.BookId)
                 return BadRequest("Book ID mismatch.");
@@ -250,9 +251,9 @@ namespace backend.Controllers
             Title          = book.Title,
             Isbn           = book.Isbn,
             PublicationYear = book.PublicationDate.Year,
-            AuthorName     = book.Author?.Name ?? "Unknown",
-            GenreName      = book.Genre?.Name ?? "Unknown",
-            EditorName     = book.Editor?.Name ?? "Unknown",
+            AuthorName     = book.Author.Name ?? "Unknown",
+            GenreName      = book.Genre.Name ?? "Unknown",
+            EditorName     = book.Editor.Name ?? "Unknown",
             IsAvailable    = book.Stock?.IsAvailable ?? false,
             Tags           = book.BookTags.Select(bt => bt.Tag.Name).ToList()
         };

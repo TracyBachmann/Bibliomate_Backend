@@ -2,8 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using backend.DTOs;
 using Microsoft.AspNetCore.Authorization;
-using System.Security.Claims;
 using backend.Helpers;
 using backend.Models.Enums;
 
@@ -33,12 +33,14 @@ namespace backend.Controllers
         /// <returns>A collection of reports with related user information.</returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Report>>> GetReports()
+        public async Task<ActionResult<IEnumerable<ReportReadDto>>> GetReports()
         {
-            return await _context.Reports
+            var reports = await _context.Reports
                 .Include(r => r.User)
                 .OrderByDescending(r => r.GeneratedDate)
                 .ToListAsync();
+
+            return Ok(reports.Select(ToReportReadDto));
         }
 
         // GET: api/Reports/{id}
@@ -52,7 +54,7 @@ namespace backend.Controllers
         /// </returns>
         [Authorize]
         [HttpGet("{id}")]
-        public async Task<ActionResult<Report>> GetReport(int id)
+        public async Task<ActionResult<ReportReadDto>> GetReport(int id)
         {
             var report = await _context.Reports
                 .Include(r => r.User)
@@ -65,29 +67,37 @@ namespace backend.Controllers
             if (report.UserId != currentUserId && !User.IsInRole(UserRoles.Admin))
                 return Forbid();
 
-            return report;
+            return Ok(ToReportReadDto(report));
         }
 
         // POST: api/Reports
         /// <summary>
         /// Creates a new report for the current user.
         /// </summary>
-        /// <param name="report">The report entity to create (content only).</param>
+        /// <param name="dto">The report data to create.</param>
         /// <returns>
         /// <c>201 Created</c> with the created report and its URI.
         /// </returns>
         [Authorize]
         [HttpPost]
-        public async Task<ActionResult<Report>> CreateReport(Report report)
+        public async Task<ActionResult<ReportReadDto>> CreateReport(ReportCreateDto dto)
         {
-            var currentUserId  = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            report.UserId      = currentUserId;
-            report.GeneratedDate = DateTime.UtcNow;
+            var currentUserId = TokenHelper.GetUserId(User);
+
+            var report = new Report
+            {
+                Title = dto.Title,
+                Content = dto.Content,
+                UserId = currentUserId,
+                GeneratedDate = DateTime.UtcNow
+            };
 
             _context.Reports.Add(report);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetReport), new { id = report.ReportId }, report);
+            return CreatedAtAction(nameof(GetReport),
+                new { id = report.ReportId },
+                ToReportReadDto(report));
         }
 
         // PUT: api/Reports/{id}
@@ -96,7 +106,7 @@ namespace backend.Controllers
         /// Allowed to the report’s author or an Admin.
         /// </summary>
         /// <param name="id">The identifier of the report to update.</param>
-        /// <param name="report">The modified report entity.</param>
+        /// <param name="dto">The modified report data.</param>
         /// <returns>
         /// <c>204 NoContent</c> on success;  
         /// <c>400 BadRequest</c> if IDs mismatch;  
@@ -105,13 +115,15 @@ namespace backend.Controllers
         /// </returns>
         [Authorize]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateReport(int id, Report report)
+        public async Task<IActionResult> UpdateReport(int id, ReportUpdateDto dto)
         {
-            if (id != report.ReportId)
+            if (id != dto.ReportId)
                 return BadRequest();
 
-            var existing = await _context.Reports.AsNoTracking()
-                                .FirstOrDefaultAsync(r => r.ReportId == id);
+            var existing = await _context.Reports
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.ReportId == id);
+
             if (existing == null)
                 return NotFound();
 
@@ -119,10 +131,16 @@ namespace backend.Controllers
             if (existing.UserId != currentUserId && !User.IsInRole(UserRoles.Admin))
                 return Forbid("Only the author or an admin can modify this report.");
 
-            report.GeneratedDate = existing.GeneratedDate;
-            report.UserId        = existing.UserId;
+            var updatedReport = new Report
+            {
+                ReportId = dto.ReportId,
+                Title = dto.Title,
+                Content = dto.Content,
+                GeneratedDate = existing.GeneratedDate,
+                UserId = existing.UserId
+            };
 
-            _context.Entry(report).State = EntityState.Modified;
+            _context.Entry(updatedReport).State = EntityState.Modified;
 
             try
             {
@@ -166,5 +184,19 @@ namespace backend.Controllers
 
             return NoContent();
         }
+
+        /// <summary>
+        /// Maps a <see cref="Report"/> entity to a <see cref="ReportReadDto"/>.
+        /// </summary>
+        /// <param name="report">The report entity to map.</param>
+        private static ReportReadDto ToReportReadDto(Report report) => new()
+        {
+            ReportId = report.ReportId,
+            UserId = report.UserId,
+            UserName = report.User?.Name ?? "Unknown",
+            Title = report.Title,
+            Content = report.Content,
+            GeneratedDate = report.GeneratedDate
+        };
     }
 }

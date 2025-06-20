@@ -1,11 +1,11 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace backend.Models.DTOs
+namespace backend.DTOs
 {
     /// <summary>
     /// DTO used to return detailed book information to clients.
     /// </summary>
-    public class BookReadDTO
+    public class BookReadDto
     {
         public int BookId { get; set; }
 

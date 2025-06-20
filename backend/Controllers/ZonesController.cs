@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using backend.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using backend.Models.Enums;
 
@@ -31,7 +32,7 @@ namespace backend.Controllers
         /// <returns>A paginated collection of <see cref="Zone"/> objects.</returns>
         [Authorize]
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Zone>>> GetZones(
+        public async Task<ActionResult<IEnumerable<ZoneReadDto>>> GetZones(
             int page = 1,
             int pageSize = 10)
         {
@@ -40,7 +41,15 @@ namespace backend.Controllers
                 .Take(pageSize)
                 .ToListAsync();
 
-            return Ok(zones);
+            var result = zones.Select(z => new ZoneReadDto
+            {
+                ZoneId     = z.ZoneId,
+                FloorNumber = z.FloorNumber,
+                AisleCode   = z.AisleCode,
+                Description = z.Description
+            });
+
+            return Ok(result);
         }
 
         // GET: api/Zones/{id}
@@ -53,13 +62,19 @@ namespace backend.Controllers
         /// </returns>
         [Authorize]
         [HttpGet("{id}")]
-        public async Task<ActionResult<Zone>> GetZone(int id)
+        public async Task<ActionResult<ZoneReadDto>> GetZone(int id)
         {
             var zone = await _context.Zones.FindAsync(id);
             if (zone == null)
                 return NotFound();
 
-            return zone;
+            return new ZoneReadDto
+            {
+                ZoneId     = zone.ZoneId,
+                FloorNumber = zone.FloorNumber,
+                AisleCode   = zone.AisleCode,
+                Description = zone.Description
+            };
         }
 
         // POST: api/Zones
@@ -67,18 +82,33 @@ namespace backend.Controllers
         /// Creates a new zone.
         /// Accessible to Librarians and Admins only.
         /// </summary>
-        /// <param name="zone">The zone entity to create.</param>
+        /// <param name="dto">The zone entity to create.</param>
         /// <returns>
         /// <c>201 Created</c> with the created zone and its URI.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPost]
-        public async Task<ActionResult<Zone>> CreateZone(Zone zone)
+        public async Task<ActionResult<ZoneReadDto>> CreateZone(ZoneCreateDto dto)
         {
+            var zone = new Zone
+            {
+                FloorNumber = dto.FloorNumber,
+                AisleCode   = dto.AisleCode,
+                Description = dto.Description
+            };
+
             _context.Zones.Add(zone);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetZone), new { id = zone.ZoneId }, zone);
+            var result = new ZoneReadDto
+            {
+                ZoneId     = zone.ZoneId,
+                FloorNumber = zone.FloorNumber,
+                AisleCode   = zone.AisleCode,
+                Description = zone.Description
+            };
+
+            return CreatedAtAction(nameof(GetZone), new { id = zone.ZoneId }, result);
         }
 
         // PUT: api/Zones/{id}
@@ -87,7 +117,7 @@ namespace backend.Controllers
         /// Accessible to Librarians and Admins only.
         /// </summary>
         /// <param name="id">The identifier of the zone to update.</param>
-        /// <param name="zone">The modified zone entity.</param>
+        /// <param name="dto">The modified zone entity.</param>
         /// <returns>
         /// <c>204 NoContent</c> on success;  
         /// <c>400 BadRequest</c> if the IDs do not match;  
@@ -95,24 +125,20 @@ namespace backend.Controllers
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateZone(int id, Zone zone)
+        public async Task<IActionResult> UpdateZone(int id, ZoneUpdateDto dto)
         {
-            if (id != zone.ZoneId)
+            if (id != dto.ZoneId)
                 return BadRequest();
 
-            _context.Entry(zone).State = EntityState.Modified;
+            var zone = await _context.Zones.FindAsync(id);
+            if (zone == null)
+                return NotFound();
 
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Zones.Any(z => z.ZoneId == id))
-                    return NotFound();
-                throw;
-            }
+            zone.FloorNumber = dto.FloorNumber;
+            zone.AisleCode   = dto.AisleCode;
+            zone.Description = dto.Description;
 
+            await _context.SaveChangesAsync();
             return NoContent();
         }
 

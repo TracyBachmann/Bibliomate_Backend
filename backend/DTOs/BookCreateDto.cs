@@ -1,11 +1,11 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace backend.Models.DTOs
+namespace backend.DTOs
 {
     /// <summary>
     /// DTO used to create a new book entry.
     /// </summary>
-    public class BookCreateDTO
+    public class BookCreateDto
     {
         [Required]
         public string Title { get; set; } = string.Empty;
