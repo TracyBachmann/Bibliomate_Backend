@@ -1,19 +1,15 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace backend.DTOs
+namespace backend.Models.DTOs
 {
-    public class BookSearchDto
+    /// <summary>
+    /// DTO used for advanced search filtering of books.
+    /// </summary>
+    public class BookSearchDTO
     {
-        [StringLength(255)]
         public string? Title { get; set; }
-
-        [StringLength(100)]
         public string? Author { get; set; }
-
-        [StringLength(100)]
         public string? Publisher { get; set; }
-
-        [StringLength(100)]
         public string? Genre { get; set; }
 
         [StringLength(13, MinimumLength = 10)]

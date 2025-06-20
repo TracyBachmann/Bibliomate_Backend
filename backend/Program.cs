@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -71,6 +72,9 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1",
         Description = "Documentation de l'API pour le projet CDA BiblioMate"
     });
+    
+    var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFilename));
 
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {

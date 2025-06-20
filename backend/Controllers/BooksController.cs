@@ -4,9 +4,15 @@ using backend.Data;
 using backend.Models;
 using backend.DTOs;
 using Microsoft.AspNetCore.Authorization;
+using backend.Models.Enums;
 
 namespace backend.Controllers
 {
+    /// <summary>
+    /// Controller for managing books.  
+    /// Provides CRUD operations, advanced search,
+    /// and detailed projections through DTOs.
+    /// </summary>
     [Authorize]
     [ApiController]
     [Route("api/[controller]")]
@@ -19,10 +25,16 @@ namespace backend.Controllers
             _context = context;
         }
 
+        // GET: api/Books
         /// <summary>
         /// Retrieves all books with detailed information.
         /// </summary>
-        /// <returns>List of all books with their metadata.</returns>
+        /// <remarks>
+        /// Includes related entities such as <see cref="Author"/>,
+        /// <see cref="Genre"/>, <see cref="Editor"/>, shelf level,
+        /// tags, and stock data.
+        /// </remarks>
+        /// <returns>A collection of <see cref="BookReadDto"/>.</returns>
         [AllowAnonymous]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<BookReadDto>>> GetBooks()
@@ -39,11 +51,15 @@ namespace backend.Controllers
             return Ok(books.Select(ToBookReadDto));
         }
 
+        // GET: api/Books/{id}
         /// <summary>
-        /// Retrieves a book by ID.
+        /// Retrieves a single book by its identifier.
         /// </summary>
-        /// <param name="id">Book ID.</param>
-        /// <returns>BookReadDto for the specified book.</returns>
+        /// <param name="id">The book identifier.</param>
+        /// <returns>
+        /// The requested <see cref="BookReadDto"/> if found;
+        /// otherwise <c>404 NotFound</c>.
+        /// </returns>
         [AllowAnonymous]
         [HttpGet("{id}")]
         public async Task<ActionResult<BookReadDto>> GetBook(int id)
@@ -63,12 +79,17 @@ namespace backend.Controllers
             return Ok(ToBookReadDto(book));
         }
 
+        // POST: api/Books
         /// <summary>
-        /// Creates a new book.
+        /// Creates a new book record.
         /// </summary>
-        /// <param name="dto">Data for the new book.</param>
-        /// <returns>The created book.</returns>
-        [Authorize(Roles = "Librarian,Admin")]
+        /// <param name="dto">The data required to create the book.</param>
+        /// <returns>
+        /// <c>201 Created</c> with the created entity and a
+        /// <c>Location</c> header pointing to <see cref="GetBook"/>;
+        /// <c>409 Conflict</c> if the ISBN already exists.
+        /// </returns>
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPost]
         public async Task<ActionResult<Book>> CreateBook(BookCreateDTO dto)
         {
@@ -90,27 +111,32 @@ namespace backend.Controllers
             {
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateException ex)
+            catch (DbUpdateException ex) when (
+                ex.InnerException?.Message.Contains("IX_Books_Isbn") == true)
             {
-                if (ex.InnerException?.Message.Contains("IX_Books_Isbn") == true)
-                    return Conflict("Un livre avec cet ISBN existe déjà.");
-                throw;
+                return Conflict("A book with this ISBN already exists.");
             }
 
             return CreatedAtAction(nameof(GetBook), new { id = book.BookId }, book);
         }
 
+        // PUT: api/Books/{id}
         /// <summary>
         /// Updates an existing book.
         /// </summary>
-        /// <param name="id">ID of the book to update.</param>
-        /// <param name="dto">Updated book data.</param>
-        [Authorize(Roles = "Librarian,Admin")]
+        /// <param name="id">The identifier of the book to update.</param>
+        /// <param name="dto">The updated book data.</param>
+        /// <returns>
+        /// <c>204 NoContent</c> on success;  
+        /// <c>400 BadRequest</c> if the IDs do not match;  
+        /// <c>404 NotFound</c> if the book does not exist.
+        /// </returns>
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateBook(int id, BookUpdateDTO dto)
         {
             if (id != dto.BookId)
-                return BadRequest("Mismatch de l'ID du livre.");
+                return BadRequest("Book ID mismatch.");
 
             var book = await _context.Books
                 .Include(b => b.BookTags)
@@ -119,25 +145,31 @@ namespace backend.Controllers
             if (book == null)
                 return NotFound();
 
-            book.Title = dto.Title;
-            book.Isbn = dto.Isbn;
+            book.Title          = dto.Title;
+            book.Isbn           = dto.Isbn;
             book.PublicationDate = dto.PublicationDate;
-            book.AuthorId = dto.AuthorId;
-            book.GenreId = dto.GenreId;
-            book.EditorId = dto.EditorId;
-            book.ShelfLevelId = dto.ShelfLevelId;
-            book.BookTags = dto.TagIds?.Select(tagId => new BookTag { BookId = id, TagId = tagId }).ToList()
-                            ?? new List<BookTag>();
+            book.AuthorId       = dto.AuthorId;
+            book.GenreId        = dto.GenreId;
+            book.EditorId       = dto.EditorId;
+            book.ShelfLevelId   = dto.ShelfLevelId;
+            book.BookTags       = dto.TagIds?.Select(tagId =>
+                                    new BookTag { BookId = id, TagId = tagId })
+                                .ToList() ?? new List<BookTag>();
 
             await _context.SaveChangesAsync();
             return NoContent();
         }
 
+        // DELETE: api/Books/{id}
         /// <summary>
-        /// Deletes a book by ID.
+        /// Permanently deletes a book by its identifier.
         /// </summary>
-        /// <param name="id">ID of the book to delete.</param>
-        [Authorize(Roles = "Librarian,Admin")]
+        /// <param name="id">The identifier of the book to delete.</param>
+        /// <returns>
+        /// <c>204 NoContent</c> when deletion succeeds;  
+        /// <c>404 NotFound</c> if the book is not found.
+        /// </returns>
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteBook(int id)
         {
@@ -150,14 +182,19 @@ namespace backend.Controllers
             return NoContent();
         }
 
+        // POST: api/Books/search
         /// <summary>
-        /// Searches books with multiple criteria.
+        /// Searches books using multiple optional criteria.
+        /// Accessible without authentication.
         /// </summary>
-        /// <param name="dto">Search filters.</param>
-        /// <returns>Filtered list of books.</returns>
+        /// <param name="dto">The search filters.</param>
+        /// <returns>
+        /// A filtered collection of <see cref="BookReadDto"/>.
+        /// </returns>
         [HttpPost("search")]
         [AllowAnonymous]
-        public async Task<ActionResult<IEnumerable<BookReadDto>>> SearchBooks([FromBody] BookSearchDto dto)
+        public async Task<ActionResult<IEnumerable<BookReadDto>>> SearchBooks(
+            [FromBody] BookSearchDto dto)
         {
             var query = _context.Books
                 .Include(b => b.Genre)
@@ -184,35 +221,40 @@ namespace backend.Controllers
                 query = query.Where(b => b.Isbn.Contains(dto.Isbn));
 
             if (dto.YearMin.HasValue)
-                query = query.Where(b => b.PublicationDate >= new DateTime(dto.YearMin.Value, 1, 1));
+                query = query.Where(b =>
+                    b.PublicationDate >= new DateTime(dto.YearMin.Value, 1, 1));
 
             if (dto.YearMax.HasValue)
-                query = query.Where(b => b.PublicationDate <= new DateTime(dto.YearMax.Value, 12, 31));
+                query = query.Where(b =>
+                    b.PublicationDate <= new DateTime(dto.YearMax.Value, 12, 31));
 
             if (dto.IsAvailable.HasValue)
-                query = query.Where(b => b.Stock != null && b.Stock.IsAvailable == dto.IsAvailable.Value);
+                query = query.Where(b =>
+                    b.Stock != null && b.Stock.IsAvailable == dto.IsAvailable.Value);
 
             if (dto.TagIds is { Count: > 0 })
-                query = query.Where(b => b.BookTags.Any(bt => dto.TagIds.Contains(bt.TagId)));
+                query = query.Where(b =>
+                    b.BookTags.Any(bt => dto.TagIds.Contains(bt.TagId)));
 
             var books = await query.ToListAsync();
             return Ok(books.Select(ToBookReadDto));
         }
 
+        // (private) — helper
         /// <summary>
-        /// Maps a Book entity to BookReadDto.
+        /// Maps a <see cref="Book"/> entity to its read-side DTO.
         /// </summary>
         private static BookReadDto ToBookReadDto(Book book) => new()
         {
-            BookId = book.BookId,
-            Title = book.Title,
-            Isbn = book.Isbn,
+            BookId         = book.BookId,
+            Title          = book.Title,
+            Isbn           = book.Isbn,
             PublicationYear = book.PublicationDate.Year,
-            AuthorName = book.Author?.Name ?? "Inconnu",
-            GenreName = book.Genre?.Name ?? "Inconnu",
-            EditorName = book.Editor?.Name ?? "Inconnu",
-            IsAvailable = book.Stock?.IsAvailable ?? false,
-            Tags = book.BookTags.Select(bt => bt.Tag.Name).ToList()
+            AuthorName     = book.Author?.Name ?? "Unknown",
+            GenreName      = book.Genre?.Name ?? "Unknown",
+            EditorName     = book.Editor?.Name ?? "Unknown",
+            IsAvailable    = book.Stock?.IsAvailable ?? false,
+            Tags           = book.BookTags.Select(bt => bt.Tag.Name).ToList()
         };
     }
 }

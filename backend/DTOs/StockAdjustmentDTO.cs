@@ -1,10 +1,10 @@
-﻿namespace backend.Models.Dtos
+﻿namespace backend.Models.DTOs
 {
-    public class StockAdjustmentDto
+    /// <summary>
+    /// DTO used to increase or decrease book stock.
+    /// </summary>
+    public class StockAdjustmentDTO
     {
-        /// <summary>
-        /// Quantity to adjust (positive to add, negative to remove).
-        /// </summary>
         public int Adjustment { get; set; }
     }
 }

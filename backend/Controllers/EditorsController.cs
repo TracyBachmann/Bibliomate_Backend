@@ -3,12 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
 using Microsoft.AspNetCore.Authorization;
+using backend.Models.Enums;
 
 namespace backend.Controllers
 {
     /// <summary>
     /// Controller for managing editors (publishers).
-    /// Allows CRUD operations on editor entities.
+    /// Provides CRUD operations on <see cref="Editor"/> entities.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
@@ -21,9 +22,11 @@ namespace backend.Controllers
             _context = context;
         }
 
+        // GET: api/Editors
         /// <summary>
         /// Retrieves all editors.
         /// </summary>
+        /// <returns>A collection of editors.</returns>
         [HttpGet]
         [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<Editor>>> GetEditors()
@@ -31,10 +34,14 @@ namespace backend.Controllers
             return await _context.Editors.ToListAsync();
         }
 
+        // GET: api/Editors/{id}
         /// <summary>
-        /// Retrieves an editor by ID.
+        /// Retrieves an editor by its identifier.
         /// </summary>
         /// <param name="id">ID of the editor to retrieve.</param>
+        /// <returns>
+        /// The requested editor if found; otherwise <c>404 NotFound</c>.
+        /// </returns>
         [HttpGet("{id}")]
         [AllowAnonymous]
         public async Task<ActionResult<Editor>> GetEditor(int id)
@@ -46,12 +53,17 @@ namespace backend.Controllers
             return editor;
         }
 
+        // POST: api/Editors
         /// <summary>
         /// Creates a new editor.
         /// Only accessible to Admins and Librarians.
         /// </summary>
         /// <param name="editor">Editor to create.</param>
-        [Authorize(Roles = "Admin,Librarian")]
+        /// <returns>
+        /// <c>201 Created</c> with the created entity and its URI;  
+        /// <c>400 BadRequest</c> if validation fails.
+        /// </returns>
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPost]
         public async Task<ActionResult<Editor>> CreateEditor(Editor editor)
         {
@@ -60,13 +72,18 @@ namespace backend.Controllers
             return CreatedAtAction(nameof(GetEditor), new { id = editor.EditorId }, editor);
         }
 
+        // PUT: api/Editors/{id}
         /// <summary>
         /// Updates an existing editor.
         /// Only accessible to Admins and Librarians.
         /// </summary>
         /// <param name="id">ID of the editor to update.</param>
         /// <param name="editor">Updated editor data.</param>
-        [Authorize(Roles = "Admin,Librarian")]
+        /// <returns>
+        /// <c>204 NoContent</c> on success;  
+        /// <c>400 BadRequest</c> if the IDs do not match.
+        /// </returns>
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateEditor(int id, Editor editor)
         {
@@ -78,12 +95,17 @@ namespace backend.Controllers
             return NoContent();
         }
 
+        // DELETE: api/Editors/{id}
         /// <summary>
         /// Deletes an editor.
         /// Only accessible to Admins and Librarians.
         /// </summary>
         /// <param name="id">ID of the editor to delete.</param>
-        [Authorize(Roles = "Admin,Librarian")]
+        /// <returns>
+        /// <c>204 NoContent</c> when deletion succeeds;  
+        /// <c>404 NotFound</c> if the editor is not found.
+        /// </returns>
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteEditor(int id)
         {

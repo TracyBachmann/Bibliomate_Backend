@@ -1,14 +1,16 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace backend.DTOs
+namespace backend.Models.DTOs
 {
+    /// <summary>
+    /// DTO used to update an existing book.
+    /// </summary>
     public class BookUpdateDTO
     {
         [Required]
         public int BookId { get; set; }
 
         [Required]
-        [StringLength(255)]
         public string Title { get; set; } = string.Empty;
 
         [Required]

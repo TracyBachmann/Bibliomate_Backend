@@ -1,32 +1,24 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace backend.DTOs
+namespace backend.Models.DTOs
 {
-    public class BookReadDto
+    /// <summary>
+    /// DTO used to return detailed book information to clients.
+    /// </summary>
+    public class BookReadDTO
     {
         public int BookId { get; set; }
 
-        [Required]
-        [StringLength(255)]
         public string Title { get; set; } = string.Empty;
 
-        [Required]
-        [StringLength(13, MinimumLength = 10)]
         public string Isbn { get; set; } = string.Empty;
 
-        [Range(0, 2100)]
         public int PublicationYear { get; set; }
 
-        [Required]
-        [StringLength(100)]
         public string AuthorName { get; set; } = string.Empty;
 
-        [Required]
-        [StringLength(100)]
         public string GenreName { get; set; } = string.Empty;
 
-        [Required]
-        [StringLength(100)]
         public string EditorName { get; set; } = string.Empty;
 
         public bool IsAvailable { get; set; }
