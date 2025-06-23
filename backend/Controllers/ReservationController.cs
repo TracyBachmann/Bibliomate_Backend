@@ -1,12 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+﻿using System.Security.Claims;
 using backend.Data;
-using backend.Models;
 using backend.DTOs;
-using Microsoft.AspNetCore.Authorization;
-using System.Security.Claims;
+using backend.Models;
 using backend.Models.Enums;
 using backend.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers
 {
@@ -20,10 +20,14 @@ namespace backend.Controllers
     public class ReservationsController : ControllerBase
     {
         private readonly BiblioMateDbContext _context;
+        private readonly HistoryService _historyService;
 
-        public ReservationsController(BiblioMateDbContext context)
+        public ReservationsController(
+            BiblioMateDbContext context,
+            HistoryService historyService)   // ← Injection of HistoryService
         {
-            _context = context;
+            _context        = context;
+            _historyService = historyService;
         }
 
         // GET: api/Reservations
@@ -43,13 +47,13 @@ namespace backend.Controllers
 
             return Ok(reservations.Select(r => new ReservationReadDto
             {
-                ReservationId = r.ReservationId,
-                UserId = r.UserId,
-                UserName = r.User.Name,
-                BookId = r.BookId,
-                BookTitle = r.Book.Title,
+                ReservationId   = r.ReservationId,
+                UserId          = r.UserId,
+                UserName        = r.User.Name,
+                BookId          = r.BookId,
+                BookTitle       = r.Book.Title,
                 ReservationDate = r.ReservationDate,
-                Status = r.Status
+                Status          = r.Status
             }));
         }
 
@@ -67,18 +71,19 @@ namespace backend.Controllers
 
             var reservations = await _context.Reservations
                 .Include(r => r.Book)
-                .Where(r => r.UserId == id && (r.Status == ReservationStatus.Pending || r.Status == ReservationStatus.Available))
+                .Where(r => r.UserId == id && 
+                            (r.Status == ReservationStatus.Pending || r.Status == ReservationStatus.Available))
                 .ToListAsync();
 
             return Ok(reservations.Select(r => new ReservationReadDto
             {
-                ReservationId = r.ReservationId,
-                UserId = r.UserId,
-                UserName = r.User?.Name ?? "",
-                BookId = r.BookId,
-                BookTitle = r.Book.Title,
+                ReservationId   = r.ReservationId,
+                UserId          = r.UserId,
+                UserName        = r.User?.Name ?? "",
+                BookId          = r.BookId,
+                BookTitle       = r.Book.Title,
                 ReservationDate = r.ReservationDate,
-                Status = r.Status
+                Status          = r.Status
             }));
         }
 
@@ -98,13 +103,13 @@ namespace backend.Controllers
 
             return Ok(reservations.Select(r => new ReservationReadDto
             {
-                ReservationId = r.ReservationId,
-                UserId = r.UserId,
-                UserName = r.User.Name,
-                BookId = r.BookId,
-                BookTitle = r.Book?.Title ?? "",
+                ReservationId   = r.ReservationId,
+                UserId          = r.UserId,
+                UserName        = r.User.Name,
+                BookId          = r.BookId,
+                BookTitle       = r.Book?.Title ?? "",
                 ReservationDate = r.ReservationDate,
-                Status = r.Status
+                Status          = r.Status
             }));
         }
 
@@ -125,21 +130,21 @@ namespace backend.Controllers
                 return NotFound();
 
             var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            var isOwner = reservation.UserId == currentUserId;
-            var isAdminOrStaff = User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.Librarian);
+            var isOwner       = reservation.UserId == currentUserId;
+            var isAdminOrStaff= User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.Librarian);
 
             if (!isOwner && !isAdminOrStaff)
                 return Forbid();
 
             return new ReservationReadDto
             {
-                ReservationId = reservation.ReservationId,
-                UserId = reservation.UserId,
-                UserName = reservation.User.Name,
-                BookId = reservation.BookId,
-                BookTitle = reservation.Book.Title,
+                ReservationId   = reservation.ReservationId,
+                UserId          = reservation.UserId,
+                UserName        = reservation.User.Name,
+                BookId          = reservation.BookId,
+                BookTitle       = reservation.Book.Title,
                 ReservationDate = reservation.ReservationDate,
-                Status = reservation.Status
+                Status          = reservation.Status
             };
         }
 
@@ -156,7 +161,9 @@ namespace backend.Controllers
                 return Forbid();
 
             var hasActiveReservation = await _context.Reservations
-                .AnyAsync(r => r.UserId == dto.UserId && r.BookId == dto.BookId && r.Status != ReservationStatus.Completed);
+                .AnyAsync(r => r.UserId == dto.UserId && 
+                               r.BookId == dto.BookId && 
+                               r.Status != ReservationStatus.Completed);
 
             if (hasActiveReservation)
                 return BadRequest("Vous avez déjà une réservation active pour ce livre.");
@@ -169,27 +176,34 @@ namespace backend.Controllers
 
             var reservation = new Reservation
             {
-                UserId = dto.UserId,
-                BookId = dto.BookId,
+                UserId          = dto.UserId,
+                BookId          = dto.BookId,
                 ReservationDate = DateTime.UtcNow,
-                Status = ReservationStatus.Pending,
-                CreatedAt = DateTime.UtcNow
+                Status          = ReservationStatus.Pending,
+                CreatedAt       = DateTime.UtcNow
             };
 
             _context.Reservations.Add(reservation);
             await _context.SaveChangesAsync();
 
+            // Log the reservation event
+            await _historyService.LogEventAsync(
+                reservation.UserId,
+                eventType: "Reservation",
+                reservationId: reservation.ReservationId
+            );
+
             return CreatedAtAction(nameof(GetReservation),
                 new { id = reservation.ReservationId },
                 new ReservationReadDto
                 {
-                    ReservationId = reservation.ReservationId,
-                    UserId = reservation.UserId,
-                    UserName = (await _context.Users.FindAsync(reservation.UserId))?.Name ?? "",
-                    BookId = reservation.BookId,
-                    BookTitle = (await _context.Books.FindAsync(reservation.BookId))?.Title ?? "",
+                    ReservationId   = reservation.ReservationId,
+                    UserId          = reservation.UserId,
+                    UserName        = (await _context.Users.FindAsync(reservation.UserId))?.Name ?? "",
+                    BookId          = reservation.BookId,
+                    BookTitle       = (await _context.Books.FindAsync(reservation.BookId))?.Title ?? "",
                     ReservationDate = reservation.ReservationDate,
-                    Status = reservation.Status
+                    Status          = reservation.Status
                 });
         }
 
@@ -209,13 +223,12 @@ namespace backend.Controllers
             if (reservation == null)
                 return NotFound();
 
-            reservation.UserId = dto.UserId;
-            reservation.BookId = dto.BookId;
+            reservation.UserId          = dto.UserId;
+            reservation.BookId          = dto.BookId;
             reservation.ReservationDate = dto.ReservationDate;
-            reservation.Status = dto.Status;
+            reservation.Status          = dto.Status;
 
             await _context.SaveChangesAsync();
-
             return NoContent();
         }
 
@@ -233,8 +246,8 @@ namespace backend.Controllers
                 return NotFound();
 
             var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            var isOwner = reservation.UserId == currentUserId;
-            var isAdminOrStaff = User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.Librarian);
+            var isOwner       = reservation.UserId == currentUserId;
+            var isAdminOrStaff= User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.Librarian);
 
             if (!isOwner && !isAdminOrStaff)
                 return Forbid();

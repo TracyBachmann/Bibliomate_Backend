@@ -81,6 +81,7 @@ builder.Services.AddScoped<StockService>();
 builder.Services.AddScoped<RecommendationService>();
 builder.Services.AddScoped<ReservationCleanupService>();
 builder.Services.AddHostedService<LoanReminderBackgroundService>();
+builder.Services.AddScoped<HistoryService>();
 
 // -- SignalR
 builder.Services.AddSignalR();

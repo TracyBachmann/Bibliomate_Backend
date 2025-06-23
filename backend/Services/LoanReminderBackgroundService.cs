@@ -1,53 +1,71 @@
-﻿using System;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-
-namespace backend.Services
+﻿namespace backend.Services
 {
     /// <summary>
-    /// Service hébergé qui exécute périodiquement les rappels de prêts et les notifications de retard.
+    /// Hosted background service that periodically triggers
+    /// sending of loan return reminders and overdue notifications.
     /// </summary>
     public class LoanReminderBackgroundService : BackgroundService
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<LoanReminderBackgroundService> _logger;
+
+        // Interval between reminder runs
         private static readonly TimeSpan Interval = TimeSpan.FromHours(1);
 
-        public LoanReminderBackgroundService(IServiceProvider serviceProvider,
-                                             ILogger<LoanReminderBackgroundService> logger)
+        /// <summary>
+        /// Constructs the background service with required dependencies.
+        /// </summary>
+        /// <param name="serviceProvider">
+        /// Service provider used to create scopes for scoped services.
+        /// </param>
+        /// <param name="logger">
+        /// Logger for recording operational messages and errors.
+        /// </param>
+        public LoanReminderBackgroundService(
+            IServiceProvider serviceProvider,
+            ILogger<LoanReminderBackgroundService> logger)
         {
             _serviceProvider = serviceProvider;
             _logger          = logger;
         }
 
+        /// <summary>
+        /// Core execution loop. Runs once per <see cref="Interval"/> until cancellation.
+        /// </summary>
+        /// <param name="stoppingToken">Token that signals shutdown.</param>
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("LoanReminderBackgroundService démarré, intervalle = {Interval}.", Interval);
+            _logger.LogInformation(
+                "LoanReminderBackgroundService started. Interval = {Interval}.", 
+                Interval
+            );
 
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
+                    // Create a new DI scope to get scoped services
                     using var scope = _serviceProvider.CreateScope();
-                    var reminderSvc = scope.ServiceProvider.GetRequiredService<LoanReminderService>();
+                    var reminderSvc = scope.ServiceProvider
+                                           .GetRequiredService<LoanReminderService>();
 
-                    _logger.LogInformation("Envoi des rappels de prêts et notifications de retard...");
+                    _logger.LogInformation("Sending return reminders and overdue notifications...");
                     await reminderSvc.SendReturnRemindersAsync();
                     await reminderSvc.SendOverdueNotificationsAsync();
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Erreur lors de l’envoi des rappels/notifications de prêts.");
+                    _logger.LogError(
+                        ex, 
+                        "Error occurred while sending loan reminders/notifications."
+                    );
                 }
 
-                // Attend l’intervalle ou l’annulation
+                // Wait for the specified interval or until cancellation
                 await Task.Delay(Interval, stoppingToken);
             }
 
-            _logger.LogInformation("LoanReminderBackgroundService arrêté.");
+            _logger.LogInformation("LoanReminderBackgroundService stopped.");
         }
     }
 }

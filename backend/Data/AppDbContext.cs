@@ -17,6 +17,8 @@ namespace backend.Data
         public DbSet<Reservation> Reservations { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<Report> Reports { get; set; }
+        
+        public DbSet<History> Histories { get; set; }
 
         // Library infrastructure
         public DbSet<Zone> Zones { get; set; }

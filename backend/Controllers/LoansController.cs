@@ -1,13 +1,13 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using backend.Data;
-using backend.Models;
+﻿using backend.Data;
 using backend.DTOs;
-using backend.Services;
-using backend.Models.Policies;
-using Microsoft.AspNetCore.Authorization;
 using backend.Helpers;
+using backend.Models;
 using backend.Models.Enums;
+using backend.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using backend.Models.Policies;
 
 namespace backend.Controllers
 {
@@ -22,12 +22,18 @@ namespace backend.Controllers
         private readonly BiblioMateDbContext _context;
         private readonly StockService _stockService;
         private readonly NotificationService _notificationService;
+        private readonly HistoryService _historyService;
 
-        public LoansController(BiblioMateDbContext context, StockService stockService, NotificationService notificationService)
+        public LoansController(
+            BiblioMateDbContext context,
+            StockService stockService,
+            NotificationService notificationService,
+            HistoryService historyService)   // ← Injection of HistoryService
         {
-            _context = context;
-            _stockService = stockService;
+            _context             = context;
+            _stockService        = stockService;
             _notificationService = notificationService;
+            _historyService      = historyService;
         }
 
         /// <summary>
@@ -77,8 +83,12 @@ namespace backend.Controllers
         {
             var currentUserId = TokenHelper.GetUserId(User);
 
-            if (currentUserId != userId && !User.IsInRole(UserRoles.Admin) && !User.IsInRole(UserRoles.Librarian))
+            if (currentUserId != userId && 
+                !User.IsInRole(UserRoles.Admin) && 
+                !User.IsInRole(UserRoles.Librarian))
+            {
                 return Forbid();
+            }
 
             var loans = await _context.Loans
                 .Include(l => l.Book)
@@ -105,11 +115,14 @@ namespace backend.Controllers
             if (user == null)
                 return BadRequest(new { error = "User not found." });
 
-            int activeLoans = await _context.Loans.CountAsync(l =>
+            var activeLoans = await _context.Loans.CountAsync(l =>
                 l.UserId == dto.UserId && l.ReturnDate == null);
 
             if (activeLoans >= LoanPolicy.MaxActiveLoansPerUser)
-                return BadRequest(new { error = $"The maximum number of active loans ({LoanPolicy.MaxActiveLoansPerUser}) is already reached." });
+                return BadRequest(new 
+                { 
+                    error = $"The maximum number of active loans ({LoanPolicy.MaxActiveLoansPerUser}) is already reached." 
+                });
 
             var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.BookId == dto.BookId);
             if (stock == null || stock.Quantity <= 0)
@@ -117,16 +130,22 @@ namespace backend.Controllers
 
             var loan = new Loan
             {
-                UserId = dto.UserId,
-                BookId = dto.BookId,
+                UserId   = dto.UserId,
+                BookId   = dto.BookId,
                 LoanDate = DateTime.UtcNow,
-                DueDate = DateTime.UtcNow.AddDays(LoanPolicy.DefaultLoanDurationDays)
+                DueDate  = DateTime.UtcNow.AddDays(LoanPolicy.DefaultLoanDurationDays)
             };
 
             _context.Loans.Add(loan);
             _stockService.Decrease(stock);
-
             await _context.SaveChangesAsync();
+
+            // Log the loan event
+            await _historyService.LogEventAsync(
+                dto.UserId, 
+                eventType: "Loan",
+                loanId: loan.LoanId
+            );
 
             return Ok(new
             {
@@ -153,12 +172,12 @@ namespace backend.Controllers
             if (loan == null)
                 return NotFound();
 
-            loan.BookId = dto.BookId;
-            loan.UserId = dto.UserId;
-            loan.LoanDate = dto.LoanDate;
-            loan.DueDate = dto.DueDate;
+            loan.BookId     = dto.BookId;
+            loan.UserId     = dto.UserId;
+            loan.LoanDate   = dto.LoanDate;
+            loan.DueDate    = dto.DueDate;
             loan.ReturnDate = dto.ReturnDate;
-            loan.Fine = dto.Fine;
+            loan.Fine       = dto.Fine;
 
             await _context.SaveChangesAsync();
             return NoContent();
@@ -186,7 +205,7 @@ namespace backend.Controllers
 
         /// <summary>
         /// PUT: api/Loans/{id}/return  
-        /// Marks a loan as returned, updates stock and calculates fine if late.  
+        /// Marks a loan as returned, updates stock, notifies waiting reservation, and logs the event.  
         /// Only accessible to Admins and Librarians.
         /// </summary>
         /// <param name="id">The ID of the loan to return.</param>
@@ -196,7 +215,7 @@ namespace backend.Controllers
         {
             var loan = await _context.Loans
                 .Include(l => l.Stock)
-                .ThenInclude(s => s.Book)
+                    .ThenInclude(s => s.Book)
                 .FirstOrDefaultAsync(l => l.LoanId == id);
 
             if (loan == null)
@@ -224,16 +243,21 @@ namespace backend.Controllers
                 stock.IsAvailable = false;
 
                 var bookTitle = stock.Book?.Title ?? "Inconnu";
-
                 await _notificationService.NotifyUser(
                     reservation.UserId,
                     $"📚 Le livre '{bookTitle}' est désormais disponible pour vous. Vous avez 48h pour venir le récupérer."
                 );
-
                 reservationNotified = true;
             }
 
             await _context.SaveChangesAsync();
+
+            // Log the return event
+            await _historyService.LogEventAsync(
+                loan.UserId,
+                eventType: "Return",
+                loanId: loan.LoanId
+            );
 
             return Ok(new
             {
