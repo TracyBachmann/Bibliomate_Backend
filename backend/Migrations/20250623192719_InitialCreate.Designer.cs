@@ -12,8 +12,8 @@ using backend.Data;
 namespace backend.Migrations
 {
     [DbContext(typeof(BiblioMateDbContext))]
-    [Migration("20250623154617_AddHistoryEntity")]
-    partial class AddHistoryEntity
+    [Migration("20250623192719_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -657,9 +657,9 @@ namespace backend.Migrations
                         .IsRequired();
 
                     b.HasOne("backend.Models.Stock", "Stock")
-                        .WithMany()
+                        .WithMany("Loans")
                         .HasForeignKey("StockId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("backend.Models.User", "User")
@@ -831,6 +831,11 @@ namespace backend.Migrations
             modelBuilder.Entity("backend.Models.ShelfLevel", b =>
                 {
                     b.Navigation("Books");
+                });
+
+            modelBuilder.Entity("backend.Models.Stock", b =>
+                {
+                    b.Navigation("Loans");
                 });
 
             modelBuilder.Entity("backend.Models.Tag", b =>

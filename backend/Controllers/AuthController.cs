@@ -1,7 +1,4 @@
-﻿// Public controller dedicated to authentication and operations without prior authentication
-// Exception: ApproveUser requires an Admin role
-
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;

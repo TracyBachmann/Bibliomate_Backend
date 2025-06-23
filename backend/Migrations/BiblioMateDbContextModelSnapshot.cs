@@ -654,9 +654,9 @@ namespace backend.Migrations
                         .IsRequired();
 
                     b.HasOne("backend.Models.Stock", "Stock")
-                        .WithMany()
+                        .WithMany("Loans")
                         .HasForeignKey("StockId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("backend.Models.User", "User")
@@ -828,6 +828,11 @@ namespace backend.Migrations
             modelBuilder.Entity("backend.Models.ShelfLevel", b =>
                 {
                     b.Navigation("Books");
+                });
+
+            modelBuilder.Entity("backend.Models.Stock", b =>
+                {
+                    b.Navigation("Loans");
                 });
 
             modelBuilder.Entity("backend.Models.Tag", b =>

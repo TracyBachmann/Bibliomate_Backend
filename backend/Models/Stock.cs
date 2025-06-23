@@ -39,5 +39,10 @@ namespace backend.Models
         /// </summary>
         [ForeignKey(nameof(BookId))]
         public Book Book { get; set; } = null!;
+
+        /// <summary>
+        /// Collection of loans associated with this stock entry.
+        /// </summary>
+        public ICollection<Loan> Loans { get; set; } = new List<Loan>();
     }
 }
