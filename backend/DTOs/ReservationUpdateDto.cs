@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using backend.Models.Enums;
 
 namespace backend.DTOs
 {
@@ -18,5 +19,8 @@ namespace backend.DTOs
 
         [Required]
         public DateTime ReservationDate { get; set; }
+
+        [Required]
+        public ReservationStatus Status { get; set; }
     }
 }

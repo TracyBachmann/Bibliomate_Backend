@@ -6,6 +6,7 @@ using backend.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using backend.Models.Enums;
+using backend.Services;
 
 namespace backend.Controllers
 {
@@ -47,7 +48,63 @@ namespace backend.Controllers
                 UserName = r.User.Name,
                 BookId = r.BookId,
                 BookTitle = r.Book.Title,
-                ReservationDate = r.ReservationDate
+                ReservationDate = r.ReservationDate,
+                Status = r.Status
+            }));
+        }
+
+        // GET: api/Reservations/user/{id}
+        /// <summary>
+        /// Retrieves active reservations for a specific user.
+        /// </summary>
+        [Authorize]
+        [HttpGet("user/{id}")]
+        public async Task<ActionResult<IEnumerable<ReservationReadDto>>> GetUserReservations(int id)
+        {
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            if (id != currentUserId && !User.IsInRole(UserRoles.Admin) && !User.IsInRole(UserRoles.Librarian))
+                return Forbid();
+
+            var reservations = await _context.Reservations
+                .Include(r => r.Book)
+                .Where(r => r.UserId == id && (r.Status == ReservationStatus.Pending || r.Status == ReservationStatus.Available))
+                .ToListAsync();
+
+            return Ok(reservations.Select(r => new ReservationReadDto
+            {
+                ReservationId = r.ReservationId,
+                UserId = r.UserId,
+                UserName = r.User?.Name ?? "",
+                BookId = r.BookId,
+                BookTitle = r.Book.Title,
+                ReservationDate = r.ReservationDate,
+                Status = r.Status
+            }));
+        }
+
+        // GET: api/Reservations/book/{id}/pending
+        /// <summary>
+        /// Retrieves pending reservations for a specific book.
+        /// </summary>
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
+        [HttpGet("book/{id}/pending")]
+        public async Task<ActionResult<IEnumerable<ReservationReadDto>>> GetPendingReservationsForBook(int id)
+        {
+            var reservations = await _context.Reservations
+                .Include(r => r.User)
+                .Where(r => r.BookId == id && r.Status == ReservationStatus.Pending)
+                .OrderBy(r => r.CreatedAt)
+                .ToListAsync();
+
+            return Ok(reservations.Select(r => new ReservationReadDto
+            {
+                ReservationId = r.ReservationId,
+                UserId = r.UserId,
+                UserName = r.User.Name,
+                BookId = r.BookId,
+                BookTitle = r.Book?.Title ?? "",
+                ReservationDate = r.ReservationDate,
+                Status = r.Status
             }));
         }
 
@@ -55,11 +112,6 @@ namespace backend.Controllers
         /// <summary>
         /// Retrieves a specific reservation by its identifier.
         /// </summary>
-        /// <param name="id">The reservation identifier.</param>
-        /// <returns>
-        /// The requested reservation if authorized;  
-        /// otherwise <c>403 Forbid</c> or <c>404 NotFound</c>.
-        /// </returns>
         [Authorize]
         [HttpGet("{id}")]
         public async Task<ActionResult<ReservationReadDto>> GetReservation(int id)
@@ -72,8 +124,8 @@ namespace backend.Controllers
             if (reservation == null)
                 return NotFound();
 
-            var currentUserId  = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            var isOwner        = reservation.UserId == currentUserId;
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var isOwner = reservation.UserId == currentUserId;
             var isAdminOrStaff = User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.Librarian);
 
             if (!isOwner && !isAdminOrStaff)
@@ -86,7 +138,8 @@ namespace backend.Controllers
                 UserName = reservation.User.Name,
                 BookId = reservation.BookId,
                 BookTitle = reservation.Book.Title,
-                ReservationDate = reservation.ReservationDate
+                ReservationDate = reservation.ReservationDate,
+                Status = reservation.Status
             };
         }
 
@@ -94,25 +147,33 @@ namespace backend.Controllers
         /// <summary>
         /// Creates a new reservation for the currently authenticated user.
         /// </summary>
-        /// <param name="dto">The reservation entity to create (BookId required).</param>
-        /// <returns>
-        /// <c>201 Created</c> with the created reservation and its URI;  
-        /// <c>403 Forbid</c> if attempting to create for another user.
-        /// </returns>
         [Authorize(Roles = UserRoles.User)]
         [HttpPost]
         public async Task<ActionResult<ReservationReadDto>> CreateReservation(ReservationCreateDto dto)
         {
             var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-
             if (dto.UserId != currentUserId)
                 return Forbid();
+
+            var hasActiveReservation = await _context.Reservations
+                .AnyAsync(r => r.UserId == dto.UserId && r.BookId == dto.BookId && r.Status != ReservationStatus.Completed);
+
+            if (hasActiveReservation)
+                return BadRequest("Vous avez déjà une réservation active pour ce livre.");
+
+            var availableStock = await _context.Stocks
+                .AnyAsync(s => s.BookId == dto.BookId && s.IsAvailable);
+
+            if (!availableStock)
+                return BadRequest("Aucun exemplaire disponible pour le moment.");
 
             var reservation = new Reservation
             {
                 UserId = dto.UserId,
                 BookId = dto.BookId,
-                ReservationDate = DateTime.UtcNow
+                ReservationDate = DateTime.UtcNow,
+                Status = ReservationStatus.Pending,
+                CreatedAt = DateTime.UtcNow
             };
 
             _context.Reservations.Add(reservation);
@@ -127,7 +188,8 @@ namespace backend.Controllers
                     UserName = (await _context.Users.FindAsync(reservation.UserId))?.Name ?? "",
                     BookId = reservation.BookId,
                     BookTitle = (await _context.Books.FindAsync(reservation.BookId))?.Title ?? "",
-                    ReservationDate = reservation.ReservationDate
+                    ReservationDate = reservation.ReservationDate,
+                    Status = reservation.Status
                 });
         }
 
@@ -136,13 +198,6 @@ namespace backend.Controllers
         /// Updates an existing reservation.
         /// Accessible to Librarians and Admins only.
         /// </summary>
-        /// <param name="id">The identifier of the reservation to update.</param>
-        /// <param name="dto">The modified reservation entity.</param>
-        /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>400 BadRequest</c> if IDs mismatch;  
-        /// <c>404 NotFound</c> if the reservation does not exist.
-        /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateReservation(int id, ReservationUpdateDto dto)
@@ -157,6 +212,7 @@ namespace backend.Controllers
             reservation.UserId = dto.UserId;
             reservation.BookId = dto.BookId;
             reservation.ReservationDate = dto.ReservationDate;
+            reservation.Status = dto.Status;
 
             await _context.SaveChangesAsync();
 
@@ -168,12 +224,6 @@ namespace backend.Controllers
         /// Deletes a reservation.
         /// Allowed to the reservation’s owner, Librarians, or Admins.
         /// </summary>
-        /// <param name="id">The identifier of the reservation to delete.</param>
-        /// <returns>
-        /// <c>204 NoContent</c> when deletion succeeds;  
-        /// <c>403 Forbid</c> if unauthorized;  
-        /// <c>404 NotFound</c> if the reservation is not found.
-        /// </returns>
         [Authorize]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteReservation(int id)
@@ -182,8 +232,8 @@ namespace backend.Controllers
             if (reservation == null)
                 return NotFound();
 
-            var currentUserId  = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            var isOwner        = reservation.UserId == currentUserId;
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var isOwner = reservation.UserId == currentUserId;
             var isAdminOrStaff = User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.Librarian);
 
             if (!isOwner && !isAdminOrStaff)
@@ -193,6 +243,20 @@ namespace backend.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
+        }
+        
+        // POST: api/Reservations/cleanup-expired
+        /// <summary>
+        /// Purges expired reservations (e.g. older than 48h after AvailableAt).
+        /// Only accessible to Librarians and Admins.
+        /// </summary>
+        /// <param name="cleanupService">Injected cleanup service.</param>
+        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
+        [HttpPost("cleanup-expired")]
+        public async Task<IActionResult> CleanupExpiredReservations([FromServices] ReservationCleanupService cleanupService)
+        {
+            int count = await cleanupService.CleanupExpiredReservationsAsync();
+            return Ok(new { message = $"{count} réservations expirées supprimées." });
         }
     }
 }

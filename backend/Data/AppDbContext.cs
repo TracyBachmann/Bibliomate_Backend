@@ -28,6 +28,7 @@ namespace backend.Data
         // Tag system and relations
         public DbSet<Tag> Tags { get; set; }
         public DbSet<BookTag> BookTags { get; set; }
+        public DbSet<UserGenre> UserGenres { get; set; }
 
         // Normalized relations for authors and editors
         public DbSet<Author> Authors { get; set; }
@@ -107,6 +108,19 @@ namespace backend.Data
                 .WithMany(g => g.Books)
                 .HasForeignKey(b => b.GenreId)
                 .OnDelete(DeleteBehavior.Restrict);
+            
+            modelBuilder.Entity<UserGenre>()
+                .HasKey(ug => new { ug.UserId, ug.GenreId });
+
+            modelBuilder.Entity<UserGenre>()
+                .HasOne(ug => ug.User)
+                .WithMany(u => u.UserGenres)
+                .HasForeignKey(ug => ug.UserId);
+
+            modelBuilder.Entity<UserGenre>()
+                .HasOne(ug => ug.Genre)
+                .WithMany()
+                .HasForeignKey(ug => ug.GenreId);
 
             base.OnModelCreating(modelBuilder);
         }

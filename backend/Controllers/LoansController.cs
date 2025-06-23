@@ -21,11 +21,13 @@ namespace backend.Controllers
     {
         private readonly BiblioMateDbContext _context;
         private readonly StockService _stockService;
+        private readonly NotificationService _notificationService;
 
-        public LoansController(BiblioMateDbContext context, StockService stockService)
+        public LoansController(BiblioMateDbContext context, StockService stockService, NotificationService notificationService)
         {
             _context = context;
             _stockService = stockService;
+            _notificationService = notificationService;
         }
 
         /// <summary>
@@ -190,35 +192,53 @@ namespace backend.Controllers
         /// <param name="id">The ID of the loan to return.</param>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPut("{id}/return")]
-        public async Task<IActionResult> ReturnBook(int id)
+        public async Task<IActionResult> ReturnLoan(int id)
         {
             var loan = await _context.Loans
-                .Include(l => l.Book)
+                .Include(l => l.Stock)
+                .ThenInclude(s => s.Book)
                 .FirstOrDefaultAsync(l => l.LoanId == id);
 
             if (loan == null)
-                return NotFound("Loan not found.");
+                return NotFound("Emprunt non trouvé.");
 
             if (loan.ReturnDate != null)
-                return BadRequest(new { error = "Book already returned." });
+                return BadRequest(new { error = "Livre déjà rendu." });
 
             loan.ReturnDate = DateTime.UtcNow;
 
-            int daysLate = (loan.ReturnDate.Value - loan.DueDate).Days;
-            loan.Fine = daysLate > 0 ? daysLate * LoanPolicy.LateFeePerDay : 0;
+            var stock = loan.Stock;
+            stock.IsAvailable = true;
 
-            var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.BookId == loan.BookId);
-            if (stock != null)
-                _stockService.Increase(stock);
+            var reservation = await _context.Reservations
+                .Where(r => r.BookId == stock.BookId && r.Status == ReservationStatus.Pending)
+                .OrderBy(r => r.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            bool reservationNotified = false;
+
+            if (reservation != null)
+            {
+                reservation.AssignedStockId = stock.StockId;
+                reservation.Status = ReservationStatus.Available;
+                stock.IsAvailable = false;
+
+                var bookTitle = stock.Book?.Title ?? "Inconnu";
+
+                await _notificationService.NotifyUser(
+                    reservation.UserId,
+                    $"📚 Le livre '{bookTitle}' est désormais disponible pour vous. Vous avez 48h pour venir le récupérer."
+                );
+
+                reservationNotified = true;
+            }
 
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                message = "Book returned successfully.",
-                fine = loan.Fine,
-                daysLate,
-                returnDate = loan.ReturnDate
+                message = "Livre rendu avec succès.",
+                reservationNotified
             });
         }
 

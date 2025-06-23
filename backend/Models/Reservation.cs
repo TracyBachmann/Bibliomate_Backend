@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using backend.Models.Enums;
 
 namespace backend.Models
 {
@@ -16,6 +17,16 @@ namespace backend.Models
 
         [Required]
         public DateTime ReservationDate { get; set; }
+
+        [Required]
+        public ReservationStatus Status { get; set; } = ReservationStatus.Pending;
+        
+        public int? AssignedStockId { get; set; }
+        
+        public DateTime? AvailableAt { get; set; }
+
+        [Required]
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         [ForeignKey("BookId")]
         public Book Book { get; set; } = null!;

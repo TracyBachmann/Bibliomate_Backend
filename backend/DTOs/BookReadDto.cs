@@ -1,6 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-
-namespace backend.DTOs
+﻿namespace backend.DTOs
 {
     /// <summary>
     /// DTO used to return detailed book information to clients.
@@ -22,6 +20,8 @@ namespace backend.DTOs
         public string EditorName { get; set; } = string.Empty;
 
         public bool IsAvailable { get; set; }
+        
+        public string? CoverUrl { get; set; }
 
         public List<string> Tags { get; set; } = new();
     }

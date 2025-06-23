@@ -28,6 +28,8 @@ namespace backend.DTOs
 
         [Required]
         public int ShelfLevelId { get; set; }
+        
+        public string? CoverUrl { get; set; }
 
         public List<int>? TagIds { get; set; }
     }
