@@ -43,5 +43,6 @@ namespace backend.Models
         public ICollection<Report> Reports { get; set; } = new List<Report>();
         public ICollection<Recommendation>? Recommendations { get; set; }
         public ICollection<Notification>? Notifications { get; set; } = new List<Notification>();
+        public ICollection<UserGenre> UserGenres { get; set; }
     }
 }

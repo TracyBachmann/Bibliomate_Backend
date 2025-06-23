@@ -18,7 +18,7 @@ namespace backend.Models
 
         [Required]
         public DateTime PublicationDate { get; set; }
-        
+
         public int AuthorId { get; set; }
         [ForeignKey(nameof(AuthorId))]
         public Author Author { get; set; } = null!;
@@ -35,6 +35,8 @@ namespace backend.Models
         public int ShelfLevelId { get; set; }
         [ForeignKey(nameof(ShelfLevelId))]
         public ShelfLevel ShelfLevel { get; set; } = null!;
+        
+        public string? CoverUrl { get; set; }
 
         public ICollection<Loan> Loans { get; set; } = new List<Loan>();
         public ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();

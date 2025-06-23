@@ -7,6 +7,11 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Reflection;
+using Microsoft.Extensions.Options;
+using MongoDB.Driver;
+
+using Microsoft.AspNetCore.Authorization;
+using backend.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,9 +61,26 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// -- MongoDB Configuration
+// Classe de settings pour binder la section "MongoDb"
+builder.Services.Configure<MongoSettings>(
+    builder.Configuration.GetSection("MongoDb"));
+
+// Enregistrer le client Mongo comme singleton
+builder.Services.AddSingleton<IMongoClient>(sp =>
+{
+    var settings = sp.GetRequiredService<IOptions<MongoSettings>>().Value;
+    return new MongoClient(settings.ConnectionString);
+});
+
 // -- Services
 builder.Services.AddScoped<SendGridEmailService>();
+builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<NotificationLogService>();
 builder.Services.AddScoped<StockService>();
+builder.Services.AddScoped<RecommendationService>();
+builder.Services.AddScoped<ReservationCleanupService>();
+builder.Services.AddHostedService<LoanReminderBackgroundService>();
 
 // -- SignalR
 builder.Services.AddSignalR();
@@ -116,6 +138,15 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
+
+// -- Endpoint to view logs (example)
+app.MapGet("/api/notifications/logs/user/{userId}",
+    [Authorize(Roles = "Librarian,Admin")] 
+    async (int userId, NotificationLogService logService) =>
+    {
+        var logs = await logService.GetByUserAsync(userId);
+        return Results.Ok(logs);
+    });
 
 if (app.Environment.IsDevelopment())
 {

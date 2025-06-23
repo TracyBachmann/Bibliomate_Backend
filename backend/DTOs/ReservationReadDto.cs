@@ -1,4 +1,5 @@
-// ReservationReadDto.cs
+using backend.Models.Enums;
+
 namespace backend.DTOs
 {
     /// <summary>
@@ -15,5 +16,7 @@ namespace backend.DTOs
         public string BookTitle { get; set; } = string.Empty;
 
         public DateTime ReservationDate { get; set; }
+
+        public ReservationStatus Status { get; set; } 
     }
 }

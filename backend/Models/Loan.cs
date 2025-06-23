@@ -29,5 +29,9 @@ namespace backend.Models
 
         [ForeignKey("UserId")]
         public User User { get; set; } = null!;
+        
+        public int StockId { get; set; }
+        [ForeignKey(nameof(StockId))]
+        public Stock Stock { get; set; } = null!;
     }
 }
