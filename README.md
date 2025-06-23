@@ -103,10 +103,6 @@ ng serve
 - 📄 DTOs disponibles dans `/backend/DTOs`, séparés proprement du modèle EF.
 
 ## 👥 Équipe
-- Développement : Juste moi :)
-- Design : Juste moi :)
-
-## 👥 Équipe
 
 - 💻 Développement : Tracy Bachmann
 - 🎨 Design & UX : Tracy Bachmann
