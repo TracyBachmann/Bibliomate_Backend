@@ -118,6 +118,7 @@ builder.Services.AddScoped<UserActivityLogService>();
 builder.Services.AddScoped<SearchActivityLogService>();
 builder.Services.AddSingleton<EncryptionService>();
 builder.Services.AddScoped<LoanReminderService>();
+builder.Services.AddHttpClient<GoogleBooksService>();
 
 // 7) SignalR
 builder.Services.AddSignalR();

@@ -19,8 +19,20 @@ namespace backend.Services
         /// </param>
         public NotificationLogService(IConfiguration config)
         {
-            var client   = new MongoClient(config["MongoDb"]);
-            var database = client.GetDatabase(config["MongoDbDatabase"]);
+            var connStr = config["MongoDb:ConnectionString"];
+            var dbName  = config["MongoDb:DatabaseName"];
+
+            if (string.IsNullOrWhiteSpace(connStr))
+            {
+                connStr = "mongodb://admin:password@localhost:27017";
+            }
+            if (string.IsNullOrWhiteSpace(dbName))
+            {
+                dbName = "BiblioMateLogs";
+            }
+
+            var client   = new MongoClient(connStr);
+            var database = client.GetDatabase(dbName);
             _collection  = database.GetCollection<NotificationLogDocument>("NotificationLogs");
         }
 
