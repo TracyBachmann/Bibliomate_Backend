@@ -8,6 +8,7 @@
 
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <NoWarn>$(NoWarn);1591</NoWarn> 
+        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS> 
     </PropertyGroup>
 
     <ItemGroup>
@@ -28,6 +29,12 @@
 
     <ItemGroup>
       <Folder Include="Migrations\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="..\.dockerignore">
+        <Link>.dockerignore</Link>
+      </Content>
     </ItemGroup>
 
 </Project>
