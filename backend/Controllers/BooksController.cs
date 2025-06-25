@@ -1,10 +1,11 @@
 ﻿using System.Security.Claims;
 using backend.Data;
 using backend.DTOs;
+using backend.Helpers;
 using backend.Models;
 using backend.Models.Enums;
-using backend.Models.Mongo;
-using backend.Services;
+using backend.Models.Mongo;          
+using backend.Services;            
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +15,8 @@ namespace backend.Controllers
     /// <summary>
     /// Controller for managing books.
     /// Provides CRUD operations, advanced search,
-    /// and detailed projections through DTOs, with search activity logging.
+    /// and detailed projections through DTOs,
+    /// with search activity logging and pagination.
     /// </summary>
     [Authorize]
     [ApiController]
@@ -22,7 +24,7 @@ namespace backend.Controllers
     public class BooksController : ControllerBase
     {
         private readonly BiblioMateDbContext _context;
-        private readonly SearchActivityLogService _searchLog;  // logger for search activities
+        private readonly SearchActivityLogService _searchLog;
 
         /// <summary>
         /// Initializes a new instance of <see cref="BooksController"/>.
@@ -37,30 +39,91 @@ namespace backend.Controllers
             _searchLog = searchLog;
         }
 
-        // GET: api/Books
+                // GET: api/Books
         /// <summary>
-        /// Retrieves all books with detailed information.
+        /// Retrieves a paged, sorted list of books with detailed information,
+        /// using projection for performance and ETag support for caching.
         /// </summary>
-        /// <remarks>
-        /// Includes related entities such as <see cref="Author"/>,
-        /// <see cref="Genre"/>, <see cref="Editor"/>, shelf level,
-        /// tags, and stock data.
-        /// </remarks>
-        /// <returns>A collection of <see cref="BookReadDto"/>.</returns>
+        /// <param name="pageNumber">Page number (1-based). Default = 1.</param>
+        /// <param name="pageSize">Number of items per page. Default = 20.</param>
+        /// <param name="sortBy">
+        /// Field to sort by. Allowed values: "Title", "PublicationYear". Default = "Title".
+        /// </param>
+        /// <param name="ascending">Sort direction. True = ascending. Default = true.</param>
+        /// <returns>
+        /// <c>200 OK</c> with a <see cref="PagedResult{BookReadDto}"/> containing items and pagination metadata,
+        /// or <c>304 Not Modified</c> if the client’s ETag matches the server’s.
+        /// </returns>
         [AllowAnonymous]
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<BookReadDto>>> GetBooks()
+        public async Task<ActionResult<PagedResult<BookReadDto>>> GetBooks(
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 20,
+            [FromQuery] string sortBy = "Title",
+            [FromQuery] bool ascending = true)
         {
-            var books = await _context.Books
-                .Include(b => b.Genre)
-                .Include(b => b.Author)
-                .Include(b => b.Editor)
-                .Include(b => b.ShelfLevel)
-                .Include(b => b.BookTags).ThenInclude(bt => bt.Tag)
-                .Include(b => b.Stock)
+            // 1) Project directly into DTO to fetch only needed columns
+            var baseQuery = _context.Books
+                .Select(b => new BookReadDto
+                {
+                    BookId          = b.BookId,
+                    Title           = b.Title,
+                    Isbn            = b.Isbn,
+                    PublicationYear = b.PublicationDate.Year,
+                    AuthorName      = b.Author.Name,
+                    GenreName       = b.Genre.Name,
+                    EditorName      = b.Editor.Name,
+                    IsAvailable     = b.Stock.IsAvailable,
+                    CoverUrl        = b.CoverUrl,
+                    Tags            = b.BookTags.Select(bt => bt.Tag.Name).ToList()
+                });
+
+            // 2) Apply dynamic sorting on DTO fields
+            baseQuery = (sortBy, ascending) switch
+            {
+                ("PublicationYear", true)  => baseQuery.OrderBy(d => d.PublicationYear),
+                ("PublicationYear", false) => baseQuery.OrderByDescending(d => d.PublicationYear),
+                ("Title", false)           => baseQuery.OrderByDescending(d => d.Title),
+                _                          => baseQuery.OrderBy(d => d.Title)
+            };
+
+            // 3) Compute total count before pagination
+            var totalCount = await baseQuery.LongCountAsync();
+
+            // 4) Apply paging
+            var pageItems = await baseQuery
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
-            return Ok(books.Select(ToBookReadDto));
+            // 5) Build PagedResult
+            var result = new PagedResult<BookReadDto>
+            {
+                PageNumber = pageNumber,
+                PageSize   = pageSize,
+                TotalCount = totalCount,
+                Items      = pageItems
+            };
+
+            // 6) Generate simple ETag (MD5 hash of IDs + Titles)
+            var eTagSource = string.Join(";", pageItems.Select(i => $"{i.BookId}-{i.Title}"));
+            var eTagHash   = Convert.ToBase64String(
+                System.Security.Cryptography.MD5
+                    .Create()
+                    .ComputeHash(System.Text.Encoding.UTF8.GetBytes(eTagSource))
+            );
+            var eTagValue = $"\"{eTagHash}\"";
+            Response.Headers["ETag"] = eTagValue;
+
+            // 7) Return 304 if client's ETag matches
+            if (Request.Headers.TryGetValue("If-None-Match", out var clientETag) &&
+                clientETag == eTagValue)
+            {
+                return StatusCode(StatusCodes.Status304NotModified);
+            }
+
+            // 8) Return paged result
+            return Ok(result);
         }
 
         // GET: api/Books/{id}
@@ -245,10 +308,10 @@ namespace backend.Controllers
             if (!string.IsNullOrWhiteSpace(dto.Isbn))
                 query = query.Where(b => b.Isbn.Contains(dto.Isbn));
             if (dto.YearMin.HasValue)
-                query = query.Where(b => 
+                query = query.Where(b =>
                     b.PublicationDate >= new DateTime(dto.YearMin.Value, 1, 1));
             if (dto.YearMax.HasValue)
-                query = query.Where(b => 
+                query = query.Where(b =>
                     b.PublicationDate <= new DateTime(dto.YearMax.Value, 12, 31));
             if (dto.IsAvailable.HasValue)
                 query = query.Where(b =>
