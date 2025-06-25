@@ -102,7 +102,7 @@ builder.Services.AddSingleton<IMongoClient>(sp =>
     return new MongoClient(settings.ConnectionString);
 });
 
-// 6) Services et background
+// 6) Services & background
 builder.Services.AddScoped<SendGridEmailService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<NotificationLogService>();
@@ -111,6 +111,8 @@ builder.Services.AddScoped<RecommendationService>();
 builder.Services.AddScoped<ReservationCleanupService>();
 builder.Services.AddScoped<HistoryService>();
 builder.Services.AddHostedService<LoanReminderBackgroundService>();
+builder.Services.AddScoped<UserActivityLogService>();
+builder.Services.AddScoped<SearchActivityLogService>();
 
 // 7) SignalR
 builder.Services.AddSignalR();

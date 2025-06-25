@@ -1,11 +1,13 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using backend.Models;
+﻿using System.Security.Claims;
 using backend.Data;
 using backend.DTOs;
-using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
+using backend.Models;
 using backend.Models.Enums;
+using backend.Models.Mongo;
+using backend.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers
 {
@@ -19,10 +21,16 @@ namespace backend.Controllers
     public class UsersController : ControllerBase
     {
         private readonly BiblioMateDbContext _context;
+        private readonly UserActivityLogService _activityLog;
 
-        public UsersController(BiblioMateDbContext context)
+        /// <summary>
+        /// Constructor with DbContext and ActivityLog service injection.
+        /// </summary>
+        public UsersController(BiblioMateDbContext context,
+                               UserActivityLogService activityLog)
         {
-            _context = context;
+            _context     = context;
+            _activityLog = activityLog;
         }
 
         // GET: api/Users
@@ -100,6 +108,14 @@ namespace backend.Controllers
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
+            // Log account creation
+            await _activityLog.LogAsync(new UserActivityLogDocument
+            {
+                UserId  = user.UserId,
+                Action  = "CreateAccount",
+                Details = $"Email={user.Email}"
+            });
+
             return CreatedAtAction(nameof(GetUser), new { id = user.UserId }, new UserReadDto
             {
                 UserId = user.UserId,
@@ -135,6 +151,15 @@ namespace backend.Controllers
             user.Phone   = dto.Phone;
 
             await _context.SaveChangesAsync();
+
+            // Log profile update
+            await _activityLog.LogAsync(new UserActivityLogDocument
+            {
+                UserId  = user.UserId,
+                Action  = "UpdateUser",
+                Details = $"Updated basic info for user {user.UserId}"
+            });
+
             return NoContent();
         }
 
@@ -158,6 +183,15 @@ namespace backend.Controllers
             user.Address = dto.Address;
 
             await _context.SaveChangesAsync();
+
+            // Log self profile update
+            await _activityLog.LogAsync(new UserActivityLogDocument
+            {
+                UserId  = user.UserId,
+                Action  = "UpdateSelf",
+                Details = "User updated own profile"
+            });
+
             return Ok("Profile updated successfully.");
         }
 
@@ -214,6 +248,14 @@ namespace backend.Controllers
             user.Role = dto.Role;
             await _context.SaveChangesAsync();
 
+            // Log role change
+            await _activityLog.LogAsync(new UserActivityLogDocument
+            {
+                UserId  = user.UserId,
+                Action  = "UpdateRole",
+                Details = $"Role changed to {dto.Role}"
+            });
+
             return Ok(new { message = $"Role updated to {dto.Role}." });
         }
 
@@ -242,6 +284,14 @@ namespace backend.Controllers
 
             _context.Users.Remove(user);
             await _context.SaveChangesAsync();
+
+            // Log deletion
+            await _activityLog.LogAsync(new UserActivityLogDocument
+            {
+                UserId  = currentUserId,
+                Action  = "DeleteUser",
+                Details = $"Deleted user {id}"
+            });
 
             return NoContent();
         }

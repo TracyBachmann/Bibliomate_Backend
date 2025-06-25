@@ -3,11 +3,12 @@ using backend.DTOs;
 using backend.Helpers;
 using backend.Models;
 using backend.Models.Enums;
+using backend.Models.Policies;
+using backend.Models.Mongo;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using backend.Models.Policies;
 
 namespace backend.Controllers
 {
@@ -23,17 +24,23 @@ namespace backend.Controllers
         private readonly StockService _stockService;
         private readonly NotificationService _notificationService;
         private readonly HistoryService _historyService;
+        private readonly UserActivityLogService _activityLog;
 
+        /// <summary>
+        /// Constructor with DI for context, services, and audit log.
+        /// </summary>
         public LoansController(
             BiblioMateDbContext context,
             StockService stockService,
             NotificationService notificationService,
-            HistoryService historyService)   // ← Injection of HistoryService
+            HistoryService historyService,
+            UserActivityLogService activityLog)
         {
             _context             = context;
             _stockService        = stockService;
             _notificationService = notificationService;
             _historyService      = historyService;
+            _activityLog         = activityLog;
         }
 
         /// <summary>
@@ -140,12 +147,20 @@ namespace backend.Controllers
             _stockService.Decrease(stock);
             await _context.SaveChangesAsync();
 
-            // Log the loan event
+            // Log the loan event in history
             await _historyService.LogEventAsync(
                 dto.UserId, 
                 eventType: "Loan",
                 loanId: loan.LoanId
             );
+
+            // Audit log for activity
+            await _activityLog.LogAsync(new UserActivityLogDocument
+            {
+                UserId  = dto.UserId,
+                Action  = "CreateLoan",
+                Details = $"LoanId={loan.LoanId}, BookId={dto.BookId}"
+            });
 
             return Ok(new
             {
@@ -199,7 +214,6 @@ namespace backend.Controllers
 
             _context.Loans.Remove(loan);
             await _context.SaveChangesAsync();
-
             return NoContent();
         }
 
@@ -219,10 +233,10 @@ namespace backend.Controllers
                 .FirstOrDefaultAsync(l => l.LoanId == id);
 
             if (loan == null)
-                return NotFound("Emprunt non trouvé.");
+                return NotFound("Loan not found.");
 
             if (loan.ReturnDate != null)
-                return BadRequest(new { error = "Livre déjà rendu." });
+                return BadRequest(new { error = "Book already returned." });
 
             loan.ReturnDate = DateTime.UtcNow;
 
@@ -242,26 +256,34 @@ namespace backend.Controllers
                 reservation.Status = ReservationStatus.Available;
                 stock.IsAvailable = false;
 
-                var bookTitle = stock.Book?.Title ?? "Inconnu";
+                var bookTitle = stock.Book?.Title ?? "Unknown";
                 await _notificationService.NotifyUser(
                     reservation.UserId,
-                    $"📚 Le livre '{bookTitle}' est désormais disponible pour vous. Vous avez 48h pour venir le récupérer."
+                    $"📚 The book '{bookTitle}' is now available for you. You have 48h to pick it up."
                 );
                 reservationNotified = true;
             }
 
             await _context.SaveChangesAsync();
 
-            // Log the return event
+            // Log the return event in history
             await _historyService.LogEventAsync(
                 loan.UserId,
                 eventType: "Return",
                 loanId: loan.LoanId
             );
 
+            // Audit log for activity
+            await _activityLog.LogAsync(new UserActivityLogDocument
+            {
+                UserId  = loan.UserId,
+                Action  = "ReturnLoan",
+                Details = $"LoanId={loan.LoanId}"
+            });
+
             return Ok(new
             {
-                message = "Livre rendu avec succès.",
+                message = "Book returned successfully.",
                 reservationNotified
             });
         }

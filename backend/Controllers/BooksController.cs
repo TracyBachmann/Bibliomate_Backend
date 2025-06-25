@@ -1,17 +1,20 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+﻿using System.Security.Claims;
 using backend.Data;
-using backend.Models;
 using backend.DTOs;
-using Microsoft.AspNetCore.Authorization;
+using backend.Models;
 using backend.Models.Enums;
+using backend.Models.Mongo;
+using backend.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers
 {
     /// <summary>
-    /// Controller for managing books.  
+    /// Controller for managing books.
     /// Provides CRUD operations, advanced search,
-    /// and detailed projections through DTOs.
+    /// and detailed projections through DTOs, with search activity logging.
     /// </summary>
     [Authorize]
     [ApiController]
@@ -19,10 +22,19 @@ namespace backend.Controllers
     public class BooksController : ControllerBase
     {
         private readonly BiblioMateDbContext _context;
+        private readonly SearchActivityLogService _searchLog;  // logger for search activities
 
-        public BooksController(BiblioMateDbContext context)
+        /// <summary>
+        /// Initializes a new instance of <see cref="BooksController"/>.
+        /// </summary>
+        /// <param name="context">Database context for BiblioMate.</param>
+        /// <param name="searchLog">Service to record search activity logs.</param>
+        public BooksController(
+            BiblioMateDbContext context,
+            SearchActivityLogService searchLog)
         {
-            _context = context;
+            _context   = context;
+            _searchLog = searchLog;
         }
 
         // GET: api/Books
@@ -57,8 +69,7 @@ namespace backend.Controllers
         /// </summary>
         /// <param name="id">The book identifier.</param>
         /// <returns>
-        /// The requested <see cref="BookReadDto"/> if found;
-        /// otherwise <c>404 NotFound</c>.
+        /// The requested <see cref="BookReadDto"/> if found; otherwise <c>404 NotFound</c>.
         /// </returns>
         [AllowAnonymous]
         [HttpGet("{id}")]
@@ -91,19 +102,20 @@ namespace backend.Controllers
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPost]
-        public async Task<ActionResult<Book>> CreateBook(BookCreateDto dto)
+        public async Task<ActionResult<BookReadDto>> CreateBook(BookCreateDto dto)
         {
             var book = new Book
             {
-                Title = dto.Title,
-                Isbn = dto.Isbn,
+                Title           = dto.Title,
+                Isbn            = dto.Isbn,
                 PublicationDate = dto.PublicationDate,
-                AuthorId = dto.AuthorId,
-                GenreId = dto.GenreId,
-                EditorId = dto.EditorId,
-                ShelfLevelId = dto.ShelfLevelId,
-                BookTags = (dto.TagIds ?? new List<int>())
-                    .Select(tagId => new BookTag { TagId = tagId }).ToList()
+                AuthorId        = dto.AuthorId,
+                GenreId         = dto.GenreId,
+                EditorId        = dto.EditorId,
+                ShelfLevelId    = dto.ShelfLevelId,
+                BookTags        = (dto.TagIds ?? new List<int>())
+                                    .Select(tagId => new BookTag { TagId = tagId })
+                                    .ToList()
             };
 
             _context.Books.Add(book);
@@ -118,7 +130,11 @@ namespace backend.Controllers
                 return Conflict("A book with this ISBN already exists.");
             }
 
-            return CreatedAtAction(nameof(GetBook), new { id = book.BookId }, ToBookReadDto(book));
+            return CreatedAtAction(
+                nameof(GetBook),
+                new { id = book.BookId },
+                ToBookReadDto(book)
+            );
         }
 
         // PUT: api/Books/{id}
@@ -146,16 +162,16 @@ namespace backend.Controllers
             if (book == null)
                 return NotFound();
 
-            book.Title          = dto.Title;
-            book.Isbn           = dto.Isbn;
+            book.Title           = dto.Title;
+            book.Isbn            = dto.Isbn;
             book.PublicationDate = dto.PublicationDate;
-            book.AuthorId       = dto.AuthorId;
-            book.GenreId        = dto.GenreId;
-            book.EditorId       = dto.EditorId;
-            book.ShelfLevelId   = dto.ShelfLevelId;
-            book.BookTags       = dto.TagIds?.Select(tagId =>
-                                    new BookTag { BookId = id, TagId = tagId })
-                                .ToList() ?? new List<BookTag>();
+            book.AuthorId        = dto.AuthorId;
+            book.GenreId         = dto.GenreId;
+            book.EditorId        = dto.EditorId;
+            book.ShelfLevelId    = dto.ShelfLevelId;
+            book.BookTags        = dto.TagIds?.Select(tagId =>
+                                       new BookTag { BookId = id, TagId = tagId })
+                                       .ToList() ?? new List<BookTag>();
 
             await _context.SaveChangesAsync();
             return NoContent();
@@ -197,6 +213,18 @@ namespace backend.Controllers
         public async Task<ActionResult<IEnumerable<BookReadDto>>> SearchBooks(
             [FromBody] BookSearchDto dto)
         {
+            // Log the search activity
+            int? userId = null;
+            if (User.Identity?.IsAuthenticated == true)
+                userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+            await _searchLog.LogAsync(new SearchActivityLogDocument
+            {
+                UserId    = userId,
+                QueryText = dto.ToString()
+            });
+
+            // Build query
             var query = _context.Books
                 .Include(b => b.Genre)
                 .Include(b => b.Author)
@@ -208,31 +236,23 @@ namespace backend.Controllers
 
             if (!string.IsNullOrWhiteSpace(dto.Title))
                 query = query.Where(b => b.Title.Contains(dto.Title));
-
             if (!string.IsNullOrWhiteSpace(dto.Author))
                 query = query.Where(b => b.Author.Name.Contains(dto.Author));
-
             if (!string.IsNullOrWhiteSpace(dto.Genre))
                 query = query.Where(b => b.Genre.Name.Contains(dto.Genre));
-
             if (!string.IsNullOrWhiteSpace(dto.Publisher))
                 query = query.Where(b => b.Editor.Name.Contains(dto.Publisher));
-
             if (!string.IsNullOrWhiteSpace(dto.Isbn))
                 query = query.Where(b => b.Isbn.Contains(dto.Isbn));
-
             if (dto.YearMin.HasValue)
-                query = query.Where(b =>
+                query = query.Where(b => 
                     b.PublicationDate >= new DateTime(dto.YearMin.Value, 1, 1));
-
             if (dto.YearMax.HasValue)
-                query = query.Where(b =>
+                query = query.Where(b => 
                     b.PublicationDate <= new DateTime(dto.YearMax.Value, 12, 31));
-
             if (dto.IsAvailable.HasValue)
                 query = query.Where(b =>
                     b.Stock != null && b.Stock.IsAvailable == dto.IsAvailable.Value);
-
             if (dto.TagIds is { Count: > 0 })
                 query = query.Where(b =>
                     b.BookTags.Any(bt => dto.TagIds.Contains(bt.TagId)));
@@ -245,17 +265,19 @@ namespace backend.Controllers
         /// <summary>
         /// Maps a <see cref="Book"/> entity to its read-side DTO.
         /// </summary>
+        /// <param name="book">The <see cref="Book"/> entity.</param>
+        /// <returns>The corresponding <see cref="BookReadDto"/>.</returns>
         private static BookReadDto ToBookReadDto(Book book) => new()
         {
-            BookId         = book.BookId,
-            Title          = book.Title,
-            Isbn           = book.Isbn,
+            BookId          = book.BookId,
+            Title           = book.Title,
+            Isbn            = book.Isbn,
             PublicationYear = book.PublicationDate.Year,
-            AuthorName     = book.Author.Name ?? "Unknown",
-            GenreName      = book.Genre.Name ?? "Unknown",
-            EditorName     = book.Editor.Name ?? "Unknown",
-            IsAvailable    = book.Stock?.IsAvailable ?? false,
-            Tags           = book.BookTags.Select(bt => bt.Tag.Name).ToList()
+            AuthorName      = book.Author.Name ?? "Unknown",
+            GenreName       = book.Genre.Name ?? "Unknown",
+            EditorName      = book.Editor.Name ?? "Unknown",
+            IsAvailable     = book.Stock?.IsAvailable ?? false,
+            Tags            = book.BookTags.Select(bt => bt.Tag.Name).ToList()
         };
     }
 }
