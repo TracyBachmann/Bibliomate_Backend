@@ -5,35 +5,39 @@ using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services
 {
-    public class HistoryService
+    /// <summary>
+    /// Implements <see cref="IHistoryService"/> using EF Core to persist
+    /// and query history events in the relational database.
+    /// </summary>
+    public class HistoryService : IHistoryService
     {
         private readonly BiblioMateDbContext _context;
 
+        /// <summary>
+        /// Initializes a new instance of <see cref="HistoryService"/>.
+        /// </summary>
+        /// <param name="context">EF Core DB context.</param>
         public HistoryService(BiblioMateDbContext context)
         {
             _context = context;
         }
 
-        /// <summary>
-        /// Logs a new history event.
-        /// </summary>
+        /// <inheritdoc/>
         public async Task LogEventAsync(int userId, string eventType, int? loanId = null, int? reservationId = null)
         {
             var history = new History
             {
-                UserId = userId,
-                EventType = eventType,
-                LoanId = loanId,
-                ReservationId = reservationId,
-                EventDate = DateTime.UtcNow
+                UserId         = userId,
+                EventType      = eventType,
+                LoanId         = loanId,
+                ReservationId  = reservationId,
+                EventDate      = DateTime.UtcNow
             };
             _context.Histories.Add(history);
             await _context.SaveChangesAsync();
         }
 
-        /// <summary>
-        /// Retrieves the paged history for a given user.
-        /// </summary>
+        /// <inheritdoc/>
         public async Task<List<HistoryReadDto>> GetHistoryForUserAsync(int userId, int page = 1, int pageSize = 20)
         {
             return await _context.Histories

@@ -8,12 +8,12 @@ namespace backend.Services
     /// Service that generates book recommendations for users
     /// based on their preferred genres.
     /// </summary>
-    public class RecommendationService
+    public class RecommendationService : IRecommendationService
     {
         private readonly BiblioMateDbContext _context;
 
         /// <summary>
-        /// Constructs a RecommendationService with the specified database context.
+        /// Constructs a <see cref="RecommendationService"/> with the specified database context.
         /// </summary>
         /// <param name="context">The application's EF Core database context.</param>
         public RecommendationService(BiblioMateDbContext context)
@@ -21,15 +21,8 @@ namespace backend.Services
             _context = context;
         }
 
-        /// <summary>
-        /// Retrieves a list of recommended books for the given user,
-        /// selecting up to 10 titles that match the user's favorite genres.
-        /// </summary>
-        /// <param name="userId">The ID of the user to get recommendations for.</param>
-        /// <returns>
-        /// A list of <see cref="RecommendationReadDto"/> objects containing book details.
-        /// </returns>
-        public async Task<List<RecommendationReadDto>> GetRecommendationsForUser(int userId)
+        /// <inheritdoc/>
+        public async Task<List<RecommendationReadDto>> GetRecommendationsForUserAsync(int userId)
         {
             // 1) Query the user's preferred genre IDs
             var genreIdsQuery = _context.UserGenres
@@ -54,6 +47,5 @@ namespace backend.Services
 
             return recommendations;
         }
-
     }
 }

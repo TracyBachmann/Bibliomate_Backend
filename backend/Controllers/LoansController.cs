@@ -1,307 +1,72 @@
-﻿using backend.Data;
-using backend.DTOs;
-using backend.Helpers;
-using backend.Models;
-using backend.Models.Enums;
-using backend.Models.Policies;
-using backend.Models.Mongo;
+﻿using backend.DTOs;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using backend.Models.Enums;
 
 namespace backend.Controllers
 {
-    /// <summary>
-    /// Controller for managing book loans.
-    /// Provides endpoints for creating, updating, returning, and listing loans.
-    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class LoansController : ControllerBase
     {
-        private readonly BiblioMateDbContext _context;
-        private readonly StockService _stockService;
-        private readonly NotificationService _notificationService;
-        private readonly HistoryService _historyService;
-        private readonly UserActivityLogService _activityLog;
+        private readonly ILoanService _loanService;
 
         /// <summary>
-        /// Constructor with DI for context, services, and audit log.
+        /// Initializes a new instance of <see cref="LoansController"/>.
         /// </summary>
-        public LoansController(
-            BiblioMateDbContext context,
-            StockService stockService,
-            NotificationService notificationService,
-            HistoryService historyService,
-            UserActivityLogService activityLog)
+        /// <param name="loanService">Injected business service for loans.</param>
+        public LoansController(ILoanService loanService)
         {
-            _context             = context;
-            _stockService        = stockService;
-            _notificationService = notificationService;
-            _historyService      = historyService;
-            _activityLog         = activityLog;
+            _loanService = loanService;
         }
 
         /// <summary>
-        /// GET: api/Loans  
-        /// Retrieves all loans, including related book and user information.  
-        /// Only accessible to Admins and Librarians.
+        /// Creates a new loan. Only Librarians and Admins may call this.
         /// </summary>
-        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<LoanReadDto>>> GetLoans()
-        {
-            var loans = await _context.Loans
-                .Include(l => l.User)
-                .Include(l => l.Book)
-                .ToListAsync();
-
-            return Ok(loans.Select(ToLoanReadDto));
-        }
-
-        /// <summary>
-        /// GET: api/Loans/{id}  
-        /// Retrieves a specific loan by ID.  
-        /// Only accessible to Admins and Librarians.
-        /// </summary>
-        /// <param name="id">The ID of the loan.</param>
-        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
-        [HttpGet("{id}")]
-        public async Task<ActionResult<LoanReadDto>> GetLoan(int id)
-        {
-            var loan = await _context.Loans
-                .Include(l => l.User)
-                .Include(l => l.Book)
-                .FirstOrDefaultAsync(l => l.LoanId == id);
-
-            return loan == null ? NotFound() : Ok(ToLoanReadDto(loan));
-        }
-
-        /// <summary>
-        /// GET: api/Loans/user/{userId}  
-        /// Retrieves loans by user ID.  
-        /// Regular users can only access their own loans.
-        /// </summary>
-        /// <param name="userId">The ID of the user.</param>
-        [Authorize]
-        [HttpGet("user/{userId}")]
-        public async Task<ActionResult<IEnumerable<LoanReadDto>>> GetLoansByUser(int userId)
-        {
-            var currentUserId = TokenHelper.GetUserId(User);
-
-            if (currentUserId != userId && 
-                !User.IsInRole(UserRoles.Admin) && 
-                !User.IsInRole(UserRoles.Librarian))
-            {
-                return Forbid();
-            }
-
-            var loans = await _context.Loans
-                .Include(l => l.Book)
-                .Where(l => l.UserId == userId)
-                .ToListAsync();
-
-            if (!loans.Any())
-                return NotFound("No loans were found for this user.");
-
-            return Ok(loans.Select(ToLoanReadDto));
-        }
-
-        /// <summary>
-        /// POST: api/Loans  
-        /// Creates a new loan if user is eligible and stock is available.  
-        /// Only accessible to Admins and Librarians.
-        /// </summary>
-        /// <param name="dto">Loan creation data.</param>
+        /// <param name="dto">Data required to create the loan.</param>
+        /// <returns>
+        /// 200 OK with { message, dueDate } on success,  
+        /// 400 BadRequest with { error } on failure.
+        /// </returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPost]
-        public async Task<ActionResult> CreateLoan(LoanCreateDto dto)
+        public async Task<IActionResult> CreateLoan(LoanCreateDto dto)
         {
-            var user = await _context.Users.FindAsync(dto.UserId);
-            if (user == null)
-                return BadRequest(new { error = "User not found." });
-
-            var activeLoans = await _context.Loans.CountAsync(l =>
-                l.UserId == dto.UserId && l.ReturnDate == null);
-
-            if (activeLoans >= LoanPolicy.MaxActiveLoansPerUser)
-                return BadRequest(new 
-                { 
-                    error = $"The maximum number of active loans ({LoanPolicy.MaxActiveLoansPerUser}) is already reached." 
-                });
-
-            var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.BookId == dto.BookId);
-            if (stock == null || stock.Quantity <= 0)
-                return BadRequest(new { error = "The requested book is currently unavailable." });
-
-            var loan = new Loan
-            {
-                UserId   = dto.UserId,
-                BookId   = dto.BookId,
-                LoanDate = DateTime.UtcNow,
-                DueDate  = DateTime.UtcNow.AddDays(LoanPolicy.DefaultLoanDurationDays)
-            };
-
-            _context.Loans.Add(loan);
-            _stockService.Decrease(stock);
-            await _context.SaveChangesAsync();
-
-            // Log the loan event in history
-            await _historyService.LogEventAsync(
-                dto.UserId, 
-                eventType: "Loan",
-                loanId: loan.LoanId
-            );
-
-            // Audit log for activity
-            await _activityLog.LogAsync(new UserActivityLogDocument
-            {
-                UserId  = dto.UserId,
-                Action  = "CreateLoan",
-                Details = $"LoanId={loan.LoanId}, BookId={dto.BookId}"
-            });
+            var result = await _loanService.CreateAsync(dto);
+            if (result.IsError)
+                return BadRequest(new { error = result.Error });
 
             return Ok(new
             {
                 message = "Loan created successfully.",
-                dueDate = loan.DueDate
+                dueDate = result.Value!.DueDate
             });
         }
 
         /// <summary>
-        /// PUT: api/Loans/{id}  
-        /// Updates an existing loan.  
-        /// Only accessible to Admins and Librarians.
+        /// Returns a book for an existing loan and notifies the next reservation if any.
         /// </summary>
-        /// <param name="id">The ID of the loan to update.</param>
-        /// <param name="dto">Updated loan data.</param>
-        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateLoan(int id, LoanUpdateDto dto)
-        {
-            if (id != dto.LoanId)
-                return BadRequest();
-
-            var loan = await _context.Loans.FindAsync(id);
-            if (loan == null)
-                return NotFound();
-
-            loan.BookId     = dto.BookId;
-            loan.UserId     = dto.UserId;
-            loan.LoanDate   = dto.LoanDate;
-            loan.DueDate    = dto.DueDate;
-            loan.ReturnDate = dto.ReturnDate;
-            loan.Fine       = dto.Fine;
-
-            await _context.SaveChangesAsync();
-            return NoContent();
-        }
-
-        /// <summary>
-        /// DELETE: api/Loans/{id}  
-        /// Deletes a loan by ID.  
-        /// Only accessible to Admins and Librarians.
-        /// </summary>
-        /// <param name="id">The loan ID to delete.</param>
-        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteLoan(int id)
-        {
-            var loan = await _context.Loans.FindAsync(id);
-            if (loan == null)
-                return NotFound();
-
-            _context.Loans.Remove(loan);
-            await _context.SaveChangesAsync();
-            return NoContent();
-        }
-
-        /// <summary>
-        /// PUT: api/Loans/{id}/return  
-        /// Marks a loan as returned, updates stock, notifies waiting reservation, and logs the event.  
-        /// Only accessible to Admins and Librarians.
-        /// </summary>
-        /// <param name="id">The ID of the loan to return.</param>
+        /// <param name="id">Identifier of the loan to return.</param>
+        /// <returns>
+        /// 200 OK with { message, reservationNotified } on success,  
+        /// 400 BadRequest with { error } on failure.
+        /// </returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPut("{id}/return")]
         public async Task<IActionResult> ReturnLoan(int id)
         {
-            var loan = await _context.Loans
-                .Include(l => l.Stock)
-                    .ThenInclude(s => s.Book)
-                .FirstOrDefaultAsync(l => l.LoanId == id);
-
-            if (loan == null)
-                return NotFound("Loan not found.");
-
-            if (loan.ReturnDate != null)
-                return BadRequest(new { error = "Book already returned." });
-
-            loan.ReturnDate = DateTime.UtcNow;
-
-            var stock = loan.Stock;
-            stock.IsAvailable = true;
-
-            var reservation = await _context.Reservations
-                .Where(r => r.BookId == stock.BookId && r.Status == ReservationStatus.Pending)
-                .OrderBy(r => r.CreatedAt)
-                .FirstOrDefaultAsync();
-
-            bool reservationNotified = false;
-
-            if (reservation != null)
-            {
-                reservation.AssignedStockId = stock.StockId;
-                reservation.Status = ReservationStatus.Available;
-                stock.IsAvailable = false;
-
-                var bookTitle = stock.Book.Title;
-                await _notificationService.NotifyUser(
-                    reservation.UserId,
-                    $"📚 The book '{bookTitle}' is now available for you. You have 48h to pick it up."
-                );
-                reservationNotified = true;
-            }
-
-            await _context.SaveChangesAsync();
-
-            // Log the return event in history
-            await _historyService.LogEventAsync(
-                loan.UserId,
-                eventType: "Return",
-                loanId: loan.LoanId
-            );
-
-            // Audit log for activity
-            await _activityLog.LogAsync(new UserActivityLogDocument
-            {
-                UserId  = loan.UserId,
-                Action  = "ReturnLoan",
-                Details = $"LoanId={loan.LoanId}"
-            });
+            var result = await _loanService.ReturnAsync(id);
+            if (result.IsError)
+                return BadRequest(new { error = result.Error });
 
             return Ok(new
             {
-                message = "Book returned successfully.",
-                reservationNotified
+                message             = "Book returned successfully.",
+                reservationNotified = result.Value!.ReservationNotified
             });
         }
 
-        /// <summary>
-        /// Maps a <see cref="Loan"/> entity to its corresponding <see cref="LoanReadDto"/>.
-        /// </summary>
-        private static LoanReadDto ToLoanReadDto(Loan loan) => new()
-        {
-            LoanId     = loan.LoanId,
-            UserId     = loan.UserId,
-            UserName   = loan.User.Name,
-            BookId     = loan.BookId,
-            BookTitle  = loan.Book.Title,
-            LoanDate   = loan.LoanDate,
-            DueDate    = loan.DueDate,
-            ReturnDate = loan.ReturnDate,
-            Fine       = loan.Fine
-        };
+        // TODO: Add endpoints for GET, PUT (update), DELETE, each delegating to ILoanService
     }
 }

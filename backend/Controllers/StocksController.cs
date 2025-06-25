@@ -1,11 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using backend.Data;
-using backend.Models;
+﻿using backend.Data;
 using backend.DTOs;
+using backend.Models;
+using backend.Models.Enums;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
-using backend.Models.Enums;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers
 {
@@ -18,21 +18,22 @@ namespace backend.Controllers
     public class StocksController : ControllerBase
     {
         private readonly BiblioMateDbContext _context;
-        private readonly StockService _stockService;
+        private readonly IStockService       _stockService;
 
-        public StocksController(BiblioMateDbContext context, StockService stockService)
+        public StocksController(
+            BiblioMateDbContext context,
+            IStockService stockService)
         {
-            _context = context;
+            _context      = context;
             _stockService = stockService;
         }
 
-        // GET: api/Stocks
         /// <summary>
         /// Retrieves all stock entries with optional pagination.
         /// </summary>
         /// <param name="page">Page index (1-based). Default is <c>1</c>.</param>
         /// <param name="pageSize">Items per page. Default is <c>10</c>.</param>
-        /// <returns>A paginated collection of <see cref="Stock"/>.</returns>
+        /// <returns>A paginated collection of <see cref="StockReadDto"/>.</returns>
         [Authorize]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<StockReadDto>>> GetStocks(
@@ -47,17 +48,16 @@ namespace backend.Controllers
 
             var dtos = stocks.Select(s => new StockReadDto
             {
-                StockId = s.StockId,
-                BookId = s.BookId,
-                BookTitle = s.Book.Title,
-                Quantity = s.Quantity,
+                StockId     = s.StockId,
+                BookId      = s.BookId,
+                BookTitle   = s.Book.Title,
+                Quantity    = s.Quantity,
                 IsAvailable = s.IsAvailable
             });
 
             return Ok(dtos);
         }
 
-        // GET: api/Stocks/{id}
         /// <summary>
         /// Retrieves a specific stock entry by its identifier.
         /// </summary>
@@ -69,114 +69,110 @@ namespace backend.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<StockReadDto>> GetStock(int id)
         {
-            var stock = await _context.Stocks
+            var s = await _context.Stocks
                 .Include(s => s.Book)
                 .FirstOrDefaultAsync(s => s.StockId == id);
 
-            if (stock == null)
+            if (s == null) 
                 return NotFound();
 
             return Ok(new StockReadDto
             {
-                StockId = stock.StockId,
-                BookId = stock.BookId,
-                BookTitle = stock.Book.Title,
-                Quantity = stock.Quantity,
-                IsAvailable = stock.IsAvailable
+                StockId     = s.StockId,
+                BookId      = s.BookId,
+                BookTitle   = s.Book.Title,
+                Quantity    = s.Quantity,
+                IsAvailable = s.IsAvailable
             });
         }
 
-        // POST: api/Stocks
         /// <summary>
         /// Creates a new stock entry.
-        /// Accessible to Librarians and Admins only.
+        /// Only accessible to Librarians and Admins.
         /// </summary>
-        /// <param name="dto">The stock entity to create.</param>
+        /// <param name="dto">The stock creation payload.</param>
         /// <returns>
-        /// <c>201 Created</c> with the created stock and its URI;  
-        /// <c>409 Conflict</c> if a stock entry already exists for the book.
+        /// <c>201 Created</c> with the created stock;  
+        /// <c>409 Conflict</c> if a stock entry already exists for the given book.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPost]
         public async Task<ActionResult<StockReadDto>> CreateStock(StockCreateDto dto)
         {
-            var existingStock = await _context.Stocks
-                .FirstOrDefaultAsync(s => s.BookId == dto.BookId);
-
-            if (existingStock != null)
+            if (await _context.Stocks.AnyAsync(s => s.BookId == dto.BookId))
+            {
                 return Conflict(new
                 {
-                    message = "Une entrée de stock existe déjà pour ce livre. Merci de mettre à jour la quantité à la place."
+                    message = "A stock entry already exists for that book."
                 });
+            }
 
             var stock = new Stock
             {
-                BookId = dto.BookId,
+                BookId   = dto.BookId,
                 Quantity = dto.Quantity
             };
-
             _stockService.UpdateAvailability(stock);
+
             _context.Stocks.Add(stock);
             await _context.SaveChangesAsync();
 
-            var book = await _context.Books.FindAsync(stock.BookId);
+            var book   = await _context.Books.FindAsync(stock.BookId);
+            var result = new StockReadDto
+            {
+                StockId     = stock.StockId,
+                BookId      = stock.BookId,
+                BookTitle   = book?.Title ?? "Unknown",
+                Quantity    = stock.Quantity,
+                IsAvailable = stock.IsAvailable
+            };
 
-            return CreatedAtAction(nameof(GetStock),
+            return CreatedAtAction(
+                nameof(GetStock),
                 new { id = stock.StockId },
-                new StockReadDto
-                {
-                    StockId = stock.StockId,
-                    BookId = stock.BookId,
-                    BookTitle = book?.Title ?? "Unknown",
-                    Quantity = stock.Quantity,
-                    IsAvailable = stock.IsAvailable
-                });
+                result);
         }
 
-        // PUT: api/Stocks/{id}
         /// <summary>
         /// Updates an existing stock entry.
-        /// Accessible to Librarians and Admins only.
+        /// Only accessible to Librarians and Admins.
         /// </summary>
-        /// <param name="id">The identifier of the stock entry to update.</param>
-        /// <param name="dto">The modified stock entity.</param>
+        /// <param name="id">The stock entry ID to update.</param>
+        /// <param name="dto">The updated stock data.</param>
         /// <returns>
         /// <c>204 NoContent</c> on success;  
-        /// <c>400 BadRequest</c> if the IDs do not match;  
+        /// <c>400 BadRequest</c> if the ID does not match;  
         /// <c>404 NotFound</c> if the stock entry does not exist.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateStock(int id, StockUpdateDto dto)
         {
-            if (id != dto.StockId)
+            if (id != dto.StockId) 
                 return BadRequest();
 
             var stock = await _context.Stocks.FindAsync(id);
-            if (stock == null)
+            if (stock == null) 
                 return NotFound();
 
-            stock.BookId = dto.BookId;
-            stock.Quantity = dto.Quantity;
+            stock.BookId      = dto.BookId;
+            stock.Quantity    = dto.Quantity;
             stock.IsAvailable = dto.IsAvailable;
-
             _stockService.UpdateAvailability(stock);
 
             await _context.SaveChangesAsync();
-
             return NoContent();
         }
 
-        // PATCH: api/Stocks/{id}/adjust
         /// <summary>
         /// Adjusts the quantity and availability of a stock entry.
-        /// Accessible to Librarians and Admins only.
+        /// Only accessible to Librarians and Admins.
         /// </summary>
-        /// <param name="id">The identifier of the stock entry.</param>
-        /// <param name="dto">The adjustment payload (positive or negative integer).</param>
+        /// <param name="id">The stock entry ID.</param>
+        /// <param name="dto">The adjustment payload (positive or negative).</param>
         /// <returns>
         /// <c>200 OK</c> with the new quantity;  
-        /// <c>400 BadRequest</c> for invalid data;  
+        /// <c>400 BadRequest</c> for invalid adjustments;  
         /// <c>404 NotFound</c> if the stock entry does not exist.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
@@ -186,46 +182,44 @@ namespace backend.Controllers
             [FromBody] StockAdjustmentDto dto)
         {
             if (dto.Adjustment == 0)
-                return BadRequest(new { message = "La valeur ajustée ne peut pas être 0." });
+                return BadRequest(new { message = "Adjustment cannot be zero." });
 
             var stock = await _context.Stocks.FindAsync(id);
-            if (stock == null)
+            if (stock == null) 
                 return NotFound();
 
             if (stock.Quantity + dto.Adjustment < 0)
-                return BadRequest(new { message = "Le stock ne peut pas être négatif." });
+                return BadRequest(new { message = "Resulting quantity cannot be negative." });
 
             _stockService.AdjustQuantity(stock, dto.Adjustment);
             await _context.SaveChangesAsync();
 
             return Ok(new
             {
-                message = "Stock mis à jour avec succès.",
+                message     = "Stock updated successfully.",
                 newQuantity = stock.Quantity
             });
         }
 
-        // DELETE: api/Stocks/{id}
         /// <summary>
         /// Deletes a stock entry.
-        /// Accessible to Librarians and Admins only.
+        /// Only accessible to Librarians and Admins.
         /// </summary>
-        /// <param name="id">The identifier of the stock entry to delete.</param>
+        /// <param name="id">The stock entry ID to delete.</param>
         /// <returns>
-        /// <c>204 NoContent</c> when deletion succeeds;  
-        /// <c>404 NotFound</c> if the stock entry is not found.
+        /// <c>204 NoContent</c> on success;  
+        /// <c>404 NotFound</c> if not found.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteStock(int id)
         {
             var stock = await _context.Stocks.FindAsync(id);
-            if (stock == null)
+            if (stock == null) 
                 return NotFound();
 
             _context.Stocks.Remove(stock);
             await _context.SaveChangesAsync();
-
             return NoContent();
         }
     }

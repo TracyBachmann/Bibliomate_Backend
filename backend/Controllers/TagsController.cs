@@ -1,10 +1,8 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using backend.Data;
-using backend.Models;
+﻿using backend.DTOs;
 using backend.Models.Enums;
-using backend.DTOs;
+using backend.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers
 {
@@ -16,31 +14,26 @@ namespace backend.Controllers
     [Route("api/[controller]")]
     public class TagsController : ControllerBase
     {
-        private readonly BiblioMateDbContext _context;
+        private readonly ITagService _svc;
 
-        public TagsController(BiblioMateDbContext context)
+        public TagsController(ITagService svc)
         {
-            _context = context;
+            _svc = svc;
         }
 
         // GET: api/Tags
         /// <summary>
         /// Retrieves all tags.
         /// </summary>
-        /// <returns>A collection of <see cref="Tag"/>.</returns>
+        /// <returns>
+        /// <c>200 OK</c> with a collection of <see cref="TagReadDto"/>.
+        /// </returns>
         [HttpGet]
         [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<TagReadDto>>> GetTags()
         {
-            var tags = await _context.Tags.ToListAsync();
-
-            var dtos = tags.Select(tag => new TagReadDto
-            {
-                TagId = tag.TagId,
-                Name = tag.Name
-            });
-
-            return Ok(dtos);
+            var list = await _svc.GetAllAsync();
+            return Ok(list);
         }
 
         // GET: api/Tags/{id}
@@ -49,21 +42,16 @@ namespace backend.Controllers
         /// </summary>
         /// <param name="id">The tag identifier.</param>
         /// <returns>
-        /// The requested tag if found; otherwise <c>404 NotFound</c>.
+        /// <c>200 OK</c> with the <see cref="TagReadDto"/> if found;
+        /// <c>404 NotFound</c> if not found.
         /// </returns>
         [HttpGet("{id}")]
         [AllowAnonymous]
         public async Task<ActionResult<TagReadDto>> GetTag(int id)
         {
-            var tag = await _context.Tags.FindAsync(id);
-            if (tag == null)
-                return NotFound();
-
-            return new TagReadDto
-            {
-                TagId = tag.TagId,
-                Name = tag.Name
-            };
+            var dto = await _svc.GetByIdAsync(id);
+            if (dto == null) return NotFound();
+            return Ok(dto);
         }
 
         // POST: api/Tags
@@ -71,29 +59,17 @@ namespace backend.Controllers
         /// Creates a new tag.
         /// Accessible to Librarians and Admins only.
         /// </summary>
-        /// <param name="dto">The tag entity to create.</param>
+        /// <param name="dto">The tag data to create.</param>
         /// <returns>
-        /// <c>201 Created</c> with the created tag and its URI.
+        /// <c>201 Created</c> with the created <see cref="TagReadDto"/> and its URI;
+        /// <c>400 BadRequest</c> if validation fails.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPost]
         public async Task<ActionResult<TagReadDto>> CreateTag(TagCreateDto dto)
         {
-            var tag = new Tag
-            {
-                Name = dto.Name
-            };
-
-            _context.Tags.Add(tag);
-            await _context.SaveChangesAsync();
-
-            var result = new TagReadDto
-            {
-                TagId = tag.TagId,
-                Name = tag.Name
-            };
-
-            return CreatedAtAction(nameof(GetTag), new { id = tag.TagId }, result);
+            var created = await _svc.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetTag), new { id = created.TagId }, created);
         }
 
         // PUT: api/Tags/{id}
@@ -102,28 +78,19 @@ namespace backend.Controllers
         /// Accessible to Librarians and Admins only.
         /// </summary>
         /// <param name="id">The identifier of the tag to update.</param>
-        /// <param name="dto">The modified tag entity.</param>
+        /// <param name="dto">The updated tag data.</param>
         /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>400 BadRequest</c> if the IDs do not match;  
+        /// <c>204 NoContent</c> on success;
+        /// <c>400 BadRequest</c> if IDs mismatch;
         /// <c>404 NotFound</c> if the tag does not exist.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateTag(int id, TagUpdateDto dto)
         {
-            if (id != dto.TagId)
-                return BadRequest();
-
-            var tag = await _context.Tags.FindAsync(id);
-            if (tag == null)
-                return NotFound();
-
-            tag.Name = dto.Name;
-
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            if (id != dto.TagId) return BadRequest();
+            var ok = await _svc.UpdateAsync(dto);
+            return ok ? NoContent() : NotFound();
         }
 
         // DELETE: api/Tags/{id}
@@ -133,21 +100,15 @@ namespace backend.Controllers
         /// </summary>
         /// <param name="id">The identifier of the tag to delete.</param>
         /// <returns>
-        /// <c>204 NoContent</c> when deletion succeeds;  
+        /// <c>204 NoContent</c> on success;
         /// <c>404 NotFound</c> if the tag is not found.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTag(int id)
         {
-            var tag = await _context.Tags.FindAsync(id);
-            if (tag == null)
-                return NotFound();
-
-            _context.Tags.Remove(tag);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            var ok = await _svc.DeleteAsync(id);
+            return ok ? NoContent() : NotFound();
         }
     }
 }
