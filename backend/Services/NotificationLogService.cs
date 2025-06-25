@@ -19,8 +19,16 @@ namespace backend.Services
         /// </param>
         public NotificationLogService(IConfiguration config)
         {
-            var client   = new MongoClient(config["MongoDb"]);
-            var database = client.GetDatabase(config["MongoDbDatabase"]);
+            var connectionString = config["MongoDb:ConnectionString"];
+            var databaseName     = config["MongoDb:DatabaseName"];
+
+            if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(databaseName))
+            {
+                throw new InvalidOperationException("MongoDB connection settings are missing or incomplete.");
+            }
+
+            var client   = new MongoClient(connectionString);
+            var database = client.GetDatabase(databaseName);
             _collection  = database.GetCollection<NotificationLogDocument>("NotificationLogs");
         }
 

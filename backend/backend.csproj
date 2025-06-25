@@ -7,8 +7,13 @@
         <UserSecretsId>edc1ac93-4254-47e5-9ae3-c1b09ac0a615</UserSecretsId>
 
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+<<<<<<< HEAD
         <NoWarn>$(NoWarn);1591</NoWarn>
         
+=======
+        <NoWarn>$(NoWarn);1591</NoWarn> 
+        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS> 
+>>>>>>> feature/add-history
     </PropertyGroup>
 
     <ItemGroup>
@@ -29,6 +34,18 @@
 
     <ItemGroup>
       <Folder Include="Migrations\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="..\.dockerignore">
+        <Link>.dockerignore</Link>
+      </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="..\.dockerignore">
+        <Link>.dockerignore</Link>
+      </Content>
     </ItemGroup>
 
 </Project>
