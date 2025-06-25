@@ -12,8 +12,8 @@ using backend.Data;
 namespace backend.Migrations
 {
     [DbContext(typeof(BiblioMateDbContext))]
-    [Migration("20250606140918_AddResetPasswordFields")]
-    partial class AddResetPasswordFields
+    [Migration("20250623192719_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -25,6 +25,27 @@ namespace backend.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("backend.Models.Author", b =>
+                {
+                    b.Property<int>("AuthorId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AuthorId"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("AuthorId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Authors");
+                });
+
             modelBuilder.Entity("backend.Models.Book", b =>
                 {
                     b.Property<int>("BookId")
@@ -33,15 +54,17 @@ namespace backend.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BookId"));
 
-                    b.Property<string>("Author")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                    b.Property<int>("AuthorId")
+                        .HasColumnType("int");
 
-                    b.Property<string>("Genre")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                    b.Property<string>("CoverUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("EditorId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("GenreId")
+                        .HasColumnType("int");
 
                     b.Property<string>("Isbn")
                         .IsRequired()
@@ -50,11 +73,6 @@ namespace backend.Migrations
 
                     b.Property<DateTime>("PublicationDate")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("Publisher")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<int>("ShelfLevelId")
                         .HasColumnType("int");
@@ -66,9 +84,58 @@ namespace backend.Migrations
 
                     b.HasKey("BookId");
 
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("EditorId");
+
+                    b.HasIndex("GenreId");
+
+                    b.HasIndex("Isbn")
+                        .IsUnique();
+
+                    b.HasIndex("PublicationDate");
+
                     b.HasIndex("ShelfLevelId");
 
+                    b.HasIndex("Title");
+
                     b.ToTable("Books");
+                });
+
+            modelBuilder.Entity("backend.Models.BookTag", b =>
+                {
+                    b.Property<int>("BookId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TagId")
+                        .HasColumnType("int");
+
+                    b.HasKey("BookId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("BookTags");
+                });
+
+            modelBuilder.Entity("backend.Models.Editor", b =>
+                {
+                    b.Property<int>("EditorId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("EditorId"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("EditorId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Editors");
                 });
 
             modelBuilder.Entity("backend.Models.Genre", b =>
@@ -86,26 +153,46 @@ namespace backend.Migrations
 
                     b.HasKey("GenreId");
 
+                    b.HasIndex("Name")
+                        .IsUnique();
+
                     b.ToTable("Genres");
                 });
 
-            modelBuilder.Entity("backend.Models.HistoryService", b =>
+            modelBuilder.Entity("backend.Models.History", b =>
                 {
-                    b.Property<int>("HistoryServiceId")
+                    b.Property<int>("HistoryId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("HistoryServiceId"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("HistoryId"));
+
+                    b.Property<DateTime>("EventDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("LoanId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReservationId")
+                        .HasColumnType("int");
 
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
-                    b.HasKey("HistoryServiceId");
+                    b.HasKey("HistoryId");
 
-                    b.HasIndex("UserId")
-                        .IsUnique();
+                    b.HasIndex("LoanId");
 
-                    b.ToTable("HistoryService");
+                    b.HasIndex("ReservationId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Histories");
                 });
 
             modelBuilder.Entity("backend.Models.Loan", b =>
@@ -122,8 +209,8 @@ namespace backend.Migrations
                     b.Property<DateTime>("DueDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<float>("Fine")
-                        .HasColumnType("real");
+                    b.Property<decimal>("Fine")
+                        .HasColumnType("decimal(10,2)");
 
                     b.Property<DateTime>("LoanDate")
                         .HasColumnType("datetime2");
@@ -131,12 +218,17 @@ namespace backend.Migrations
                     b.Property<DateTime?>("ReturnDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("StockId")
+                        .HasColumnType("int");
+
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
                     b.HasKey("LoanId");
 
                     b.HasIndex("BookId");
+
+                    b.HasIndex("StockId");
 
                     b.HasIndex("UserId");
 
@@ -159,6 +251,11 @@ namespace backend.Migrations
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
@@ -169,7 +266,7 @@ namespace backend.Migrations
                     b.ToTable("Notifications");
                 });
 
-            modelBuilder.Entity("backend.Models.RecommendationService", b =>
+            modelBuilder.Entity("backend.Models.Recommendation", b =>
                 {
                     b.Property<int>("RecommendationId")
                         .ValueGeneratedOnAdd()
@@ -189,7 +286,7 @@ namespace backend.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RecommendationService");
+                    b.ToTable("Recommendation");
                 });
 
             modelBuilder.Entity("backend.Models.Report", b =>
@@ -231,11 +328,23 @@ namespace backend.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ReservationId"));
 
+                    b.Property<int?>("AssignedStockId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("AvailableAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("BookId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("ReservationDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
 
                     b.Property<int>("UserId")
                         .HasColumnType("int");
@@ -315,11 +424,11 @@ namespace backend.Migrations
 
             modelBuilder.Entity("backend.Models.Stock", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<int>("StockId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("StockId"));
 
                     b.Property<int>("BookId")
                         .HasColumnType("int");
@@ -330,11 +439,30 @@ namespace backend.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
 
-                    b.HasKey("Id");
+                    b.HasKey("StockId");
 
-                    b.HasIndex("BookId");
+                    b.HasIndex("BookId")
+                        .IsUnique();
 
                     b.ToTable("Stocks");
+                });
+
+            modelBuilder.Entity("backend.Models.Tag", b =>
+                {
+                    b.Property<int>("TagId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TagId"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("TagId");
+
+                    b.ToTable("Tags");
                 });
 
             modelBuilder.Entity("backend.Models.User", b =>
@@ -347,8 +475,8 @@ namespace backend.Migrations
 
                     b.Property<string>("Address")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -358,6 +486,9 @@ namespace backend.Migrations
                     b.Property<string>("EmailConfirmationToken")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsEmailConfirmed")
                         .HasColumnType("bit");
@@ -381,13 +512,11 @@ namespace backend.Migrations
 
                     b.Property<string>("Phone")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Role")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("UserId");
 
@@ -395,6 +524,21 @@ namespace backend.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("backend.Models.UserGenre", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("GenreId")
+                        .HasColumnType("int");
+
+                    b.HasKey("UserId", "GenreId");
+
+                    b.HasIndex("GenreId");
+
+                    b.ToTable("UserGenres");
                 });
 
             modelBuilder.Entity("backend.Models.Zone", b =>
@@ -417,6 +561,11 @@ namespace backend.Migrations
                     b.Property<int>("FloorNumber")
                         .HasColumnType("int");
 
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.HasKey("ZoneId");
 
                     b.ToTable("Zones");
@@ -424,22 +573,77 @@ namespace backend.Migrations
 
             modelBuilder.Entity("backend.Models.Book", b =>
                 {
+                    b.HasOne("backend.Models.Author", "Author")
+                        .WithMany("Books")
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.Editor", "Editor")
+                        .WithMany("Books")
+                        .HasForeignKey("EditorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.Genre", "Genre")
+                        .WithMany("Books")
+                        .HasForeignKey("GenreId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("backend.Models.ShelfLevel", "ShelfLevel")
                         .WithMany("Books")
                         .HasForeignKey("ShelfLevelId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Author");
+
+                    b.Navigation("Editor");
+
+                    b.Navigation("Genre");
+
                     b.Navigation("ShelfLevel");
                 });
 
-            modelBuilder.Entity("backend.Models.HistoryService", b =>
+            modelBuilder.Entity("backend.Models.BookTag", b =>
                 {
-                    b.HasOne("backend.Models.User", "User")
-                        .WithOne("HistoryService")
-                        .HasForeignKey("backend.Models.HistoryService", "UserId")
+                    b.HasOne("backend.Models.Book", "Book")
+                        .WithMany("BookTags")
+                        .HasForeignKey("BookId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("backend.Models.Tag", "Tag")
+                        .WithMany("BookTags")
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Book");
+
+                    b.Navigation("Tag");
+                });
+
+            modelBuilder.Entity("backend.Models.History", b =>
+                {
+                    b.HasOne("backend.Models.Loan", "Loan")
+                        .WithMany()
+                        .HasForeignKey("LoanId");
+
+                    b.HasOne("backend.Models.Reservation", "Reservation")
+                        .WithMany()
+                        .HasForeignKey("ReservationId");
+
+                    b.HasOne("backend.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Loan");
+
+                    b.Navigation("Reservation");
 
                     b.Navigation("User");
                 });
@@ -452,6 +656,12 @@ namespace backend.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("backend.Models.Stock", "Stock")
+                        .WithMany("Loans")
+                        .HasForeignKey("StockId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
                     b.HasOne("backend.Models.User", "User")
                         .WithMany("Loans")
                         .HasForeignKey("UserId")
@@ -459,6 +669,8 @@ namespace backend.Migrations
                         .IsRequired();
 
                     b.Navigation("Book");
+
+                    b.Navigation("Stock");
 
                     b.Navigation("User");
                 });
@@ -474,7 +686,7 @@ namespace backend.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("backend.Models.RecommendationService", b =>
+            modelBuilder.Entity("backend.Models.Recommendation", b =>
                 {
                     b.HasOne("backend.Models.Book", "RecommendationBook")
                         .WithMany()
@@ -556,23 +768,58 @@ namespace backend.Migrations
             modelBuilder.Entity("backend.Models.Stock", b =>
                 {
                     b.HasOne("backend.Models.Book", "Book")
-                        .WithMany()
-                        .HasForeignKey("BookId")
+                        .WithOne("Stock")
+                        .HasForeignKey("backend.Models.Stock", "BookId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Book");
                 });
 
+            modelBuilder.Entity("backend.Models.UserGenre", b =>
+                {
+                    b.HasOne("backend.Models.Genre", "Genre")
+                        .WithMany()
+                        .HasForeignKey("GenreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.User", "User")
+                        .WithMany("UserGenres")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Genre");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("backend.Models.Author", b =>
+                {
+                    b.Navigation("Books");
+                });
+
             modelBuilder.Entity("backend.Models.Book", b =>
                 {
+                    b.Navigation("BookTags");
+
                     b.Navigation("Loans");
 
                     b.Navigation("Reservations");
+
+                    b.Navigation("Stock");
+                });
+
+            modelBuilder.Entity("backend.Models.Editor", b =>
+                {
+                    b.Navigation("Books");
                 });
 
             modelBuilder.Entity("backend.Models.Genre", b =>
                 {
+                    b.Navigation("Books");
+
                     b.Navigation("Shelves");
                 });
 
@@ -586,10 +833,18 @@ namespace backend.Migrations
                     b.Navigation("Books");
                 });
 
+            modelBuilder.Entity("backend.Models.Stock", b =>
+                {
+                    b.Navigation("Loans");
+                });
+
+            modelBuilder.Entity("backend.Models.Tag", b =>
+                {
+                    b.Navigation("BookTags");
+                });
+
             modelBuilder.Entity("backend.Models.User", b =>
                 {
-                    b.Navigation("HistoryService");
-
                     b.Navigation("Loans");
 
                     b.Navigation("Notifications");
@@ -599,6 +854,8 @@ namespace backend.Migrations
                     b.Navigation("Reports");
 
                     b.Navigation("Reservations");
+
+                    b.Navigation("UserGenres");
                 });
 
             modelBuilder.Entity("backend.Models.Zone", b =>

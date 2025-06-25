@@ -1,13 +1,26 @@
-using Microsoft.EntityFrameworkCore;
+using System;
 using backend.Models;
+using backend.Services;                                 // for EncryptionService
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;  // for ValueConverter
 
 namespace backend.Data
 {
     public class BiblioMateDbContext : DbContext
     {
-        public BiblioMateDbContext(DbContextOptions<BiblioMateDbContext> options)
+        private readonly EncryptionService _encryptionService;
+
+        /// <summary>
+        /// Constructs the context with EF Core options and encryption service.
+        /// </summary>
+        /// <param name="options">EF Core options.</param>
+        /// <param name="encryptionService">Service to encrypt/decrypt sensitive fields.</param>
+        public BiblioMateDbContext(
+            DbContextOptions<BiblioMateDbContext> options,
+            EncryptionService encryptionService)
             : base(options)
         {
+            _encryptionService = encryptionService;
         }
 
         // Core entities
@@ -17,6 +30,7 @@ namespace backend.Data
         public DbSet<Reservation> Reservations { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<Report> Reports { get; set; }
+        public DbSet<History> Histories { get; set; }
 
         // Library infrastructure
         public DbSet<Zone> Zones { get; set; }
@@ -36,44 +50,23 @@ namespace backend.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            // ------------------------------
+            // 1) Unique constraints & indexes
+            // ------------------------------
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.Email)
                 .IsUnique();
 
-            modelBuilder.Entity<Loan>()
-                .Property(l => l.Fine)
-                .HasColumnType("decimal(10,2)");
-
-            // Configure composite key for Book <-> Tag relation
-            modelBuilder.Entity<BookTag>()
-                .HasKey(bt => new { bt.BookId, bt.TagId });
-
-            modelBuilder.Entity<BookTag>()
-                .HasOne(bt => bt.Book)
-                .WithMany(b => b.BookTags)
-                .HasForeignKey(bt => bt.BookId);
-
-            modelBuilder.Entity<BookTag>()
-                .HasOne(bt => bt.Tag)
-                .WithMany(t => t.BookTags)
-                .HasForeignKey(bt => bt.TagId);
-
-            // Add useful indexes for search and filtering
             modelBuilder.Entity<Book>()
                 .HasIndex(b => b.Title);
-
             modelBuilder.Entity<Book>()
                 .HasIndex(b => b.GenreId);
-
             modelBuilder.Entity<Book>()
                 .HasIndex(b => b.AuthorId);
-
             modelBuilder.Entity<Book>()
                 .HasIndex(b => b.EditorId);
-
             modelBuilder.Entity<Book>()
                 .HasIndex(b => b.PublicationDate);
-
             modelBuilder.Entity<Book>()
                 .HasIndex(b => b.Isbn)
                 .IsUnique();
@@ -90,7 +83,39 @@ namespace backend.Data
                 .HasIndex(g => g.Name)
                 .IsUnique();
 
-            // Restrict cascade deletes on key relations
+            // ------------------------------
+            // 2) Precision on decimal
+            // ------------------------------
+            modelBuilder.Entity<Loan>()
+                .Property(l => l.Fine)
+                .HasColumnType("decimal(10,2)");
+
+            // ------------------------------
+            // 3) Loan ↔ Stock (no cascade)
+            // ------------------------------
+            modelBuilder.Entity<Loan>()
+                .HasOne(l => l.Stock)
+                .WithMany(s => s.Loans)
+                .HasForeignKey(l => l.StockId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            // ------------------------------
+            // 4) BookTag (many-to-many)
+            // ------------------------------
+            modelBuilder.Entity<BookTag>()
+                .HasKey(bt => new { bt.BookId, bt.TagId });
+            modelBuilder.Entity<BookTag>()
+                .HasOne(bt => bt.Book)
+                .WithMany(b => b.BookTags)
+                .HasForeignKey(bt => bt.BookId);
+            modelBuilder.Entity<BookTag>()
+                .HasOne(bt => bt.Tag)
+                .WithMany(t => t.BookTags)
+                .HasForeignKey(bt => bt.TagId);
+
+            // ------------------------------
+            // 5) Book → Author/Editor/Genre (restrict)
+            // ------------------------------
             modelBuilder.Entity<Book>()
                 .HasOne(b => b.Author)
                 .WithMany(a => a.Books)
@@ -108,19 +133,40 @@ namespace backend.Data
                 .WithMany(g => g.Books)
                 .HasForeignKey(b => b.GenreId)
                 .OnDelete(DeleteBehavior.Restrict);
-            
+
+            // ------------------------------
+            // 6) UserGenre (composite key)
+            // ------------------------------
             modelBuilder.Entity<UserGenre>()
                 .HasKey(ug => new { ug.UserId, ug.GenreId });
 
             modelBuilder.Entity<UserGenre>()
                 .HasOne(ug => ug.User)
                 .WithMany(u => u.UserGenres)
-                .HasForeignKey(ug => ug.UserId);
+                .HasForeignKey(ug => ug.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<UserGenre>()
                 .HasOne(ug => ug.Genre)
                 .WithMany()
-                .HasForeignKey(ug => ug.GenreId);
+                .HasForeignKey(ug => ug.GenreId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ------------------------------
+            // 7) Encrypt sensitive user fields (Address, Phone)
+            // ------------------------------
+            var converter = new ValueConverter<string, string>(
+                plain => _encryptionService.Encrypt(plain),
+                cipher => _encryptionService.Decrypt(cipher)
+            );
+
+            modelBuilder.Entity<User>(b =>
+            {
+                b.Property(u => u.Address)
+                 .HasConversion(converter);
+                b.Property(u => u.Phone)
+                 .HasConversion(converter);
+            });
 
             base.OnModelCreating(modelBuilder);
         }

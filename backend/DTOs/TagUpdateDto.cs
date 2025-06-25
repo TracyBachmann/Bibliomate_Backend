@@ -7,11 +7,20 @@ namespace backend.DTOs
     /// </summary>
     public class TagUpdateDto
     {
-        [Required]
+        /// <summary>
+        /// Unique identifier of the tag to update.
+        /// </summary>
+        /// <example>10</example>
+        [Required(ErrorMessage = "TagId is required.")]
+        [Range(1, int.MaxValue, ErrorMessage = "TagId must be a positive integer.")]
         public int TagId { get; set; }
 
-        [Required]
-        [MaxLength(50)]
+        /// <summary>
+        /// Updated name of the tag.
+        /// </summary>
+        /// <example>Classic</example>
+        [Required(ErrorMessage = "Name is required.")]
+        [StringLength(50, MinimumLength = 1, ErrorMessage = "Name must be between 1 and 50 characters.")]
         public string Name { get; set; } = string.Empty;
     }
 }

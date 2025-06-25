@@ -1,113 +1,138 @@
+using backend.Configuration;
 using backend.Data;
-using backend.Services;
 using backend.Hubs;
+using backend.Middlewares;
+using backend.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Text;
-using System.Reflection;
-using Microsoft.Extensions.Options;
 using MongoDB.Driver;
-
-using Microsoft.AspNetCore.Authorization;
-using backend.Configuration;
+using System.Reflection;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// -- DB Context
-builder.Services.AddDbContext<BiblioMateDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+// 1) CORS
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? new[] { "http://localhost:4200" };
+builder.Services.AddCors(o => o.AddPolicy("default", p =>
+    p.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
-// -- CORS
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("allowAngularDev", policy =>
+// 2) EF Core DbContext
+builder.Services.AddDbContext<BiblioMateDbContext>(o =>
+    o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// 3) Controllers + Authorize + ModelState custom
+builder.Services
+    .AddControllers(options =>
     {
-        policy.WithOrigins("http://localhost:4200")
-            .AllowAnyMethod()
-            .AllowAnyHeader()
-            .AllowCredentials(); // Important pour SignalR
+        var policy = new AuthorizationPolicyBuilder()
+                         .RequireAuthenticatedUser()
+                         .Build();
+        options.Filters.Add(new AuthorizeFilter(policy));
+    })
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var errors = context.ModelState
+                .Where(kv => kv.Value.Errors.Count > 0)
+                .ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
+                );
+
+            var result = new BadRequestObjectResult(new
+            {
+                error   = "ValidationError",
+                details = errors
+            });
+            result.ContentTypes.Add("application/json");
+            return result;
+        };
     });
-});
 
-// -- Controllers
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-
-// -- JWT
+// 4) JWT Authentication & SignalR
 var jwtSettings = builder.Configuration.GetSection("Jwt");
-var secretKey = jwtSettings["Key"];
-
-builder.Services.AddAuthentication(options =>
+var secretKey   = jwtSettings["Key"]!;
+builder.Services.AddAuthentication(opts =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    opts.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    opts.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
 })
-.AddJwtBearer(options =>
+.AddJwtBearer(opts =>
 {
-    options.RequireHttpsMetadata = false;
-    options.SaveToken = true;
-
-    options.TokenValidationParameters = new TokenValidationParameters
+    opts.RequireHttpsMetadata = false;
+    opts.SaveToken            = true;
+    opts.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
+        ValidateIssuer           = true,
+        ValidateAudience         = true,
+        ValidateLifetime         = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSettings["Issuer"],
-        ValidAudience = jwtSettings["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!))
+        ValidIssuer              = jwtSettings["Issuer"],
+        ValidAudience            = jwtSettings["Audience"],
+        IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
+    };
+    opts.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = ctx =>
+        {
+            if (ctx.HttpContext.Request.Path.StartsWithSegments("/hubs/notifications")
+             && ctx.Request.Query.TryGetValue("access_token", out var token))
+            {
+                ctx.Token = token;
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
-// -- MongoDB Configuration
-// Classe de settings pour binder la section "MongoDb"
-builder.Services.Configure<MongoSettings>(
-    builder.Configuration.GetSection("MongoDb"));
-
-// Enregistrer le client Mongo comme singleton
+// 5) MongoDB
+builder.Services.Configure<MongoSettings>(builder.Configuration.GetSection("MongoDb"));
 builder.Services.AddSingleton<IMongoClient>(sp =>
 {
     var settings = sp.GetRequiredService<IOptions<MongoSettings>>().Value;
     return new MongoClient(settings.ConnectionString);
 });
 
-// -- Services
+// 6) Services & background
 builder.Services.AddScoped<SendGridEmailService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<NotificationLogService>();
 builder.Services.AddScoped<StockService>();
 builder.Services.AddScoped<RecommendationService>();
 builder.Services.AddScoped<ReservationCleanupService>();
+builder.Services.AddScoped<HistoryService>();
 builder.Services.AddHostedService<LoanReminderBackgroundService>();
+builder.Services.AddScoped<UserActivityLogService>();
+builder.Services.AddScoped<SearchActivityLogService>();
+builder.Services.AddSingleton<EncryptionService>();
 
-// -- SignalR
+// 7) SignalR
 builder.Services.AddSignalR();
 
-// -- Swagger
+// 8) Swagger
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "BiblioMate API",
-        Version = "v1",
-        Description = "Documentation de l'API pour le projet CDA BiblioMate"
-    });
-    
-    var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFilename));
-
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "BiblioMate API", Version = "v1" });
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFile));
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer",
+        Name         = "Authorization",
+        Type         = SecuritySchemeType.ApiKey,
+        Scheme       = "Bearer",
         BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Saisir 'Bearer {votre_token}'"
+        In           = ParameterLocation.Header,
+        Description  = "Type 'Bearer {token}'"
     });
-
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -122,39 +147,24 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// -- Swagger in Dev only
+// Pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// -- Middleware pipeline
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
-app.UseCors("allowAngularDev");
-
+app.UseCors("default");
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-// -- Endpoint to view logs (example)
 app.MapGet("/api/notifications/logs/user/{userId}",
-    [Authorize(Roles = "Librarian,Admin")] 
-    async (int userId, NotificationLogService logService) =>
-    {
-        var logs = await logService.GetByUserAsync(userId);
-        return Results.Ok(logs);
-    });
-
-if (app.Environment.IsDevelopment())
-{
-    app.MapGet("/", context =>
-    {
-        context.Response.Redirect("/swagger");
-        return Task.CompletedTask;
-    });
-}
+   [Authorize(Roles = "Librarian,Admin")]
+   async (int userId, NotificationLogService svc) => Results.Ok(await svc.GetByUserAsync(userId)));
 
 app.Run();

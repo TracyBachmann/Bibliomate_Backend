@@ -2,19 +2,27 @@
 
 namespace backend.Services
 {
+    /// <summary>
+    /// Provides domain logic for managing book stock levels and availability flags.
+    /// </summary>
     public class StockService
     {
         /// <summary>
-        /// Updates the availability flag based on the current quantity.
+        /// Sets the <see cref="Stock.IsAvailable"/> flag based on whether any copies remain.
         /// </summary>
+        /// <param name="stock">The stock entry to update.</param>
         public void UpdateAvailability(Stock stock)
         {
             stock.IsAvailable = stock.Quantity > 0;
         }
 
         /// <summary>
-        /// Applies a quantity adjustment and updates availability accordingly.
+        /// Adjusts the stock quantity by a given amount and recalculates availability.
         /// </summary>
+        /// <param name="stock">The stock entry to adjust.</param>
+        /// <param name="adjustment">
+        /// The amount to change the quantity by (positive to add, negative to remove).
+        /// </param>
         public void AdjustQuantity(Stock stock, int adjustment)
         {
             stock.Quantity += adjustment;
@@ -22,8 +30,9 @@ namespace backend.Services
         }
 
         /// <summary>
-        /// Decreases stock quantity by 1 and updates availability.
+        /// Decreases the stock quantity by one and updates availability.
         /// </summary>
+        /// <param name="stock">The stock entry to decrement.</param>
         public void Decrease(Stock stock)
         {
             stock.Quantity -= 1;
@@ -31,8 +40,9 @@ namespace backend.Services
         }
 
         /// <summary>
-        /// Increases stock quantity by 1 and updates availability.
+        /// Increases the stock quantity by one and updates availability.
         /// </summary>
+        /// <param name="stock">The stock entry to increment.</param>
         public void Increase(Stock stock)
         {
             stock.Quantity += 1;

@@ -7,8 +7,13 @@ namespace backend.DTOs
     /// </summary>
     public class AuthorCreateDto
     {
-        [Required]
-        [StringLength(100)]
+        /// <summary>
+        /// Full name of the author.
+        /// </summary>
+        /// <example>J.K. Rowling</example>
+        [Required(ErrorMessage = "Author name is required.")]
+        [MinLength(2, ErrorMessage = "Author name must be at least 2 characters long.")]
+        [StringLength(100, ErrorMessage = "Author name cannot exceed 100 characters.")]
         public string Name { get; set; } = string.Empty;
     }
 }
