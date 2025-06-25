@@ -1,9 +1,11 @@
 using backend.Configuration;
 using backend.Data;
 using backend.Hubs;
+using backend.Middlewares;
 using backend.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -15,60 +17,60 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --------------------------------------------------
-// 1) CORS: load allowed origins from configuration
-// --------------------------------------------------
+// 1) CORS
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>() ?? new[] { "http://localhost:4200" };
+builder.Services.AddCors(o => o.AddPolicy("default", p =>
+    p.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("default", policy =>
+// 2) EF Core DbContext
+builder.Services.AddDbContext<BiblioMateDbContext>(o =>
+    o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// 3) Controllers + Authorize + ModelState custom
+builder.Services
+    .AddControllers(options =>
     {
-        policy.WithOrigins(allowedOrigins)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        var policy = new AuthorizationPolicyBuilder()
+                         .RequireAuthenticatedUser()
+                         .Build();
+        options.Filters.Add(new AuthorizeFilter(policy));
+    })
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var errors = context.ModelState
+                .Where(kv => kv.Value.Errors.Count > 0)
+                .ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
+                );
+
+            var result = new BadRequestObjectResult(new
+            {
+                error   = "ValidationError",
+                details = errors
+            });
+            result.ContentTypes.Add("application/json");
+            return result;
+        };
     });
-});
 
-// --------------------------------------------------
-// 2) Register EF Core DbContext
-// --------------------------------------------------
-builder.Services.AddDbContext<BiblioMateDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-// --------------------------------------------------
-// 3) Add controllers with a global [Authorize] filter
-// --------------------------------------------------
-builder.Services.AddControllers(options =>
-{
-    var policy = new AuthorizationPolicyBuilder()
-                     .RequireAuthenticatedUser()
-                     .Build();
-    options.Filters.Add(new AuthorizeFilter(policy));
-});
-
-builder.Services.AddEndpointsApiExplorer();
-
-// --------------------------------------------------
-// 4) Configure JWT authentication & SignalR token support
-// --------------------------------------------------
+// 4) JWT Authentication & SignalR
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var secretKey   = jwtSettings["Key"]!;
-
-builder.Services.AddAuthentication(options =>
+builder.Services.AddAuthentication(opts =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
+    opts.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    opts.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
 })
-.AddJwtBearer(options =>
+.AddJwtBearer(opts =>
 {
-    options.RequireHttpsMetadata = false;
-    options.SaveToken            = true;
-
-    options.TokenValidationParameters = new TokenValidationParameters
+    opts.RequireHttpsMetadata = false;
+    opts.SaveToken            = true;
+    opts.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer           = true,
         ValidateAudience         = true,
@@ -78,15 +80,12 @@ builder.Services.AddAuthentication(options =>
         ValidAudience            = jwtSettings["Audience"],
         IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
     };
-
-    // Allow JWT via query string for SignalR
-    options.Events = new JwtBearerEvents
+    opts.Events = new JwtBearerEvents
     {
         OnMessageReceived = ctx =>
         {
-            var path = ctx.HttpContext.Request.Path;
-            if (path.StartsWithSegments("/hubs/notifications") &&
-                ctx.Request.Query.TryGetValue("access_token", out var token))
+            if (ctx.HttpContext.Request.Path.StartsWithSegments("/hubs/notifications")
+             && ctx.Request.Query.TryGetValue("access_token", out var token))
             {
                 ctx.Token = token;
             }
@@ -95,20 +94,15 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-// --------------------------------------------------
-// 5) Configure MongoDB client
-// --------------------------------------------------
-builder.Services.Configure<MongoSettings>(
-    builder.Configuration.GetSection("MongoDb"));
+// 5) MongoDB
+builder.Services.Configure<MongoSettings>(builder.Configuration.GetSection("MongoDb"));
 builder.Services.AddSingleton<IMongoClient>(sp =>
 {
     var settings = sp.GetRequiredService<IOptions<MongoSettings>>().Value;
     return new MongoClient(settings.ConnectionString);
 });
 
-// --------------------------------------------------
-// 6) Register application services & background tasks
-// --------------------------------------------------
+// 6) Services et background
 builder.Services.AddScoped<SendGridEmailService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<NotificationLogService>();
@@ -118,46 +112,30 @@ builder.Services.AddScoped<ReservationCleanupService>();
 builder.Services.AddScoped<HistoryService>();
 builder.Services.AddHostedService<LoanReminderBackgroundService>();
 
-// --------------------------------------------------
-// 7) Add SignalR
-// --------------------------------------------------
+// 7) SignalR
 builder.Services.AddSignalR();
 
-// --------------------------------------------------
-// 8) Configure Swagger with JWT support
-// --------------------------------------------------
+// 8) Swagger
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title       = "BiblioMate API",
-        Version     = "v1",
-        Description = "API documentation for the BiblioMate CDA project"
-    });
-
-    var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFilename));
-
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "BiblioMate API", Version = "v1" });
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFile));
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Name        = "Authorization",
-        Type        = SecuritySchemeType.ApiKey,
-        Scheme      = "Bearer",
-        BearerFormat= "JWT",
-        In          = ParameterLocation.Header,
-        Description = "Type 'Bearer {your_token}'"
+        Name         = "Authorization",
+        Type         = SecuritySchemeType.ApiKey,
+        Scheme       = "Bearer",
+        BearerFormat = "JWT",
+        In           = ParameterLocation.Header,
+        Description  = "Type 'Bearer {token}'"
     });
-
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id   = "Bearer"
-                }
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
             },
             Array.Empty<string>()
         }
@@ -166,36 +144,24 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// --------------------------------------------------
-// HTTP request pipeline
-// --------------------------------------------------
+// Pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
-
-// Use the default CORS policy for both dev and prod
 app.UseCors("default");
-
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Map controllers
 app.MapControllers();
-
-// Map SignalR hub (protected by [Authorize] on the hub class)
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-// Example of a role-protected endpoint
 app.MapGet("/api/notifications/logs/user/{userId}",
-    [Authorize(Roles = "Librarian,Admin")]
-    async (int userId, NotificationLogService logService) =>
-    {
-        var logs = await logService.GetByUserAsync(userId);
-        return Results.Ok(logs);
-    });
+   [Authorize(Roles = "Librarian,Admin")]
+   async (int userId, NotificationLogService svc) => Results.Ok(await svc.GetByUserAsync(userId)));
 
 app.Run();
