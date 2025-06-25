@@ -133,6 +133,13 @@ builder.Services.AddSingleton<EncryptionService>();
 builder.Services.AddHttpClient<GoogleBooksService>();
 builder.Services.AddScoped<SendGridEmailService>();
 
+// ❗ Services injectés directement sans interface
+builder.Services.AddScoped<HistoryService>();
+builder.Services.AddScoped<SearchActivityLogService>();
+builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<UserActivityLogService>();
+builder.Services.AddScoped<NotificationLogService>();
+
 // 7) SignalR
 builder.Services.AddSignalR();
 
