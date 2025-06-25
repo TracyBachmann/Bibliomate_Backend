@@ -1,10 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using backend.Data;
-using backend.Models;
-using backend.DTOs;
-using Microsoft.AspNetCore.Authorization;
+﻿using backend.DTOs;
 using backend.Models.Enums;
+using backend.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers
 {
@@ -16,81 +14,65 @@ namespace backend.Controllers
     [Route("api/[controller]")]
     public class EditorsController : ControllerBase
     {
-        private readonly BiblioMateDbContext _context;
+        private readonly IEditorService _service;
 
-        public EditorsController(BiblioMateDbContext context)
+        /// <summary>
+        /// Constructs the controller with its required service.
+        /// </summary>
+        /// <param name="service">Service for editor operations.</param>
+        public EditorsController(IEditorService service)
         {
-            _context = context;
+            _service = service;
         }
 
-        // GET: api/Editors
         /// <summary>
         /// Retrieves all editors.
         /// </summary>
-        /// <returns>A collection of editors.</returns>
-        [HttpGet]
+        /// <returns>
+        /// <c>200 OK</c> with a collection of <see cref="EditorReadDto"/>.
+        /// </returns>
         [AllowAnonymous]
+        [HttpGet]
         public async Task<ActionResult<IEnumerable<EditorReadDto>>> GetEditors()
         {
-            var editors = await _context.Editors.ToListAsync();
-            return Ok(editors.Select(e => new EditorReadDto
-            {
-                EditorId = e.EditorId,
-                Name     = e.Name
-            }));
+            var list = await _service.GetAllAsync();
+            return Ok(list);
         }
 
-        // GET: api/Editors/{id}
         /// <summary>
         /// Retrieves an editor by its identifier.
         /// </summary>
         /// <param name="id">ID of the editor to retrieve.</param>
         /// <returns>
-        /// The requested editor if found; otherwise <c>404 NotFound</c>.
+        /// The requested <see cref="EditorReadDto"/> if found; otherwise <c>404 NotFound</c>.
         /// </returns>
-        [HttpGet("{id}")]
         [AllowAnonymous]
+        [HttpGet("{id}")]
         public async Task<ActionResult<EditorReadDto>> GetEditor(int id)
         {
-            var editor = await _context.Editors.FindAsync(id);
-            if (editor == null)
-                return NotFound();
-
-            return Ok(new EditorReadDto
-            {
-                EditorId = editor.EditorId,
-                Name     = editor.Name
-            });
+            var dto = await _service.GetByIdAsync(id);
+            if (dto == null) return NotFound();
+            return Ok(dto);
         }
 
-        // POST: api/Editors
         /// <summary>
         /// Creates a new editor.
         /// Only accessible to Admins and Librarians.
         /// </summary>
-        /// <param name="dto">Editor to create.</param>
+        /// <param name="dto">Data for the new editor.</param>
         /// <returns>
-        /// <c>201 Created</c> with the created entity and its URI;  
-        /// <c>400 BadRequest</c> if validation fails.
+        /// <c>201 Created</c> with the created <see cref="EditorReadDto"/> and its URI.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPost]
         public async Task<ActionResult<EditorReadDto>> CreateEditor(EditorCreateDto dto)
         {
-            var editor = new Editor { Name = dto.Name };
-            _context.Editors.Add(editor);
-            await _context.SaveChangesAsync();
-
+            var created = await _service.CreateAsync(dto);
             return CreatedAtAction(nameof(GetEditor),
-                new { id = editor.EditorId },
-                new EditorReadDto
-                {
-                    EditorId = editor.EditorId,
-                    Name     = editor.Name
-                });
+                                   new { id = created.EditorId },
+                                   created);
         }
 
-        // PUT: api/Editors/{id}
         /// <summary>
         /// Updates an existing editor.
         /// Only accessible to Admins and Librarians.
@@ -98,42 +80,33 @@ namespace backend.Controllers
         /// <param name="id">ID of the editor to update.</param>
         /// <param name="dto">Updated editor data.</param>
         /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>400 BadRequest</c> if the IDs do not match.
+        /// <c>204 NoContent</c> on success; <c>404 NotFound</c> if editor not found.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateEditor(int id, EditorCreateDto dto)
         {
-            var editor = await _context.Editors.FindAsync(id);
-            if (editor == null)
+            if (!await _service.UpdateAsync(id, dto))
                 return NotFound();
 
-            editor.Name = dto.Name;
-            await _context.SaveChangesAsync();
             return NoContent();
         }
 
-        // DELETE: api/Editors/{id}
         /// <summary>
         /// Deletes an editor.
         /// Only accessible to Admins and Librarians.
         /// </summary>
         /// <param name="id">ID of the editor to delete.</param>
         /// <returns>
-        /// <c>204 NoContent</c> when deletion succeeds;  
-        /// <c>404 NotFound</c> if the editor is not found.
+        /// <c>204 NoContent</c> on success; <c>404 NotFound</c> if editor not found.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteEditor(int id)
         {
-            var editor = await _context.Editors.FindAsync(id);
-            if (editor == null)
+            if (!await _service.DeleteAsync(id))
                 return NotFound();
 
-            _context.Editors.Remove(editor);
-            await _context.SaveChangesAsync();
             return NoContent();
         }
     }

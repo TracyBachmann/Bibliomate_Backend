@@ -1,10 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using backend.Data;
-using backend.Models;
+﻿using System.Collections.Generic;
+using System.Threading.Tasks;
 using backend.DTOs;
-using Microsoft.AspNetCore.Authorization;
 using backend.Models.Enums;
+using backend.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers
 {
@@ -16,40 +16,30 @@ namespace backend.Controllers
     [Route("api/[controller]")]
     public class ZonesController : ControllerBase
     {
-        private readonly BiblioMateDbContext _context;
+        private readonly IZoneService _svc;
 
-        public ZonesController(BiblioMateDbContext context)
+        public ZonesController(IZoneService svc)
         {
-            _context = context;
+            _svc = svc;
         }
 
         // GET: api/Zones
         /// <summary>
         /// Retrieves all zones with optional pagination.
         /// </summary>
-        /// <param name="page">Page index (1-based). Default is 1.</param>
-        /// <param name="pageSize">Number of items per page. Default is 10.</param>
-        /// <returns>A paginated collection of <see cref="Zone"/> objects.</returns>
+        /// <param name="page">Page index (1-based). Default = 1.</param>
+        /// <param name="pageSize">Items per page. Default = 10.</param>
+        /// <returns>
+        /// <c>200 OK</c> with a collection of <see cref="ZoneReadDto"/>.
+        /// </returns>
         [Authorize]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ZoneReadDto>>> GetZones(
-            int page = 1,
-            int pageSize = 10)
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
-            var zones = await _context.Zones
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            var result = zones.Select(z => new ZoneReadDto
-            {
-                ZoneId     = z.ZoneId,
-                FloorNumber = z.FloorNumber,
-                AisleCode   = z.AisleCode,
-                Description = z.Description
-            });
-
-            return Ok(result);
+            var dtos = await _svc.GetAllAsync(page, pageSize);
+            return Ok(dtos);
         }
 
         // GET: api/Zones/{id}
@@ -58,111 +48,69 @@ namespace backend.Controllers
         /// </summary>
         /// <param name="id">The zone identifier.</param>
         /// <returns>
-        /// The requested zone if found; otherwise <c>404 NotFound</c>.
+        /// <c>200 OK</c> with <see cref="ZoneReadDto"/> if found;
+        /// <c>404 NotFound</c> otherwise.
         /// </returns>
         [Authorize]
         [HttpGet("{id}")]
         public async Task<ActionResult<ZoneReadDto>> GetZone(int id)
         {
-            var zone = await _context.Zones.FindAsync(id);
-            if (zone == null)
-                return NotFound();
-
-            return new ZoneReadDto
-            {
-                ZoneId     = zone.ZoneId,
-                FloorNumber = zone.FloorNumber,
-                AisleCode   = zone.AisleCode,
-                Description = zone.Description
-            };
+            var dto = await _svc.GetByIdAsync(id);
+            if (dto == null) return NotFound();
+            return Ok(dto);
         }
 
         // POST: api/Zones
         /// <summary>
         /// Creates a new zone.
-        /// Accessible to Librarians and Admins only.
         /// </summary>
-        /// <param name="dto">The zone entity to create.</param>
+        /// <param name="dto">Zone data to create.</param>
         /// <returns>
-        /// <c>201 Created</c> with the created zone and its URI.
+        /// <c>201 Created</c> with the created <see cref="ZoneReadDto"/>.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPost]
         public async Task<ActionResult<ZoneReadDto>> CreateZone(ZoneCreateDto dto)
         {
-            var zone = new Zone
-            {
-                FloorNumber = dto.FloorNumber,
-                AisleCode   = dto.AisleCode,
-                Description = dto.Description
-            };
-
-            _context.Zones.Add(zone);
-            await _context.SaveChangesAsync();
-
-            var result = new ZoneReadDto
-            {
-                ZoneId     = zone.ZoneId,
-                FloorNumber = zone.FloorNumber,
-                AisleCode   = zone.AisleCode,
-                Description = zone.Description
-            };
-
-            return CreatedAtAction(nameof(GetZone), new { id = zone.ZoneId }, result);
+            var created = await _svc.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetZone), new { id = created.ZoneId }, created);
         }
 
         // PUT: api/Zones/{id}
         /// <summary>
         /// Updates an existing zone.
-        /// Accessible to Librarians and Admins only.
         /// </summary>
         /// <param name="id">The identifier of the zone to update.</param>
-        /// <param name="dto">The modified zone entity.</param>
+        /// <param name="dto">Updated zone data.</param>
         /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>400 BadRequest</c> if the IDs do not match;  
-        /// <c>404 NotFound</c> if the zone does not exist.
+        /// <c>204 NoContent</c> on success;
+        /// <c>404 NotFound</c> if zone not found.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateZone(int id, ZoneUpdateDto dto)
         {
-            if (id != dto.ZoneId)
-                return BadRequest();
-
-            var zone = await _context.Zones.FindAsync(id);
-            if (zone == null)
-                return NotFound();
-
-            zone.FloorNumber = dto.FloorNumber;
-            zone.AisleCode   = dto.AisleCode;
-            zone.Description = dto.Description;
-
-            await _context.SaveChangesAsync();
+            if (id != dto.ZoneId) return BadRequest();
+            var ok = await _svc.UpdateAsync(id, dto);
+            if (!ok) return NotFound();
             return NoContent();
         }
 
         // DELETE: api/Zones/{id}
         /// <summary>
         /// Deletes a zone.
-        /// Accessible to Librarians and Admins only.
         /// </summary>
         /// <param name="id">The identifier of the zone to delete.</param>
         /// <returns>
-        /// <c>204 NoContent</c> when deletion succeeds;  
-        /// <c>404 NotFound</c> if the zone is not found.
+        /// <c>204 NoContent</c> on success;
+        /// <c>404 NotFound</c> if zone not found.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteZone(int id)
         {
-            var zone = await _context.Zones.FindAsync(id);
-            if (zone == null)
-                return NotFound();
-
-            _context.Zones.Remove(zone);
-            await _context.SaveChangesAsync();
-
+            var ok = await _svc.DeleteAsync(id);
+            if (!ok) return NotFound();
             return NoContent();
         }
     }

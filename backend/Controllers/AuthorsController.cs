@@ -1,138 +1,98 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using backend.Data;
-using backend.Models;
-using backend.Models.Enums;
+﻿using backend.DTOs;
+using backend.Services;
 using Microsoft.AspNetCore.Authorization;
-using backend.DTOs;
+using Microsoft.AspNetCore.Mvc;
+using backend.Models.Enums;
 
 namespace backend.Controllers
 {
     /// <summary>
     /// Controller for managing authors.
-    /// Provides CRUD operations on <see cref="Author"/> entities.
+    /// Provides CRUD endpoints for <see cref="AuthorReadDto"/>.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class AuthorsController : ControllerBase
     {
-        private readonly BiblioMateDbContext _context;
+        private readonly IAuthorService _service;
 
-        public AuthorsController(BiblioMateDbContext context)
+        /// <summary>
+        /// Initializes a new instance of <see cref="AuthorsController"/>.
+        /// </summary>
+        /// <param name="service">Service encapsulating author logic.</param>
+        public AuthorsController(IAuthorService service)
         {
-            _context = context;
+            _service = service;
         }
 
-        // GET: api/Authors
         /// <summary>
         /// Retrieves all authors.
         /// </summary>
-        /// <returns>A list of authors.</returns>
-        [HttpGet]
-        [AllowAnonymous]
+        /// <returns>200 OK with list of <see cref="AuthorReadDto"/>.</returns>
+        [HttpGet, AllowAnonymous]
         public async Task<ActionResult<IEnumerable<AuthorReadDto>>> GetAuthors()
         {
-            var authors = await _context.Authors
-                .Select(a => new AuthorReadDto
-                {
-                    AuthorId = a.AuthorId,
-                    Name     = a.Name
-                })
-                .ToListAsync();
-
-            return Ok(authors);
+            var items = await _service.GetAllAsync();
+            return Ok(items);
         }
 
-        // GET: api/Authors/{id}
         /// <summary>
-        /// Retrieves an author by ID.
+        /// Retrieves an author by its identifier.
         /// </summary>
-        /// <param name="id">ID of the author to retrieve.</param>
-        /// <returns>The requested author if found; otherwise <c>404 NotFound</c>.</returns>
-        [HttpGet("{id}")]
-        [AllowAnonymous]
-        public async Task<ActionResult<AuthorReadDto>> GetAuthor(int id)
+        /// <param name="id">Author identifier.</param>
+        /// <returns>
+        /// 200 OK with <see cref="AuthorReadDto"/>, or 404 NotFound if missing.
+        /// </returns>
+        [HttpGet("{id}"), AllowAnonymous]
+        public async Task<IActionResult> GetAuthor(int id)
         {
-            var author = await _context.Authors.FindAsync(id);
-            if (author == null)
-                return NotFound();
-
-            var dto = new AuthorReadDto
-            {
-                AuthorId = author.AuthorId,
-                Name     = author.Name
-            };
-
+            var (dto, error) = await _service.GetByIdAsync(id);
+            if (error != null) return error;
             return Ok(dto);
         }
 
-        // POST: api/Authors
         /// <summary>
         /// Creates a new author.
-        /// Only accessible to Admins and Librarians.
         /// </summary>
-        /// <param name="dto">Author to create.</param>
-        /// <returns>The created author with its URI in the <c>Location</c> header.</returns>
-        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
-        [HttpPost]
-        public async Task<ActionResult<AuthorReadDto>> CreateAuthor(AuthorCreateDto dto)
+        /// <param name="dto">Data to create author.</param>
+        /// <returns>
+        /// 201 Created with location header, or 401/403 if unauthorized.
+        /// </returns>
+        [HttpPost, Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
+        public async Task<IActionResult> CreateAuthor(AuthorCreateDto dto)
         {
-            var author = new Author
-            {
-                Name = dto.Name
-            };
-
-            _context.Authors.Add(author);
-            await _context.SaveChangesAsync();
-
-            var resultDto = new AuthorReadDto
-            {
-                AuthorId = author.AuthorId,
-                Name     = author.Name
-            };
-
-            return CreatedAtAction(nameof(GetAuthor), new { id = author.AuthorId }, resultDto);
+            var (read, result) = await _service.CreateAsync(dto);
+            return result;
         }
 
-        // PUT: api/Authors/{id}
         /// <summary>
         /// Updates an existing author.
-        /// Only accessible to Admins and Librarians.
         /// </summary>
-        /// <param name="id">ID of the author to update.</param>
-        /// <param name="dto">Updated author data.</param>
-        /// <returns><c>NoContent</c> on success; otherwise <c>400 BadRequest</c> if IDs do not match.</returns>
-        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
-        [HttpPut("{id}")]
+        /// <param name="id">The author identifier.</param>
+        /// <param name="dto">New author data.</param>
+        /// <returns>
+        /// 204 NoContent on success; 404 NotFound if missing.
+        /// </returns>
+        [HttpPut("{id}"), Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         public async Task<IActionResult> UpdateAuthor(int id, AuthorCreateDto dto)
         {
-            var author = await _context.Authors.FindAsync(id);
-            if (author == null)
+            if (!await _service.UpdateAsync(id, dto))
                 return NotFound();
-
-            author.Name = dto.Name;
-
-            await _context.SaveChangesAsync();
             return NoContent();
         }
 
-        // DELETE: api/Authors/{id}
         /// <summary>
         /// Deletes an author.
-        /// Only accessible to Admins and Librarians.
         /// </summary>
-        /// <param name="id">ID of the author to delete.</param>
-        /// <returns><c>NoContent</c> on successful deletion; otherwise <c>404 NotFound</c>.</returns>
-        [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
-        [HttpDelete("{id}")]
+        /// <param name="id">The author identifier.</param>
+        /// <returns>
+        /// 204 NoContent on success; 404 NotFound if missing.
+        /// </returns>
+        [HttpDelete("{id}"), Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         public async Task<IActionResult> DeleteAuthor(int id)
         {
-            var author = await _context.Authors.FindAsync(id);
-            if (author == null)
+            if (!await _service.DeleteAsync(id))
                 return NotFound();
-
-            _context.Authors.Remove(author);
-            await _context.SaveChangesAsync();
             return NoContent();
         }
     }

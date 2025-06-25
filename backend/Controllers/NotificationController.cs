@@ -1,128 +1,130 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
-using backend.Models;
 using backend.DTOs;
-using Microsoft.AspNetCore.Authorization;
-using System.Security.Claims;
 using backend.Models.Enums;
+using backend.Models;
+using backend.Services;
 
 namespace backend.Controllers
 {
     /// <summary>
     /// Controller for managing user notifications.
-    /// All endpoints require authentication.  
+    /// All endpoints require authentication.
     /// Only Librarians and Admins may create, update, or delete notifications.
     /// </summary>
-    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class NotificationsController : ControllerBase
     {
-        private readonly BiblioMateDbContext _context;
+        private readonly BiblioMateDbContext      _context;
+        private readonly INotificationService     _notificationService;
+        private readonly INotificationLogService  _notificationLogService;
 
-        public NotificationsController(BiblioMateDbContext context)
+        public NotificationsController(
+            BiblioMateDbContext      context,
+            INotificationService     notificationService,
+            INotificationLogService  notificationLogService)
         {
-            _context = context;
+            _context                = context;
+            _notificationService    = notificationService;
+            _notificationLogService = notificationLogService;
         }
 
         /// <summary>
         /// Retrieves all notifications visible to the current user.
-        /// GET: api/Notifications
         /// </summary>
-        /// <remarks>
-        /// Admins and Librarians receive every notification,  
-        /// while regular users only receive their own.
-        /// </remarks>
+        /// <returns>A list of <see cref="NotificationReadDto"/>.</returns>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<NotificationReadDto>>> GetNotifications()
         {
-            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var isPrivileged  = User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.Librarian);
 
-            var notifications = (User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.Librarian))
-                ? await _context.Notifications.Include(n => n.User).ToListAsync()
-                : await _context.Notifications
-                    .Where(n => n.UserId == currentUserId)
-                    .Include(n => n.User)
-                    .ToListAsync();
+            var query = _context.Notifications
+                                .Include(n => n.User)
+                                .AsQueryable();
 
-            return Ok(notifications.Select(ToNotificationReadDto));
+            if (!isPrivileged)
+                query = query.Where(n => n.UserId == currentUserId);
+
+            var list = await query.ToListAsync();
+            return Ok(list.Select(ToDto));
         }
 
         /// <summary>
         /// Retrieves a specific notification by its identifier.
-        /// GET: api/Notifications/{id}
         /// </summary>
         /// <param name="id">The notification identifier.</param>
+        /// <returns>The <see cref="NotificationReadDto"/> or 404.</returns>
         [HttpGet("{id}")]
         public async Task<ActionResult<NotificationReadDto>> GetNotification(int id)
         {
-            var notification = await _context.Notifications
-                .Include(n => n.User)
-                .FirstOrDefaultAsync(n => n.NotificationId == id);
+            var n = await _context.Notifications
+                                  .Include(x => x.User)
+                                  .FirstOrDefaultAsync(x => x.NotificationId == id);
+            if (n == null) return NotFound();
 
-            if (notification == null)
-                return NotFound();
-
-            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-
-            if (notification.UserId != currentUserId &&
-                !User.IsInRole(UserRoles.Admin) && !User.IsInRole(UserRoles.Librarian))
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var isPrivileged  = User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.Librarian);
+            if (!isPrivileged && n.UserId != currentUserId)
                 return Forbid();
 
-            return Ok(ToNotificationReadDto(notification));
+            return Ok(ToDto(n));
         }
 
         /// <summary>
         /// Creates a new notification.
-        /// POST: api/Notifications
-        /// Accessible to Librarians and Admins only.
         /// </summary>
         /// <param name="dto">The notification creation DTO.</param>
+        /// <returns>The created <see cref="NotificationReadDto"/>.</returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPost]
         public async Task<ActionResult<NotificationReadDto>> CreateNotification(NotificationCreateDto dto)
         {
-            var notification = new Notification
+            var n = new Notification
             {
-                UserId = dto.UserId,
-                Title = dto.Title,
+                UserId  = dto.UserId,
+                Title   = dto.Title,
                 Message = dto.Message
             };
-
-            _context.Notifications.Add(notification);
+            _context.Notifications.Add(n);
             await _context.SaveChangesAsync();
 
-            var readDto = await _context.Notifications
-                .Include(n => n.User)
-                .Where(n => n.NotificationId == notification.NotificationId)
-                .Select(n => ToNotificationReadDto(n))
-                .FirstAsync();
+            // dispatch & log
+            await _notificationService.NotifyUser(dto.UserId, dto.Message);
+            await _notificationLogService.LogAsync(dto.UserId, NotificationType.Custom, dto.Message);
 
-            return CreatedAtAction(nameof(GetNotification), new { id = notification.NotificationId }, readDto);
+            var created = await _context.Notifications
+                                        .Include(x => x.User)
+                                        .FirstAsync(x => x.NotificationId == n.NotificationId);
+
+            return CreatedAtAction(nameof(GetNotification),
+                new { id = n.NotificationId },
+                ToDto(created));
         }
 
         /// <summary>
         /// Updates an existing notification.
-        /// PUT: api/Notifications/{id}
-        /// Accessible to Librarians and Admins only.
         /// </summary>
-        /// <param name="id">The identifier of the notification to update.</param>
+        /// <param name="id">The identifier of the notification.</param>
         /// <param name="dto">The updated notification DTO.</param>
+        /// <returns>204 NoContent on success.</returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateNotification(int id, NotificationUpdateDto dto)
         {
-            if (id != dto.NotificationId)
-                return BadRequest();
+            if (id != dto.NotificationId) return BadRequest();
 
-            var notification = await _context.Notifications.FindAsync(id);
-            if (notification == null)
-                return NotFound();
+            var n = await _context.Notifications.FindAsync(id);
+            if (n == null) return NotFound();
 
-            notification.UserId = dto.UserId;
-            notification.Title = dto.Title;
-            notification.Message = dto.Message;
+            n.UserId  = dto.UserId;
+            n.Title   = dto.Title;
+            n.Message = dto.Message;
 
             await _context.SaveChangesAsync();
             return NoContent();
@@ -130,34 +132,28 @@ namespace backend.Controllers
 
         /// <summary>
         /// Deletes a notification.
-        /// DELETE: api/Notifications/{id}
-        /// Accessible to Librarians and Admins only.
         /// </summary>
-        /// <param name="id">The identifier of the notification to delete.</param>
+        /// <param name="id">The identifier of the notification.</param>
+        /// <returns>204 NoContent on success.</returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteNotification(int id)
         {
-            var notification = await _context.Notifications.FindAsync(id);
-            if (notification == null)
-                return NotFound();
+            var n = await _context.Notifications.FindAsync(id);
+            if (n == null) return NotFound();
 
-            _context.Notifications.Remove(notification);
+            _context.Notifications.Remove(n);
             await _context.SaveChangesAsync();
-
             return NoContent();
         }
 
-        /// <summary>
-        /// Maps a <see cref="Notification"/> entity to a <see cref="NotificationReadDto"/>.
-        /// </summary>
-        private static NotificationReadDto ToNotificationReadDto(Notification n) => new()
+        private static NotificationReadDto ToDto(Notification n) => new()
         {
             NotificationId = n.NotificationId,
-            UserId = n.UserId,
-            UserName = n.User.Name,
-            Title = n.Title,
-            Message = n.Message
+            UserId         = n.UserId,
+            UserName       = n.User.Name,
+            Title          = n.Title,
+            Message        = n.Message
         };
     }
 }

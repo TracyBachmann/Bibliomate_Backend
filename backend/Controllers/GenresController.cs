@@ -1,9 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using backend.Data;
-using backend.Models;
-using backend.DTOs;
+﻿using backend.DTOs;
+using backend.Models.Enums;
+using backend.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace backend.Controllers
 {
@@ -16,125 +17,99 @@ namespace backend.Controllers
     [Route("api/[controller]")]
     public class GenresController : ControllerBase
     {
-        private readonly BiblioMateDbContext _context;
+        private readonly IGenreService _service;
 
-        public GenresController(BiblioMateDbContext context)
+        /// <summary>
+        /// Initializes a new instance of <see cref="GenresController"/>.
+        /// </summary>
+        /// <param name="service">Service for genre operations.</param>
+        public GenresController(IGenreService service)
         {
-            _context = context;
+            _service = service;
         }
 
-        // GET: api/Genres
         /// <summary>
         /// Retrieves all genres.
         /// </summary>
-        /// <returns>A collection of <see cref="GenreReadDto"/>.</returns>
+        /// <returns>
+        /// <c>200 OK</c> with a collection of <see cref="GenreReadDto"/>.
+        /// </returns>
         [AllowAnonymous]
         [HttpGet]
         public async Task<ActionResult<IEnumerable<GenreReadDto>>> GetGenres()
         {
-            var genres = await _context.Genres.ToListAsync();
-            return Ok(genres.Select(g => new GenreReadDto
-            {
-                GenreId = g.GenreId,
-                Name = g.Name
-            }));
+            var list = await _service.GetAllAsync();
+            return Ok(list);
         }
 
-        // GET: api/Genres/{id}
         /// <summary>
         /// Retrieves a specific genre by its identifier.
         /// </summary>
         /// <param name="id">The genre identifier.</param>
-        /// <returns>The requested <see cref="GenreReadDto"/> or <c>404 NotFound</c>.</returns>
+        /// <returns>
+        /// The requested <see cref="GenreReadDto"/> if found; otherwise <c>404 NotFound</c>.
+        /// </returns>
         [AllowAnonymous]
         [HttpGet("{id}")]
         public async Task<ActionResult<GenreReadDto>> GetGenre(int id)
         {
-            var genre = await _context.Genres.FindAsync(id);
-            if (genre == null)
-                return NotFound();
-
-            return Ok(new GenreReadDto
-            {
-                GenreId = genre.GenreId,
-                Name = genre.Name
-            });
+            var dto = await _service.GetByIdAsync(id);
+            if (dto == null) return NotFound();
+            return Ok(dto);
         }
 
-        // POST: api/Genres
         /// <summary>
         /// Creates a new genre.
+        /// Only accessible to Librarians and Admins.
         /// </summary>
         /// <param name="dto">The genre data to create.</param>
         /// <returns>
-        /// <c>201 Created</c> with the created genre;  
-        /// <c>400 BadRequest</c> if validation fails.
+        /// <c>201 Created</c> with the created <see cref="GenreReadDto"/> and its URI.
         /// </returns>
-        [Authorize(Roles = "Librarian,Admin")]
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPost]
         public async Task<ActionResult<GenreReadDto>> CreateGenre(GenreCreateDto dto)
         {
-            var genre = new Genre { Name = dto.Name };
-            _context.Genres.Add(genre);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetGenre), new { id = genre.GenreId },
-                new GenreReadDto { GenreId = genre.GenreId, Name = genre.Name });
+            var created = await _service.CreateAsync(dto);
+            return CreatedAtAction(
+                nameof(GetGenre),
+                new { id = created.GenreId },
+                created);
         }
 
-        // PUT: api/Genres/{id}
         /// <summary>
         /// Updates an existing genre.
+        /// Only accessible to Librarians and Admins.
         /// </summary>
-        /// <param name="id">The ID of the genre to update.</param>
+        /// <param name="id">The identifier of the genre to update.</param>
         /// <param name="dto">The updated genre data.</param>
         /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>404 NotFound</c> if the genre does not exist.
+        /// <c>204 NoContent</c> on success; <c>404 NotFound</c> if genre not found.
         /// </returns>
-        [Authorize(Roles = "Librarian,Admin")]
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateGenre(int id, GenreCreateDto dto)
         {
-            var genre = await _context.Genres.FindAsync(id);
-            if (genre == null)
+            if (!await _service.UpdateAsync(id, dto))
                 return NotFound();
-
-            genre.Name = dto.Name;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Genres.Any(g => g.GenreId == id))
-                    return NotFound();
-                throw;
-            }
 
             return NoContent();
         }
 
-        // DELETE: api/Genres/{id}
         /// <summary>
         /// Deletes a genre by its identifier.
+        /// Only accessible to Librarians and Admins.
         /// </summary>
-        /// <param name="id">The ID of the genre to delete.</param>
+        /// <param name="id">The identifier of the genre to delete.</param>
         /// <returns>
-        /// <c>204 NoContent</c> when deletion succeeds;  
-        /// <c>404 NotFound</c> if the genre is not found.
+        /// <c>204 NoContent</c> on success; <c>404 NotFound</c> if genre not found.
         /// </returns>
-        [Authorize(Roles = "Librarian,Admin")]
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteGenre(int id)
         {
-            var genre = await _context.Genres.FindAsync(id);
-            if (genre == null)
+            if (!await _service.DeleteAsync(id))
                 return NotFound();
-
-            _context.Genres.Remove(genre);
-            await _context.SaveChangesAsync();
 
             return NoContent();
         }

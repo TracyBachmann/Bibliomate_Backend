@@ -1,10 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using backend.Data;
-using backend.Models;
-using backend.DTOs;
-using Microsoft.AspNetCore.Authorization;
+﻿using backend.DTOs;
 using backend.Models.Enums;
+using backend.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers
 {
@@ -16,23 +14,28 @@ namespace backend.Controllers
     [Route("api/[controller]")]
     public class ShelfLevelsController : ControllerBase
     {
-        private readonly BiblioMateDbContext _context;
+        private readonly IShelfLevelService _svc;
 
-        public ShelfLevelsController(BiblioMateDbContext context)
+        public ShelfLevelsController(IShelfLevelService svc)
         {
-            _context = context;
+            _svc = svc;
         }
 
         // GET: api/ShelfLevels
         /// <summary>
         /// Retrieves all shelf levels with optional shelf filtering and pagination.
         /// </summary>
-        /// <param name="shelfId">Optional shelf identifier used to filter results.</param>
-        /// <param name="page">Page index (1-based). Default is 1.</param>
-        /// <param name="pageSize">Number of items per page. Default is 10.</param>
+        /// <param name="shelfId">
+        /// Optional shelf identifier used to filter results.
+        /// </param>
+        /// <param name="page">
+        /// Page index (1-based). Default is <c>1</c>.
+        /// </param>
+        /// <param name="pageSize">
+        /// Number of items per page. Default is <c>10</c>.
+        /// </param>
         /// <returns>
-        /// A paginated collection of <see cref="ShelfLevelReadDto"/>;  
-        /// always <c>200 OK</c>.
+        /// <c>200 OK</c> with a collection of <see cref="ShelfLevelReadDto"/>.
         /// </returns>
         [Authorize]
         [HttpGet]
@@ -41,25 +44,8 @@ namespace backend.Controllers
             int page = 1,
             int pageSize = 10)
         {
-            var query = _context.ShelfLevels
-                                .Include(sl => sl.Shelf)
-                                .AsQueryable();
-
-            if (shelfId.HasValue)
-                query = query.Where(sl => sl.ShelfId == shelfId.Value);
-
-            var shelfLevels = await query
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            return Ok(shelfLevels.Select(sl => new ShelfLevelReadDto
-            {
-                ShelfLevelId = sl.ShelfLevelId,
-                LevelNumber = sl.LevelNumber,
-                ShelfId = sl.ShelfId,
-                ShelfName = sl.Shelf.Name
-            }));
+            var list = await _svc.GetAllAsync(shelfId, page, pageSize);
+            return Ok(list);
         }
 
         // GET: api/ShelfLevels/{id}
@@ -68,27 +54,16 @@ namespace backend.Controllers
         /// </summary>
         /// <param name="id">The shelf-level identifier.</param>
         /// <returns>
-        /// The requested <see cref="ShelfLevelReadDto"/> with its shelf details  
+        /// <c>200 OK</c> with the requested <see cref="ShelfLevelReadDto"/>,
         /// or <c>404 NotFound</c> if it does not exist.
         /// </returns>
         [Authorize]
         [HttpGet("{id}")]
         public async Task<ActionResult<ShelfLevelReadDto>> GetShelfLevel(int id)
         {
-            var shelfLevel = await _context.ShelfLevels
-                .Include(sl => sl.Shelf)
-                .FirstOrDefaultAsync(sl => sl.ShelfLevelId == id);
-
-            if (shelfLevel == null)
-                return NotFound();
-
-            return Ok(new ShelfLevelReadDto
-            {
-                ShelfLevelId = shelfLevel.ShelfLevelId,
-                LevelNumber = shelfLevel.LevelNumber,
-                ShelfId = shelfLevel.ShelfId,
-                ShelfName = shelfLevel.Shelf.Name
-            });
+            var dto = await _svc.GetByIdAsync(id);
+            if (dto == null) return NotFound();
+            return Ok(dto);
         }
 
         // POST: api/ShelfLevels
@@ -104,24 +79,12 @@ namespace backend.Controllers
         [HttpPost]
         public async Task<ActionResult<ShelfLevelReadDto>> CreateShelfLevel(ShelfLevelCreateDto dto)
         {
-            var shelfLevel = new ShelfLevel
-            {
-                LevelNumber = dto.LevelNumber,
-                ShelfId = dto.ShelfId
-            };
-
-            _context.ShelfLevels.Add(shelfLevel);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetShelfLevel),
-                new { id = shelfLevel.ShelfLevelId },
-                new ShelfLevelReadDto
-                {
-                    ShelfLevelId = shelfLevel.ShelfLevelId,
-                    LevelNumber = shelfLevel.LevelNumber,
-                    ShelfId = shelfLevel.ShelfId,
-                    ShelfName = (await _context.Shelves.FindAsync(shelfLevel.ShelfId))?.Name ?? "Unknown"
-                });
+            var created = await _svc.CreateAsync(dto);
+            return CreatedAtAction(
+                nameof(GetShelfLevel),
+                new { id = created.ShelfLevelId },
+                created
+            );
         }
 
         // PUT: api/ShelfLevels/{id}
@@ -132,27 +95,17 @@ namespace backend.Controllers
         /// <param name="id">The identifier of the shelf level to update.</param>
         /// <param name="dto">The modified shelf-level DTO.</param>
         /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>400 BadRequest</c> if the IDs do not match;  
+        /// <c>204 NoContent</c> on success;
+        /// <c>400 BadRequest</c> if the IDs do not match;
         /// <c>404 NotFound</c> if the shelf level does not exist.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateShelfLevel(int id, ShelfLevelUpdateDto dto)
         {
-            if (id != dto.ShelfLevelId)
-                return BadRequest();
-
-            var existing = await _context.ShelfLevels.FindAsync(id);
-            if (existing == null)
-                return NotFound();
-
-            existing.LevelNumber = dto.LevelNumber;
-            existing.ShelfId = dto.ShelfId;
-
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            if (id != dto.ShelfLevelId) return BadRequest();
+            var ok = await _svc.UpdateAsync(dto);
+            return ok ? NoContent() : NotFound();
         }
 
         // DELETE: api/ShelfLevels/{id}
@@ -162,21 +115,15 @@ namespace backend.Controllers
         /// </summary>
         /// <param name="id">The identifier of the shelf level to delete.</param>
         /// <returns>
-        /// <c>204 NoContent</c> when deletion succeeds;  
+        /// <c>204 NoContent</c> when deletion succeeds;
         /// <c>404 NotFound</c> if the shelf level is not found.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteShelfLevel(int id)
         {
-            var shelfLevel = await _context.ShelfLevels.FindAsync(id);
-            if (shelfLevel == null)
-                return NotFound();
-
-            _context.ShelfLevels.Remove(shelfLevel);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            var ok = await _svc.DeleteAsync(id);
+            return ok ? NoContent() : NotFound();
         }
     }
 }

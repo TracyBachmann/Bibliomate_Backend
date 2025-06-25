@@ -5,6 +5,7 @@
         ReservationAvailable,
         ReturnReminder,
         OverduePenalty,
-        OverdueNotice
+        OverdueNotice,
+        Custom
     }
 }
