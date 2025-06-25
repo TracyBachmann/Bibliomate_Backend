@@ -5,17 +5,20 @@
 ## 🚀 Présentation du projet
 
 **BiblioMate** propose une expérience utilisateur fluide pour :
-- 👤 **Les membres** : consulter le catalogue, réserver et emprunter des livres, recevoir des recommandations.
-- 📚 **Les bibliothécaires** : gérer les stocks, les retours, les utilisateurs et suivre les emprunts.
-- 🛡 **Les administrateurs** : superviser l’ensemble du système et gérer les rôles utilisateurs.
+- 👤 **Les membres** : consulter le catalogue, réserver et emprunter des livres, recevoir des recommandations
+- 📚 **Les bibliothécaires** : gérer les stocks, les retours, les utilisateurs et suivre les emprunts
+- 🛡 **Les administrateurs** : superviser l’ensemble du système, gérer les rôles et consulter les journaux d’audit
 
 ### Fonctionnalités principales :
-- 🔍 Recherche avancée (titre, auteur, genre, disponibilité, etc.)
-- 🔐 Authentification sécurisée avec JWT
+- 🔍 Recherche avancée (titre, auteur, genre, disponibilité, tags)
+- 🔑 Authentification sécurisée avec JWT
 - 📦 Gestion des stocks avec ajustement de quantité
 - 📅 Suivi des emprunts et historiques
-- 📬 Notifications et rappels automatiques
-- 📊 Dashboard pour les rôles métiers
+- 📬 Notifications et rappels automatiques (email + SignalR)
+- 📊 Dashboard pour les rôles métiers (Admin, Librarian)
+- 🗄 Audit log MongoDB pour les actions critiques
+- 📑 Pagination, tri et ETag sur les listes (Books, Loans, Reservations)
+- 🔐 Chiffrement AES-256-CBC des données sensibles (adresse, téléphone) au repos
 - 📁 Architecture en couches et logique métier claire
 - 📘 Documentation Swagger générée automatiquement
 
@@ -28,13 +31,14 @@
 ## 🛠️ Technologies utilisées
 
 - **Back-end** : ASP.NET Core 9 (API RESTful)
+- **Front-end** : Angular + Tailwind CSS (dans un dépôt séparé)
 - **Base de données** : SQL Server + Entity Framework Core
-- **Front-end** : Angular + Tailwind CSS (dans un projet séparé)
+- **Cache / Logs** : MongoDB
 - **Authentification** : JWT Bearer Tokens
 - **CI/CD** : Azure DevOps + Microsoft Azure
-- **Notifications** : SignalR (en développement)
-- **Design/Prototype** : Figma
--
+- **Notifications** : SignalR
+- **Chiffrement** : AES-256-CBC via EF Core ValueConverter
+
 ## 🧩 Architecture
 
 Le projet suit une **architecture en couches (n-tier)** avec séparation claire des responsabilités :
