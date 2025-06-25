@@ -133,7 +133,7 @@ namespace backend.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok("✅ Ton email a bien été confirmé !");
+            return Ok("Ton email a bien été confirmé !");
         }
 
         // POST: api/Auth/request-password-reset
@@ -164,7 +164,7 @@ namespace backend.Controllers
 
             await _emailService.SendEmailAsync(
                 user.Email,
-                "🔐 Réinitialisation du mot de passe",
+                "Réinitialisation du mot de passe",
                 html);
 
             return Ok("Si cet email est enregistré, un lien de réinitialisation a été envoyé.");

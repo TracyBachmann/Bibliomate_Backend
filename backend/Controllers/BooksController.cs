@@ -73,7 +73,7 @@ namespace backend.Controllers
                     AuthorName      = b.Author.Name,
                     GenreName       = b.Genre.Name,
                     EditorName      = b.Editor.Name,
-                    IsAvailable     = b.Stock.IsAvailable,
+                    IsAvailable     = b.Stock != null && b.Stock.IsAvailable,
                     CoverUrl        = b.CoverUrl,
                     Tags            = b.BookTags.Select(bt => bt.Tag.Name).ToList()
                 });
@@ -284,7 +284,7 @@ namespace backend.Controllers
             await _searchLog.LogAsync(new SearchActivityLogDocument
             {
                 UserId    = userId,
-                QueryText = dto.ToString()
+                QueryText = dto.ToString()!
             });
 
             // Build query
@@ -336,9 +336,9 @@ namespace backend.Controllers
             Title           = book.Title,
             Isbn            = book.Isbn,
             PublicationYear = book.PublicationDate.Year,
-            AuthorName      = book.Author.Name ?? "Unknown",
-            GenreName       = book.Genre.Name ?? "Unknown",
-            EditorName      = book.Editor.Name ?? "Unknown",
+            AuthorName      = book.Author.Name,
+            GenreName       = book.Genre.Name,
+            EditorName      = book.Editor.Name,
             IsAvailable     = book.Stock?.IsAvailable ?? false,
             Tags            = book.BookTags.Select(bt => bt.Tag.Name).ToList()
         };

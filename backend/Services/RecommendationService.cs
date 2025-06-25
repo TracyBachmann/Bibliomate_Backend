@@ -31,12 +31,12 @@ namespace backend.Services
         /// </returns>
         public async Task<List<RecommendationReadDto>> GetRecommendationsForUser(int userId)
         {
-            // Query the user's preferred genre IDs
+            // 1) Query the user's preferred genre IDs
             var genreIdsQuery = _context.UserGenres
                 .Where(ug => ug.UserId == userId)
                 .Select(ug => ug.GenreId);
 
-            // Fetch up to 10 books matching those genres, including author and genre names
+            // 2) Fetch up to 10 books matching those genres, projecting directly to DTO
             var recommendations = await _context.Books
                 .Where(b => genreIdsQuery.Contains(b.GenreId))
                 .Include(b => b.Genre)
@@ -47,12 +47,13 @@ namespace backend.Services
                     Title    = b.Title,
                     Genre    = b.Genre.Name,
                     Author   = b.Author.Name,
-                    CoverUrl = b.CoverUrl
+                    CoverUrl = b.CoverUrl ?? string.Empty
                 })
                 .Take(10)
                 .ToListAsync();
 
             return recommendations;
         }
+
     }
 }

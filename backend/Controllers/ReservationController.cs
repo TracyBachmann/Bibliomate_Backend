@@ -76,31 +76,40 @@ namespace backend.Controllers
         public async Task<ActionResult<IEnumerable<ReservationReadDto>>> GetUserReservations(int id)
         {
             var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            if (id != currentUserId && !User.IsInRole(UserRoles.Admin) && !User.IsInRole(UserRoles.Librarian))
+            if (id != currentUserId 
+                && !User.IsInRole(UserRoles.Admin) 
+                && !User.IsInRole(UserRoles.Librarian))
+            {
                 return Forbid();
+            }
 
             var reservations = await _context.Reservations
                 .Include(r => r.Book)
-                .Where(r => r.UserId == id && 
-                            (r.Status == ReservationStatus.Pending || r.Status == ReservationStatus.Available))
+                .Include(r => r.User)
+                .Where(r => r.UserId == id 
+                            && (r.Status == ReservationStatus.Pending 
+                                || r.Status == ReservationStatus.Available))
                 .ToListAsync();
 
-            return Ok(reservations.Select(r => new ReservationReadDto
-            {
-                ReservationId   = r.ReservationId,
-                UserId          = r.UserId,
-                UserName        = r.User?.Name ?? string.Empty,
-                BookId          = r.BookId,
-                BookTitle       = r.Book.Title,
-                ReservationDate = r.ReservationDate,
-                Status          = r.Status
-            }));
+            var result = reservations
+                .Select(r => new ReservationReadDto
+                {
+                    ReservationId   = r.ReservationId,
+                    UserId          = r.UserId,
+                    UserName        = r.User.Name,
+                    BookId          = r.BookId,
+                    BookTitle       = r.Book.Title,
+                    ReservationDate = r.ReservationDate,
+                    Status          = r.Status
+                });
+
+            return Ok(result);
         }
 
         /// <summary>
         /// Retrieves pending reservations for a specific book.
         /// </summary>
-        /// <param name="id">The book's identifier.</param>
+        /// <param name="id">The book’s identifier.</param>
         /// <returns>A list of <see cref="ReservationReadDto"/>.</returns>
         [Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         [HttpGet("book/{id}/pending")]
@@ -108,20 +117,23 @@ namespace backend.Controllers
         {
             var reservations = await _context.Reservations
                 .Include(r => r.User)
+                .Include(r => r.Book)
                 .Where(r => r.BookId == id && r.Status == ReservationStatus.Pending)
                 .OrderBy(r => r.CreatedAt)
                 .ToListAsync();
 
-            return Ok(reservations.Select(r => new ReservationReadDto
+            var result = reservations.Select(r => new ReservationReadDto
             {
                 ReservationId   = r.ReservationId,
                 UserId          = r.UserId,
                 UserName        = r.User.Name,
                 BookId          = r.BookId,
-                BookTitle       = r.Book?.Title ?? string.Empty,
+                BookTitle       = r.Book.Title,
                 ReservationDate = r.ReservationDate,
                 Status          = r.Status
-            }));
+            });
+
+            return Ok(result);
         }
 
         /// <summary>

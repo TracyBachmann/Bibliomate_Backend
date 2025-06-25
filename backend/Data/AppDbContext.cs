@@ -1,8 +1,7 @@
-using System;
 using backend.Models;
-using backend.Services;                                 // for EncryptionService
+using backend.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;  // for ValueConverter
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace backend.Data
 {

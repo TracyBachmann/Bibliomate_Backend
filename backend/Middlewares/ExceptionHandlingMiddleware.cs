@@ -25,13 +25,13 @@ namespace backend.Middlewares
             catch (ValidationException vex)
             {
                 // Specific validation errors
-                _logger.LogWarning("Validation failed: {Message}", vex.ValidationResult?.ErrorMessage ?? vex.Message);
+                _logger.LogWarning("Validation failed: {Message}", vex.ValidationResult.ErrorMessage ?? vex.Message);
 
                 context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 await WriteResponseAsync(context, new
                 {
                     error   = "ValidationError",
-                    details = vex.ValidationResult?.ErrorMessage ?? vex.Message
+                    details = vex.ValidationResult.ErrorMessage ?? vex.Message
                 });
             }
             catch (KeyNotFoundException knf)

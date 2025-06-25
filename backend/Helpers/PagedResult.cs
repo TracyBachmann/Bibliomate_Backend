@@ -1,8 +1,4 @@
-﻿// Helpers/PagedResult.cs
-using System;
-using System.Collections.Generic;
-
-namespace backend.Helpers
+﻿namespace backend.Helpers
 {
     /// <summary>
     /// Represents a paged result set, including items and pagination metadata.

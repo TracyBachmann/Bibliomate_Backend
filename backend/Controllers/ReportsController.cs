@@ -193,7 +193,7 @@ namespace backend.Controllers
         {
             ReportId = report.ReportId,
             UserId = report.UserId,
-            UserName = report.User?.Name ?? "Unknown",
+            UserName = report.User.Name ,
             Title = report.Title,
             Content = report.Content,
             GeneratedDate = report.GeneratedDate

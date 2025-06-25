@@ -28,24 +28,27 @@ builder.Services.AddCors(o => o.AddPolicy("default", p =>
 builder.Services.AddDbContext<BiblioMateDbContext>(o =>
     o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// 3) Controllers + Authorize + ModelState custom
+// 3) Controllers + global authorization + custom ModelState error responses
 builder.Services
     .AddControllers(options =>
     {
         var policy = new AuthorizationPolicyBuilder()
-                         .RequireAuthenticatedUser()
-                         .Build();
+            .RequireAuthenticatedUser()
+            .Build();
         options.Filters.Add(new AuthorizeFilter(policy));
     })
     .ConfigureApiBehaviorOptions(options =>
     {
         options.InvalidModelStateResponseFactory = context =>
         {
+            // Collect only entries with errors
             var errors = context.ModelState
-                .Where(kv => kv.Value.Errors.Count > 0)
+                .Where(kv => kv.Value!.Errors.Count > 0)
                 .ToDictionary(
                     kvp => kvp.Key,
-                    kvp => kvp.Value.Errors.Select(e => e.ErrorMessage).ToArray()
+                    kvp => kvp.Value!.Errors
+                        .Select(e => e.ErrorMessage)
+                        .ToArray()
                 );
 
             var result = new BadRequestObjectResult(new
@@ -114,6 +117,7 @@ builder.Services.AddHostedService<LoanReminderBackgroundService>();
 builder.Services.AddScoped<UserActivityLogService>();
 builder.Services.AddScoped<SearchActivityLogService>();
 builder.Services.AddSingleton<EncryptionService>();
+builder.Services.AddScoped<LoanReminderService>();
 
 // 7) SignalR
 builder.Services.AddSignalR();

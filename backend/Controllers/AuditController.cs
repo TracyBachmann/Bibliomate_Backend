@@ -39,12 +39,13 @@ namespace backend.Controllers
         [HttpGet("user/{userId}/logs")]
         public async Task<IActionResult> GetUserActivityLogs(int userId)
         {
-            List<UserActivityLogDocument> logs = await _activityLog.GetByUserAsync(userId);
+            var logs = await _activityLog.GetByUserAsync(userId);
 
-            if (logs == null || logs.Count == 0)
+            if (logs.Count == 0)
                 return NotFound($"No activity logs found for user {userId}.");
 
             return Ok(logs);
         }
+
     }
 }
