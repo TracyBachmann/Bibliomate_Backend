@@ -9,16 +9,34 @@
       - "1450:1433"
     volumes:
       - sqlDB_data:/var/opt/mssql
-  
-  app:
-    image: mcr.microsoft.com/dotnet/sdk:9.0
-    container_name: app
+
+  mongo:
+    image: mongo:7
+    container_name: mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    ports:
+      - "27017:27017"
     volumes:
-      - ./backend:/app
-    working_dir: /app
+      - mongo_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5000
     depends_on:
       - serverSQL
-    tty: true
+      - mongo
+
 volumes:
   sqlDB_data:
-    
+  mongo_data:
