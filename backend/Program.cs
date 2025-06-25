@@ -41,9 +41,8 @@ builder.Services
     })
     .ConfigureApiBehaviorOptions(options =>
     {
-        options.InvalidModelStateResponseFactory = context =>
+        options.InvalidModelStateResponseFactory = new Func<ActionContext, IActionResult>(context =>
         {
-            // Collect only entries with errors
             var errors = context.ModelState
                 .Where(kv => kv.Value!.Errors.Count > 0)
                 .ToDictionary(
@@ -58,9 +57,10 @@ builder.Services
                 error   = "ValidationError",
                 details = errors
             });
+
             result.ContentTypes.Add("application/json");
             return result;
-        };
+        });
     });
 
 // 4) JWT Authentication & SignalR
