@@ -113,6 +113,7 @@ builder.Services.AddScoped<HistoryService>();
 builder.Services.AddHostedService<LoanReminderBackgroundService>();
 builder.Services.AddScoped<UserActivityLogService>();
 builder.Services.AddScoped<SearchActivityLogService>();
+builder.Services.AddSingleton<EncryptionService>();
 
 // 7) SignalR
 builder.Services.AddSignalR();

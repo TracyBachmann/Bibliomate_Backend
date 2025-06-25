@@ -1,13 +1,26 @@
-using Microsoft.EntityFrameworkCore;
+using System;
 using backend.Models;
+using backend.Services;                                 // for EncryptionService
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;  // for ValueConverter
 
 namespace backend.Data
 {
     public class BiblioMateDbContext : DbContext
     {
-        public BiblioMateDbContext(DbContextOptions<BiblioMateDbContext> options)
+        private readonly EncryptionService _encryptionService;
+
+        /// <summary>
+        /// Constructs the context with EF Core options and encryption service.
+        /// </summary>
+        /// <param name="options">EF Core options.</param>
+        /// <param name="encryptionService">Service to encrypt/decrypt sensitive fields.</param>
+        public BiblioMateDbContext(
+            DbContextOptions<BiblioMateDbContext> options,
+            EncryptionService encryptionService)
             : base(options)
         {
+            _encryptionService = encryptionService;
         }
 
         // Core entities
@@ -139,8 +152,23 @@ namespace backend.Data
                 .HasForeignKey(ug => ug.GenreId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // ------------------------------
+            // 7) Encrypt sensitive user fields (Address, Phone)
+            // ------------------------------
+            var converter = new ValueConverter<string, string>(
+                plain => _encryptionService.Encrypt(plain),
+                cipher => _encryptionService.Decrypt(cipher)
+            );
+
+            modelBuilder.Entity<User>(b =>
+            {
+                b.Property(u => u.Address)
+                 .HasConversion(converter);
+                b.Property(u => u.Phone)
+                 .HasConversion(converter);
+            });
+
             base.OnModelCreating(modelBuilder);
         }
     }
 }
-
