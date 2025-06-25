@@ -1,4 +1,3 @@
-using System;
 using backend.Models.Enums;
 
 namespace backend.DTOs

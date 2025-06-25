@@ -58,7 +58,7 @@ namespace backend.Controllers
                 ShelfLevelId = sl.ShelfLevelId,
                 LevelNumber = sl.LevelNumber,
                 ShelfId = sl.ShelfId,
-                ShelfName = sl.Shelf?.Name ?? "Unknown"
+                ShelfName = sl.Shelf.Name
             }));
         }
 
@@ -87,7 +87,7 @@ namespace backend.Controllers
                 ShelfLevelId = shelfLevel.ShelfLevelId,
                 LevelNumber = shelfLevel.LevelNumber,
                 ShelfId = shelfLevel.ShelfId,
-                ShelfName = shelfLevel.Shelf?.Name ?? "Unknown"
+                ShelfName = shelfLevel.Shelf.Name
             });
         }
 

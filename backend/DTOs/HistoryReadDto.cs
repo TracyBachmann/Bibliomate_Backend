@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace backend.DTOs
+﻿namespace backend.DTOs
 {
     /// <summary>
     /// DTO returned when querying a user's history of events.

@@ -256,7 +256,7 @@ namespace backend.Controllers
                 reservation.Status = ReservationStatus.Available;
                 stock.IsAvailable = false;
 
-                var bookTitle = stock.Book?.Title ?? "Unknown";
+                var bookTitle = stock.Book.Title;
                 await _notificationService.NotifyUser(
                     reservation.UserId,
                     $"📚 The book '{bookTitle}' is now available for you. You have 48h to pick it up."
@@ -295,9 +295,9 @@ namespace backend.Controllers
         {
             LoanId     = loan.LoanId,
             UserId     = loan.UserId,
-            UserName   = loan.User?.Name ?? "Unknown",
+            UserName   = loan.User.Name,
             BookId     = loan.BookId,
-            BookTitle  = loan.Book?.Title ?? "Unknown",
+            BookTitle  = loan.Book.Title,
             LoanDate   = loan.LoanDate,
             DueDate    = loan.DueDate,
             ReturnDate = loan.ReturnDate,

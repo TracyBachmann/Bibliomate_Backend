@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace backend.Models
@@ -93,6 +91,7 @@ namespace backend.Models
         /// URL of the book’s cover image.
         /// </summary>
         [Url(ErrorMessage = "CoverUrl must be a valid URL.")]
+        [StringLength(2048, ErrorMessage = "CoverUrl cannot exceed 2048 characters.")]
         public string? CoverUrl { get; set; }
 
         /// <summary>

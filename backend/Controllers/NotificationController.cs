@@ -155,7 +155,7 @@ namespace backend.Controllers
         {
             NotificationId = n.NotificationId,
             UserId = n.UserId,
-            UserName = n.User?.Name ?? "Unknown",
+            UserName = n.User.Name,
             Title = n.Title,
             Message = n.Message
         };

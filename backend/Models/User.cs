@@ -55,7 +55,8 @@ namespace backend.Models
         /// Role of the user (User, Librarian, Admin).
         /// </summary>
         [Required(ErrorMessage = "Role is required.")]
-        [RegularExpression("^(User|Librarian|Admin)$", ErrorMessage = "Role must be 'User', 'Librarian', or 'Admin'.")]
+        [RegularExpression(@"^(User|Librarian|Admin)$", ErrorMessage = "Role must be 'User', 'Librarian', or 'Admin'.")]
+        [StringLength(20, ErrorMessage = "Role cannot exceed 20 characters.")]
         public string Role { get; set; } = "User";
 
         /// <summary>

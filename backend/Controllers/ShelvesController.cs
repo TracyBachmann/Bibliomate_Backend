@@ -56,9 +56,9 @@ namespace backend.Controllers
                 ShelfId = s.ShelfId,
                 Name = s.Name,
                 ZoneId = s.ZoneId,
-                ZoneName = s.Zone?.Name ?? "Unknown",
+                ZoneName = s.Zone.Name,
                 GenreId = s.GenreId,
-                GenreName = s.Genre?.Name ?? "Unknown",
+                GenreName = s.Genre.Name,
                 Capacity = s.Capacity,
                 CurrentLoad = s.CurrentLoad
             });
@@ -92,9 +92,9 @@ namespace backend.Controllers
                 ShelfId = shelf.ShelfId,
                 Name = shelf.Name,
                 ZoneId = shelf.ZoneId,
-                ZoneName = shelf.Zone?.Name ?? "Unknown",
+                ZoneName = shelf.Zone.Name,
                 GenreId = shelf.GenreId,
-                GenreName = shelf.Genre?.Name ?? "Unknown",
+                GenreName = shelf.Genre.Name,
                 Capacity = shelf.Capacity,
                 CurrentLoad = shelf.CurrentLoad
             };
@@ -135,9 +135,9 @@ namespace backend.Controllers
                 ShelfId = shelf.ShelfId,
                 Name = shelf.Name,
                 ZoneId = shelf.ZoneId,
-                ZoneName = shelf.Zone?.Name ?? "Unknown",
+                ZoneName = shelf.Zone.Name,
                 GenreId = shelf.GenreId,
-                GenreName = shelf.Genre?.Name ?? "Unknown",
+                GenreName = shelf.Genre.Name,
                 Capacity = shelf.Capacity,
                 CurrentLoad = shelf.CurrentLoad
             };
