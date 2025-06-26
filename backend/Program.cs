@@ -15,6 +15,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -81,18 +82,33 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwt["Issuer"],
             ValidAudience = jwt["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(key)
+            IssuerSigningKey = new SymmetricSecurityKey(key),
+            RoleClaimType = ClaimTypes.Role
         };
+
         opts.Events = new JwtBearerEvents
         {
             OnMessageReceived = ctx =>
             {
                 if (ctx.Request.Path.StartsWithSegments("/hubs/notifications")
-                 && ctx.Request.Query.TryGetValue("access_token", out var token))
+                    && ctx.Request.Query.TryGetValue("access_token", out var token))
                 {
                     ctx.Token = token;
                 }
                 return Task.CompletedTask;
+            },
+
+            OnTokenValidated = async ctx =>
+            {
+                var db = ctx.HttpContext.RequestServices.GetRequiredService<BiblioMateDbContext>();
+                var userId = int.Parse(ctx.Principal!.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                var stamp = ctx.Principal.FindFirst("stamp")?.Value;
+
+                var user = await db.Users.FindAsync(userId);
+                if (user == null || user.SecurityStamp != stamp)
+                {
+                    ctx.Fail("Invalid token: security stamp mismatch.");
+                }
             }
         };
     });
@@ -131,9 +147,9 @@ builder.Services.AddScoped<LoanReminderService>();
 builder.Services.AddHostedService<LoanReminderBackgroundService>();
 builder.Services.AddSingleton<EncryptionService>();
 builder.Services.AddHttpClient<GoogleBooksService>();
-builder.Services.AddScoped<SendGridEmailService>();
+builder.Services.AddScoped<IEmailService, SendGridEmailService>();
 
-// ❗ Services injectés directement sans interface
+// Services injectés directement sans interface
 builder.Services.AddScoped<HistoryService>();
 builder.Services.AddScoped<SearchActivityLogService>();
 builder.Services.AddScoped<NotificationService>();
@@ -151,12 +167,10 @@ builder.Services.AddSwaggerGen(c =>
     c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFile));
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Type 'Bearer {token}'"
+        Description = "JWT Authorization header using the Bearer scheme.",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer", // ✅ lower-case required!
+        BearerFormat = "JWT"
     });
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {

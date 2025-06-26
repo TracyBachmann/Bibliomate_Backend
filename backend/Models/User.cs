@@ -115,5 +115,15 @@ namespace backend.Models
         /// Preferred genres of the user for personalized recommendations.
         /// </summary>
         public ICollection<UserGenre> UserGenres { get; set; } = new List<UserGenre>();
+        
+        /// <summary>
+        /// Security stamp used to invalidate existing JWTs whenever a critical change occurs
+        /// (password reset, email change, etc.). This value is embedded in the token and
+        /// checked during token validation to ensure it hasn’t been altered since issuance.
+        /// </summary>
+        [Required(ErrorMessage = "SecurityStamp is required.")]
+        [StringLength(1000, ErrorMessage = "SecurityStamp cannot exceed 1000 characters.")]
+        public string SecurityStamp { get; set; } = Guid.NewGuid().ToString();
+
     }
 }

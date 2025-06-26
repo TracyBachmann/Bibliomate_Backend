@@ -19,7 +19,7 @@ namespace backend.Services
     {
         private readonly BiblioMateDbContext    _db;
         private readonly IConfiguration         _config;
-        private readonly SendGridEmailService   _emailService;
+        private readonly IEmailService _emailService;
 
         /// <summary>
         /// Creates a new instance of <see cref="AuthService"/>.
@@ -30,11 +30,11 @@ namespace backend.Services
         public AuthService(
             BiblioMateDbContext db,
             IConfiguration config,
-            SendGridEmailService emailService)
+            IEmailService emailService)
         {
             _db            = db;
             _config        = config;
-            _emailService  = emailService;
+            _emailService = emailService;
         }
 
         public async Task<(bool, IActionResult)> RegisterAsync(RegisterDto dto)
@@ -129,6 +129,7 @@ namespace backend.Services
             user.Password                   = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
             user.PasswordResetToken         = null;
             user.PasswordResetTokenExpires  = null;
+            user.SecurityStamp = Guid.NewGuid().ToString();
             await _db.SaveChangesAsync();
 
             return (true, new OkObjectResult("Password reset successful."));
@@ -156,7 +157,8 @@ namespace backend.Services
             {
                 new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                 new Claim(ClaimTypes.Email,         user.Email),
-                new Claim(ClaimTypes.Role,          user.Role)
+                new Claim(ClaimTypes.Role,          user.Role),
+                new Claim("stamp", user.SecurityStamp)
             };
 
             var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));

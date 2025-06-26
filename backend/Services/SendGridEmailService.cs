@@ -6,7 +6,7 @@ namespace backend.Services
     /// <summary>
     /// Service responsible for sending emails via SendGrid.
     /// </summary>
-    public class SendGridEmailService
+    public class SendGridEmailService : IEmailService
     {
         private readonly IConfiguration _config;
 
