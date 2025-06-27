@@ -148,6 +148,7 @@ builder.Services.AddHostedService<LoanReminderBackgroundService>();
 builder.Services.AddSingleton<EncryptionService>();
 builder.Services.AddHttpClient<GoogleBooksService>();
 builder.Services.AddScoped<IEmailService, SendGridEmailService>();
+builder.Services.AddScoped<SendGridEmailService>();
 
 // Services injectés directement sans interface
 builder.Services.AddScoped<HistoryService>();
