@@ -53,7 +53,7 @@ namespace backend.Services
                 Password         = BCrypt.Net.BCrypt.HashPassword(dto.Password),
                 Address          = dto.Address ?? string.Empty,
                 Phone            = dto.Phone   ?? string.Empty,
-                Role             = UserRoles.User,
+                Role             = dto.Role,
                 IsEmailConfirmed = true,
                 IsApproved       = true
             };

@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using backend.Models.Enums;
 
 namespace backend.DTOs
 {
@@ -44,5 +45,13 @@ namespace backend.DTOs
         /// <example>+33 6 12 34 56 78</example>
         [Phone(ErrorMessage = "Phone must be a valid phone number.")]
         public string? Phone { get; set; }
+
+        /// <summary>
+        /// Role assigned to the new user (User, Librarian, Admin).
+        /// </summary>
+        /// <example>User</example>
+        [Required(ErrorMessage = "Role is required.")]
+        [RegularExpression("^(User|Librarian|Admin)$", ErrorMessage = "Role must be one of: User, Librarian, Admin.")]
+        public string Role { get; set; } = UserRoles.User;
     }
 }

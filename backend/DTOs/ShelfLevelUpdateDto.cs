@@ -30,5 +30,26 @@ namespace backend.DTOs
         [Required(ErrorMessage = "ShelfId is required.")]
         [Range(1, int.MaxValue, ErrorMessage = "ShelfId must be a positive integer.")]
         public int ShelfId { get; set; }
+
+        /// <summary>
+        /// Maximum height (in cm) of books that can fit on this level.
+        /// </summary>
+        /// <example>30</example>
+        [Range(0, int.MaxValue, ErrorMessage = "MaxHeight must be zero or a positive integer.")]
+        public int MaxHeight { get; set; }
+
+        /// <summary>
+        /// Maximum number of books this level can hold.
+        /// </summary>
+        /// <example>20</example>
+        [Range(0, int.MaxValue, ErrorMessage = "Capacity must be zero or a positive integer.")]
+        public int Capacity { get; set; }
+
+        /// <summary>
+        /// Current number of books stored on this level.
+        /// </summary>
+        /// <example>12</example>
+        [Range(0, int.MaxValue, ErrorMessage = "CurrentLoad must be zero or a positive integer.")]
+        public int CurrentLoad { get; set; }
     }
 }

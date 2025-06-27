@@ -35,7 +35,10 @@ namespace backend.Services
                 ShelfLevelId = sl.ShelfLevelId,
                 LevelNumber  = sl.LevelNumber,
                 ShelfId      = sl.ShelfId,
-                ShelfName    = sl.Shelf.Name
+                ShelfName    = sl.Shelf.Name,
+                MaxHeight    = sl.MaxHeight,
+                Capacity     = sl.Capacity,
+                CurrentLoad  = sl.CurrentLoad
             });
         }
 
@@ -52,7 +55,10 @@ namespace backend.Services
                 ShelfLevelId = sl.ShelfLevelId,
                 LevelNumber  = sl.LevelNumber,
                 ShelfId      = sl.ShelfId,
-                ShelfName    = sl.Shelf.Name
+                ShelfName    = sl.Shelf.Name,
+                MaxHeight    = sl.MaxHeight,
+                Capacity     = sl.Capacity,
+                CurrentLoad  = sl.CurrentLoad
             };
         }
 
@@ -61,13 +67,16 @@ namespace backend.Services
             var sl = new Models.ShelfLevel
             {
                 LevelNumber = dto.LevelNumber,
-                ShelfId     = dto.ShelfId
+                ShelfId     = dto.ShelfId,
+                MaxHeight   = dto.MaxHeight,
+                Capacity    = dto.Capacity,
+                CurrentLoad = dto.CurrentLoad
             };
 
             _context.ShelfLevels.Add(sl);
             await _context.SaveChangesAsync();
 
-            // reload shelf name
+            // Reload shelf name
             var shelf = await _context.Shelves.FindAsync(sl.ShelfId);
 
             return new ShelfLevelReadDto
@@ -75,7 +84,10 @@ namespace backend.Services
                 ShelfLevelId = sl.ShelfLevelId,
                 LevelNumber  = sl.LevelNumber,
                 ShelfId      = sl.ShelfId,
-                ShelfName    = shelf?.Name ?? "Unknown"
+                ShelfName    = shelf?.Name ?? "Unknown",
+                MaxHeight    = sl.MaxHeight,
+                Capacity     = sl.Capacity,
+                CurrentLoad  = sl.CurrentLoad
             };
         }
 
@@ -86,6 +98,10 @@ namespace backend.Services
 
             sl.LevelNumber = dto.LevelNumber;
             sl.ShelfId     = dto.ShelfId;
+            sl.MaxHeight   = dto.MaxHeight;
+            sl.Capacity    = dto.Capacity;
+            sl.CurrentLoad = dto.CurrentLoad;
+
             await _context.SaveChangesAsync();
             return true;
         }

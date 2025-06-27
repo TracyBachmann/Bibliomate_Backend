@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Threading.Tasks;
-using backend.DTOs;
+﻿using backend.DTOs;
 using backend.Models.Enums;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
