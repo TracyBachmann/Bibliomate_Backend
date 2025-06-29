@@ -23,7 +23,6 @@ namespace Tests.Services
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-            // Exactement la même config que pour AuthServiceTests
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
