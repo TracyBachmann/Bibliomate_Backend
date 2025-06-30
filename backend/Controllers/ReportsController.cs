@@ -65,9 +65,11 @@ namespace backend.Controllers
         {
             var userId = TokenHelper.GetUserId(User);
             var created = await _service.CreateAsync(dto, userId);
-            return CreatedAtAction(nameof(GetReport),
+            return CreatedAtAction(
+                nameof(GetReport),
                 new { id = created.ReportId },
-                created);
+                created
+            );
         }
 
         /// <summary>
