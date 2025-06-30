@@ -14,13 +14,14 @@ namespace backend.Services
     public class ReservationService : IReservationService
     {
         private readonly BiblioMateDbContext _context;
-        private readonly HistoryService _history;
-        private readonly UserActivityLogService _audit;
+        private readonly IHistoryService _history;
+        private readonly IUserActivityLogService _audit;
 
         public ReservationService(
             BiblioMateDbContext context,
-            HistoryService historyService,
-            UserActivityLogService activityLog)
+            IHistoryService historyService,
+            IUserActivityLogService activityLog)
+
         {
             _context = context;
             _history = historyService;
@@ -164,9 +165,9 @@ namespace backend.Services
             {
                 ReservationId   = r.ReservationId,
                 UserId          = r.UserId,
-                UserName        = r.User?.Name ?? string.Empty,
+                UserName        = r.User.Name,
                 BookId          = r.BookId,
-                BookTitle       = r.Book?.Title ?? string.Empty,
+                BookTitle       = r.Book.Title,
                 ReservationDate = r.ReservationDate,
                 Status          = r.Status
             };

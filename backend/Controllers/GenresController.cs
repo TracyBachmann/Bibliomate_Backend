@@ -8,7 +8,7 @@ namespace backend.Controllers
 {
     /// <summary>
     /// Controller for managing genres.
-    /// Provides CRUD operations on <see cref="Genre"/> entities.
+    /// Provides CRUD operations on Genre entities.
     /// </summary>
     [Authorize]
     [ApiController]

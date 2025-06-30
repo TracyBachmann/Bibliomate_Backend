@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using backend.Configuration;
 using backend.Data;
 using backend.Hubs;
@@ -34,18 +36,23 @@ builder.Services.AddCors(o => o.AddPolicy("default", p =>
 builder.Services.AddDbContext<BiblioMateDbContext>(opts =>
     opts.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// 3) Controllers + custom ModelState errors
+// 3) Controllers + custom ModelState errors + JSON options
 builder.Services
-    .AddControllers(opt =>
+    .AddControllers(opts =>
     {
         var authPolicy = new AuthorizationPolicyBuilder()
             .RequireAuthenticatedUser()
             .Build();
-        opt.Filters.Add(new AuthorizeFilter(authPolicy));
+        opts.Filters.Add(new AuthorizeFilter(authPolicy));
     })
-    .ConfigureApiBehaviorOptions(opts =>
+    .AddJsonOptions(jsonOptions =>
     {
-        opts.InvalidModelStateResponseFactory = new Func<ActionContext, IActionResult>(context =>
+        jsonOptions.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        jsonOptions.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    })
+    .ConfigureApiBehaviorOptions(apiOptions =>
+    {
+        apiOptions.InvalidModelStateResponseFactory = (ActionContext context) =>
         {
             var errors = context.ModelState
                 .Where(kv => kv.Value!.Errors.Count > 0)
@@ -62,7 +69,7 @@ builder.Services
 
             result.ContentTypes.Add("application/json");
             return result;
-        });
+        };
     });
 
 // 4) Authentication (JWT) + SignalR token from query
@@ -133,27 +140,32 @@ builder.Services.AddScoped<IEditorService, EditorService>();
 builder.Services.AddScoped<IGenreService, GenreService>();
 builder.Services.AddScoped<IHistoryService, HistoryService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<INotificationLogService, NotificationLogService>();
 builder.Services.AddScoped<IRecommendationService, RecommendationService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddScoped<IShelfLevelService, ShelfLevelService>();
+builder.Services.AddScoped<ILoanService, LoanService>();
+builder.Services.AddScoped<ISearchActivityLogService, SearchActivityLogService>();
 builder.Services.AddScoped<IShelfService, ShelfService>();
 builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IZoneService, ZoneService>();
+builder.Services.AddScoped<IMongoLogService, MongoLogService>();
+
 builder.Services.AddScoped<ReservationCleanupService>();
 builder.Services.AddScoped<LoanReminderService>();
 builder.Services.AddHostedService<LoanReminderBackgroundService>();
+
 builder.Services.AddSingleton<EncryptionService>();
 builder.Services.AddHttpClient<GoogleBooksService>();
+
 builder.Services.AddScoped<IEmailService, SendGridEmailService>();
 builder.Services.AddScoped<SendGridEmailService>();
 
-// Services injectés directement sans interface
+// Services injectés sans interface
 builder.Services.AddScoped<HistoryService>();
-builder.Services.AddScoped<SearchActivityLogService>();
-builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<UserActivityLogService>();
 builder.Services.AddScoped<NotificationLogService>();
 

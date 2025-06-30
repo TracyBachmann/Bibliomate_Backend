@@ -33,6 +33,10 @@
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5000
+
+      - MongoDb__ConnectionString=mongodb://admin:password@mongo:27017
+      - MongoDb__DatabaseName=BiblioMateLogs
+
     depends_on:
       - serverSQL
       - mongo

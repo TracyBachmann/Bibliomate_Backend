@@ -1,6 +1,4 @@
 ﻿using backend.Models.Mongo;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace backend.Services
 {

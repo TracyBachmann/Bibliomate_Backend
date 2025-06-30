@@ -41,7 +41,7 @@ namespace backend.Controllers
         {
             var logs = await _activityLog.GetByUserAsync(userId);
 
-            if (logs == null || logs.Count == 0)
+            if (logs.Count == 0)
                 return NotFound($"No activity logs found for user {userId}.");
 
             return Ok(logs);

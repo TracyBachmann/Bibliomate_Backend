@@ -63,10 +63,9 @@ namespace backend.DTOs
         public bool? IsAvailable { get; set; }
 
         /// <summary>
-        /// List of tag identifiers to filter by.
+        /// List of tag IDs.
         /// </summary>
-        /// <example>[1, 4, 7]</example>
         [MinLength(1, ErrorMessage = "If specified, TagIds must contain at least one element.")]
-        public List<int>? TagIds { get; set; }
+        public List<int> TagIds { get; init; } = new();
     }
 }

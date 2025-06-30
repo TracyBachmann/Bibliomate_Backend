@@ -6,6 +6,9 @@
         ReturnReminder,
         OverduePenalty,
         OverdueNotice,
-        Custom
+        Custom,
+        Error,
+        Warning,
+        Info,
     }
 }

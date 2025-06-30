@@ -61,7 +61,7 @@ namespace backend.Controllers
         [HttpPost, Authorize(Roles = $"{UserRoles.Admin},{UserRoles.Librarian}")]
         public async Task<IActionResult> CreateAuthor(AuthorCreateDto dto)
         {
-            var (read, result) = await _service.CreateAsync(dto);
+            var (_, result) = await _service.CreateAsync(dto);
             return result;
         }
 

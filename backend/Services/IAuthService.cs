@@ -1,6 +1,5 @@
 ﻿using backend.DTOs;
 using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
 
 namespace backend.Services
 {

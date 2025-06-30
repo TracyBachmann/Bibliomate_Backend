@@ -1,4 +1,5 @@
 ﻿using backend.DTOs;
+using backend.Models;
 
 namespace backend.Services
 {
@@ -7,29 +8,12 @@ namespace backend.Services
     /// </summary>
     public interface ILoanService
     {
-        /// <summary>
-        /// Attempts to create a new loan for the specified user and book.
-        /// </summary>
-        /// <param name="dto">Data needed to create a loan (user ID, book ID).</param>
-        /// <returns>
-        /// A <see cref="Result{LoanCreatedResult,string}"/> wrapping either:
-        /// - <see cref="LoanCreatedResult"/> on success,
-        /// - an error message on failure.
-        /// </returns>
         Task<Result<LoanCreatedResult, string>> CreateAsync(LoanCreateDto dto);
-
-        /// <summary>
-        /// Marks the specified loan as returned, updates inventory, notifies next reservation if any.
-        /// </summary>
-        /// <param name="loanId">The identifier of the loan to return.</param>
-        /// <returns>
-        /// A <see cref="Result{LoanReturnedResult,string}"/> wrapping either:
-        /// - <see cref="LoanReturnedResult"/> on success,
-        /// - an error message on failure.
-        /// </returns>
         Task<Result<LoanReturnedResult, string>> ReturnAsync(int loanId);
-
-        // TODO: add methods for GetAllAsync, GetByIdAsync, UpdateAsync, DeleteAsync, etc.
+        Task<Result<IEnumerable<Loan>, string>> GetAllAsync();
+        Task<Result<Loan, string>> GetByIdAsync(int loanId);
+        Task<Result<Loan, string>> UpdateAsync(int loanId, LoanUpdateDto dto);
+        Task<Result<bool, string>> DeleteAsync(int loanId);
     }
 
     /// <summary>

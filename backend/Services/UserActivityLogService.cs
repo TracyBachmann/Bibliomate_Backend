@@ -7,14 +7,14 @@ namespace backend.Services
 {
     /// <summary>
     /// Service for recording and retrieving user activity logs from MongoDB.
-    /// Implements <see cref="IUserActivityLogService"/>.
+    /// Implements IUserActivityLogService.
     /// </summary>
     public class UserActivityLogService : IUserActivityLogService
     {
         private readonly IMongoCollection<UserActivityLogDocument> _collection;
 
         /// <summary>
-        /// Initializes a new instance of <see cref="UserActivityLogService"/>.
+        /// Initializes a new instance of IUserActivityLogService.
         /// </summary>
         /// <param name="opts">
         /// Provides MongoDB settings (ConnectionString & DatabaseName) via <see cref="IOptions{MongoSettings}"/>.

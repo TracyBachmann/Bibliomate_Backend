@@ -8,7 +8,7 @@ namespace backend.Controllers
 {
     /// <summary>
     /// Controller for managing editors (publishers).
-    /// Provides CRUD operations on <see cref="Editor"/> entities.
+    /// Provides CRUD operations on Editor entities.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]

@@ -18,8 +18,8 @@ namespace backend.Services
     public class BookService : IBookService
     {
         private readonly BiblioMateDbContext      _db;
-        private readonly SearchActivityLogService _searchLog;
-
+        private readonly ISearchActivityLogService _searchLog;
+        
         /// <summary>
         /// Initializes a new instance of <see cref="BookService"/>.
         /// </summary>
@@ -27,7 +27,7 @@ namespace backend.Services
         /// <param name="searchLog">Service to record search activity.</param>
         public BookService(
             BiblioMateDbContext      db,
-            SearchActivityLogService searchLog)
+            ISearchActivityLogService searchLog)
         {
             _db        = db;
             _searchLog = searchLog;
@@ -116,13 +116,22 @@ namespace backend.Services
                 GenreId         = dto.GenreId,
                 EditorId        = dto.EditorId,
                 ShelfLevelId    = dto.ShelfLevelId,
+                CoverUrl        = dto.CoverUrl,
                 BookTags        = (dto.TagIds ?? new List<int>())
-                                    .Select(tagId => new BookTag { TagId = tagId })
-                                    .ToList()
+                    .Select(tagId => new BookTag { TagId = tagId })
+                    .ToList()
             };
 
             _db.Books.Add(book);
             await _db.SaveChangesAsync();
+
+            await _db.Entry(book).Reference(b => b.Author).LoadAsync();
+            await _db.Entry(book).Reference(b => b.Genre).LoadAsync();
+            await _db.Entry(book).Reference(b => b.Editor).LoadAsync();
+            await _db.Entry(book).Reference(b => b.ShelfLevel).LoadAsync();
+            await _db.Entry(book).Collection(b => b.BookTags).Query().Include(bt => bt.Tag).LoadAsync();
+            await _db.Entry(book).Reference(b => b.Stock).LoadAsync();
+
             return ToDto(book);
         }
 

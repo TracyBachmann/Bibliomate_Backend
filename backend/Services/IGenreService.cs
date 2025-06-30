@@ -3,7 +3,7 @@
 namespace backend.Services
 {
     /// <summary>
-    /// Defines CRUD operations for <see cref="Genre"/> entities.
+    /// Defines CRUD operations for Genre entities.
     /// </summary>
     public interface IGenreService
     {

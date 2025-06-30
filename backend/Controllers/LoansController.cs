@@ -26,7 +26,7 @@ namespace backend.Controllers
         /// </summary>
         /// <param name="dto">Data required to create the loan.</param>
         /// <returns>
-        /// 200 OK with { message, dueDate } on success,  
+        /// 200 OK with { message, dueDate } on success,
         /// 400 BadRequest with { error } on failure.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
@@ -49,7 +49,7 @@ namespace backend.Controllers
         /// </summary>
         /// <param name="id">Identifier of the loan to return.</param>
         /// <returns>
-        /// 200 OK with { message, reservationNotified } on success,  
+        /// 200 OK with { message, reservationNotified } on success,
         /// 400 BadRequest with { error } on failure.
         /// </returns>
         [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
@@ -67,6 +67,80 @@ namespace backend.Controllers
             });
         }
 
-        // TODO: Add endpoints for GET, PUT (update), DELETE, each delegating to ILoanService
+        /// <summary>
+        /// Retrieves all loans in the system.
+        /// </summary>
+        /// <returns>
+        /// 200 OK with a list of Loan objects,
+        /// 400 BadRequest with { error } on failure.
+        /// </returns>
+        [Authorize]
+        [HttpGet]
+        public async Task<IActionResult> GetAll()
+        {
+            var result = await _loanService.GetAllAsync();
+            if (result.IsError)
+                return BadRequest(new { error = result.Error });
+
+            return Ok(result.Value);
+        }
+
+        /// <summary>
+        /// Retrieves a specific loan by its identifier.
+        /// </summary>
+        /// <param name="id">Identifier of the loan to retrieve.</param>
+        /// <returns>
+        /// 200 OK with the Loan object,
+        /// 400 BadRequest with { error } if not found or on failure.
+        /// </returns>
+        [Authorize]
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetById(int id)
+        {
+            var result = await _loanService.GetByIdAsync(id);
+            if (result.IsError)
+                return BadRequest(new { error = result.Error });
+
+            return Ok(result.Value);
+        }
+
+        /// <summary>
+        /// Updates fields of an existing loan (e.g., due date). Only Librarians and Admins may call this.
+        /// </summary>
+        /// <param name="id">Identifier of the loan to update.</param>
+        /// <param name="dto">Data for updating the loan.</param>
+        /// <returns>
+        /// 200 OK with the updated Loan object,
+        /// 400 BadRequest with { error } on failure.
+        /// </returns>
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateLoan(int id, LoanUpdateDto dto)
+        {
+            var result = await _loanService.UpdateAsync(id, dto);
+            if (result.IsError)
+                return BadRequest(new { error = result.Error });
+
+            return Ok(result.Value);
+        }
+
+        /// <summary>
+        /// Deletes an existing loan. Only Librarians and Admins may call this.
+        /// </summary>
+        /// <param name="id">Identifier of the loan to delete.</param>
+        /// <returns>
+        /// 200 OK with { message } on success,
+        /// 400 BadRequest with { error } on failure.
+        /// </returns>
+        [Authorize(Roles = $"{UserRoles.Librarian},{UserRoles.Admin}")]
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteLoan(int id)
+        {
+            var result = await _loanService.DeleteAsync(id);
+            if (result.IsError)
+                return BadRequest(new { error = result.Error });
+
+            return Ok(new { message = "Loan deleted successfully." });
+        }
     }
 }

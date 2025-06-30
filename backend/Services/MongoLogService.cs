@@ -5,7 +5,7 @@ using backend.Configuration;
 
 namespace backend.Services
 {
-    public class MongoLogService
+    public class MongoLogService : IMongoLogService
     {
         private readonly IMongoCollection<NotificationLogDocument> _logCollection;
 

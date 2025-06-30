@@ -48,10 +48,13 @@ namespace backend.Services
         /// <inheritdoc/>
         public async Task<List<NotificationLogDocument>> GetByUserAsync(int userId)
         {
-            return await _collection
-                .Find(l => l.UserId == userId)
-                .SortByDescending(l => l.SentAt)
-                .ToListAsync();
+            using var cursor = await _collection.FindAsync(l => l.UserId == userId);
+    
+            var all = await cursor.ToListAsync();
+    
+            return all
+                .OrderByDescending(l => l.SentAt)
+                .ToList();
         }
     }
 }

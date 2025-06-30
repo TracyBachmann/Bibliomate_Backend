@@ -3,7 +3,7 @@
 namespace backend.Services
 {
     /// <summary>
-    /// Defines CRUD operations for <see cref="Editor"/> entities.
+    /// Defines CRUD operations for Editor entities.
     /// </summary>
     public interface IEditorService
     {
