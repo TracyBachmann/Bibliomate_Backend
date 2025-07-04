@@ -1,47 +1,48 @@
 ﻿namespace BackendBiblioMate.Models.Enums
 {
     /// <summary>
-    /// Types of notifications that can be sent to users regarding their reservations and account status.
+    /// Defines the categories of notifications that can be issued to users,
+    /// such as reservation updates, reminders, penalties, and custom messages.
     /// </summary>
     public enum NotificationType
     {
         /// <summary>
-        /// Notification that a reserved item is now available for pickup.
+        /// Indicates that a reserved item has become available for pickup.
         /// </summary>
         ReservationAvailable,
 
         /// <summary>
-        /// Reminder to return an item soon before the due date.
+        /// A reminder that an item is due to be returned soon.
         /// </summary>
         ReturnReminder,
 
         /// <summary>
-        /// Notification of a penalty applied for an overdue item.
+        /// Notification that a penalty has been applied for an overdue item.
         /// </summary>
         OverduePenalty,
 
         /// <summary>
-        /// Notice that an item is overdue.
+        /// Notice that an item is currently overdue.
         /// </summary>
         OverdueNotice,
 
         /// <summary>
-        /// Custom notification type defined by specific application logic.
+        /// A custom, application-defined notification.
         /// </summary>
         Custom,
 
         /// <summary>
-        /// Error notification indicating a failure occurred.
+        /// Indicates an error occurred in the system or process.
         /// </summary>
         Error,
 
         /// <summary>
-        /// Warning notification indicating a non-critical issue.
+        /// A warning about a non-critical issue or potential problem.
         /// </summary>
         Warning,
 
         /// <summary>
-        /// Informational notification for general messages.
+        /// General informational message to the user.
         /// </summary>
         Info,
     }

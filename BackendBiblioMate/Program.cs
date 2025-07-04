@@ -169,6 +169,11 @@ builder.Services.AddHttpClient<IGoogleBooksService, GoogleBooksService>();
 builder.Services.AddScoped<IEmailService, SendGridEmailService>();
 builder.Services.AddScoped<IMongoLogService, MongoLogService>();
 
+// Correction: register missing dependencies
+builder.Services.AddScoped<INotificationLogCollection, NotificationLogCollection>(); // pour MongoLogService
+builder.Services.AddScoped<HistoryService>();                                   // pour ReservationCleanupService
+builder.Services.AddScoped<NotificationService>();                              // pour LoanReminderService
+
 // Background & hosted services
 builder.Services.AddScoped<ReservationCleanupService>();
 builder.Services.AddScoped<LoanReminderService>();

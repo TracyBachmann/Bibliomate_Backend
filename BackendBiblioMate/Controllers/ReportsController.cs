@@ -4,7 +4,6 @@ using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Helpers;
 using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Interfaces;
-using BackendBiblioMate.Services.Catalog;
 
 namespace BackendBiblioMate.Controllers
 {

@@ -2,7 +2,7 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackendBiblioMate", "BackendBiblioMate\BackendBiblioMate.csproj", "{3C949B40-F59D-4F24-B513-13FE4E9BA2C2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestsUnitaires", "TestsUnitaires\TestsUnitaires.csproj", "{F4C8BAD9-08A2-4110-B258-78813874E043}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTestsBiblioMate", "UnitTestsBiblioMate\UnitTestsBiblioMate.csproj", "{F4C8BAD9-08A2-4110-B258-78813874E043}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
