@@ -18,6 +18,7 @@ using BackendBiblioMate.Services.Reports;
 using BackendBiblioMate.Services.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +26,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -65,7 +67,7 @@ builder.Services
     })
     .ConfigureApiBehaviorOptions(apiOpts =>
     {
-        apiOpts.InvalidModelStateResponseFactory = (ActionContext ctx) =>
+        apiOpts.InvalidModelStateResponseFactory = ctx =>
         {
             var errors = ctx.ModelState
                 .Where(kv => kv.Value!.Errors.Count > 0)
@@ -73,12 +75,28 @@ builder.Services
                     kvp => kvp.Key,
                     kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray()
                 );
-
             var result = new BadRequestObjectResult(new { error = "ValidationError", details = errors });
             result.ContentTypes.Add("application/json");
             return result;
         };
     });
+#endregion
+
+#region Health Checks
+builder.Services
+    .AddHealthChecks()
+    // EF Core-backed health check
+    .AddDbContextCheck<BiblioMateDbContext>(name: "sqlserver", tags: new[] { "db", "sql" })
+    // SQL Server raw connection
+    .AddSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection")!,
+        name: "sqlserver-raw",
+        tags: new[] { "db", "sql" })
+    // MongoDB
+    .AddMongoDb(
+        mongodbConnectionString: builder.Configuration.GetConnectionString("MongoDb")!,
+        name: "mongodb",
+        tags: new[] { "db", "mongo" });
 #endregion
 
 #region Authentication & JWT
@@ -145,7 +163,6 @@ builder.Services.AddSingleton<IMongoClient>(sp =>
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IUserService, UserService>();
-
 builder.Services.AddScoped<IHistoryService, HistoryService>();
 builder.Services.AddScoped<IUserActivityLogService, UserActivityLogService>();
 builder.Services.AddScoped<IAuthorService, AuthorService>();
@@ -170,7 +187,7 @@ builder.Services.AddHttpClient<IGoogleBooksService, GoogleBooksService>();
 builder.Services.AddScoped<IEmailService, SendGridEmailService>();
 builder.Services.AddScoped<IMongoLogService, MongoLogService>();
 
-// -- Corrections locales pour la log des notifications --
+// -- Local fixes for notification logging --
 builder.Services.AddScoped<INotificationLogCollection, NotificationLogCollection>();
 builder.Services.AddScoped<NotificationService>();
 
@@ -182,14 +199,14 @@ builder.Services.AddHostedService<LoanReminderBackgroundService>();
 
 #region SignalR & Swagger
 builder.Services.AddSignalR();
-
+builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "BiblioMate API", Version = "v1" });
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFile));
-
-    // JWT Bearer in Swagger
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    c.IncludeXmlComments(xmlPath);
+    c.EnableAnnotations();
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description  = "JWT Authorization header using the Bearer scheme.",
@@ -200,10 +217,11 @@ builder.Services.AddSwaggerGen(c =>
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
-            new OpenApiSecurityScheme 
-            {
-                Reference = new OpenApiReference 
-                { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            new OpenApiSecurityScheme {
+                Reference = new OpenApiReference {
+                    Type = ReferenceType.SecurityScheme,
+                    Id   = "Bearer"
+                }
             },
             Array.Empty<string>()
         }
@@ -223,7 +241,9 @@ if (app.Environment.IsDevelopment())
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "BiblioMate API v1");
         c.RoutePrefix = "swagger";
     });
-    app.MapGet("/", () => Results.Redirect("/swagger"));
+    // masquer la racine de redirection
+    app.MapGet("/", () => Results.Redirect("/swagger"))
+       .ExcludeFromDescription();
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
@@ -232,16 +252,43 @@ app.UseCors("Default");
 app.UseAuthentication();
 app.UseAuthorization();
 
+// ** Prometheus instrumentation **
+app.UseMetricServer();  
+app.UseHttpMetrics();
+
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 
+// Additional minimal endpoint for logs
 app.MapGet("/api/notifications/logs/user/{userId}",
     [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
     async (int userId, INotificationLogService logService, CancellationToken ct) =>
     {
         var logs = await logService.GetByUserAsync(userId, ct);
         return Results.Ok(logs);
-    });
+    })
+   .ExcludeFromDescription();
+
+// Health Checks endpoint
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = async (ctx, report) =>
+    {
+        ctx.Response.ContentType = "application/json";
+        var result = new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(entry => new {
+                name     = entry.Key,
+                status   = entry.Value.Status.ToString(),
+                error    = entry.Value.Exception?.Message,
+                duration = entry.Value.Duration.ToString()
+            })
+        };
+        await ctx.Response.WriteAsJsonAsync(result);
+    }
+})
+.AllowAnonymous();
 #endregion
 
 app.Run();
