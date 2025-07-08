@@ -3,6 +3,7 @@ using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -11,7 +12,8 @@ namespace BackendBiblioMate.Controllers
     /// Provides CRUD endpoints for <see cref="AuthorReadDto"/>.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     public class AuthorsController : ControllerBase
     {
@@ -34,6 +36,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>200 OK</c> with list of <see cref="AuthorReadDto"/>.
         /// </returns>
         [HttpGet, AllowAnonymous]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves all authors (v1)",
+            Description = "Returns the list of all authors.",
+            Tags = ["Authors"]
+        )]
         [ProducesResponseType(typeof(IEnumerable<AuthorReadDto>), StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<AuthorReadDto>>> GetAuthors(
             CancellationToken cancellationToken)
@@ -52,6 +60,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>404 NotFound</c> if missing.
         /// </returns>
         [HttpGet("{id}"), AllowAnonymous]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves an author by ID (v1)",
+            Description = "Returns the author matching the specified ID.",
+            Tags = ["Authors"]
+        )]
         [ProducesResponseType(typeof(AuthorReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetAuthor(
@@ -74,6 +88,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
         /// </returns>
         [HttpPost, Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Creates a new author (v1)",
+            Description = "Creates a new author entry.",
+            Tags = ["Authors"]
+        )]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -97,6 +117,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
         /// </returns>
         [HttpPut("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Updates an existing author (v1)",
+            Description = "Updates an author by ID.",
+            Tags = ["Authors"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -122,6 +148,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
         /// </returns>
         [HttpDelete("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Deletes an author (v1)",
+            Description = "Deletes an author by ID.",
+            Tags = ["Authors"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]

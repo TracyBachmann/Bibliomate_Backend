@@ -2,6 +2,7 @@ using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Models.Mongo;
 using Microsoft.AspNetCore.Mvc;
 using BackendBiblioMate.Interfaces;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -10,7 +11,8 @@ namespace BackendBiblioMate.Controllers
     /// Provides endpoints to retrieve and create <see cref="NotificationLogDocument"/> entries.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     public class NotificationsLogsController : ControllerBase
     {
@@ -33,6 +35,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>200 OK</c> with a list of <see cref="NotificationLogDocument"/>.
         /// </returns>
         [HttpGet]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves all notification logs (v1)",
+            Description = "Returns all notification log entries.",
+            Tags = ["NotificationsLogs"]
+        )]
         [ProducesResponseType(typeof(IEnumerable<NotificationLogDocument>), StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<NotificationLogDocument>>> GetAll(CancellationToken cancellationToken)
         {
@@ -50,10 +58,16 @@ namespace BackendBiblioMate.Controllers
         /// or <c>404 NotFound</c> if not found.
         /// </returns>
         [HttpGet("{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves a notification log by ID (v1)",
+            Description = "Returns a single notification log entry by ID.",
+            Tags = ["NotificationsLogs"]
+        )]
         [ProducesResponseType(typeof(NotificationLogDocument), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetById([
-            FromRoute(Name = "id")] string id,
+        public async Task<IActionResult> GetById(
+            [FromRoute(Name = "id")] string id,
             CancellationToken cancellationToken)
         {
             var log = await _mongoLogService.GetByIdAsync(id, cancellationToken);
@@ -73,6 +87,12 @@ namespace BackendBiblioMate.Controllers
         /// and a Location header pointing to <see cref="GetById(string, CancellationToken)"/>.
         /// </returns>
         [HttpPost]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Creates a new notification log entry (v1)",
+            Description = "Creates a new notification log document.",
+            Tags = ["NotificationsLogs"]
+        )]
         [ProducesResponseType(typeof(NotificationLogDocument), StatusCodes.Status201Created)]
         public async Task<IActionResult> Create(
             [FromBody] NotificationLogCreateDto dto,

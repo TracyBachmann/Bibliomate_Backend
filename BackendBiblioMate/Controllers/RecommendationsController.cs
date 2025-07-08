@@ -4,6 +4,7 @@ using System.Security.Claims;
 using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Models.Enums;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -12,7 +13,8 @@ namespace BackendBiblioMate.Controllers
     /// Provides endpoints to retrieve personalized book suggestions.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     public class RecommendationsController : ControllerBase
     {
@@ -37,7 +39,13 @@ namespace BackendBiblioMate.Controllers
         /// <c>403 Forbidden</c> if a non-admin attempts to access another user's recommendations.
         /// </returns>
         [HttpGet("user/{userId}")]
+        [MapToApiVersion("1.0")]
         [Authorize(Roles = UserRoles.User + "," + UserRoles.Librarian + "," + UserRoles.Admin)]
+        [SwaggerOperation(
+            Summary = "Retrieves recommended books for a user (v1)",
+            Description = "Returns up to 10 personalized book recommendations based on preferred genres.",
+            Tags = ["Recommendations"]
+        )]
         [ProducesResponseType(typeof(List<RecommendationReadDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<ActionResult<List<RecommendationReadDto>>> GetRecommendations(

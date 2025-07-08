@@ -3,6 +3,7 @@ using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -11,7 +12,8 @@ namespace BackendBiblioMate.Controllers
     /// Provides CRUD endpoints for <see cref="GenreReadDto"/>.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     public class GenresController : ControllerBase
     {
@@ -34,6 +36,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>200 OK</c> with list of <see cref="GenreReadDto"/>.
         /// </returns>
         [HttpGet, AllowAnonymous]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves all genres (v1)",
+            Description = "Returns the list of all genres.",
+            Tags = ["Genres"]
+        )]
         [ProducesResponseType(typeof(IEnumerable<GenreReadDto>), StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<GenreReadDto>>> GetGenres(
             CancellationToken cancellationToken)
@@ -52,6 +60,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>404 NotFound</c> if not found.
         /// </returns>
         [HttpGet("{id}"), AllowAnonymous]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves a genre by ID (v1)",
+            Description = "Returns the genre with the specified ID.",
+            Tags = ["Genres"]
+        )]
         [ProducesResponseType(typeof(GenreReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetGenre(
@@ -74,6 +88,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
         /// </returns>
         [HttpPost, Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Creates a new genre (v1)",
+            Description = "Creates a new genre entry. Requires Librarian or Admin role.",
+            Tags = ["Genres"]
+        )]
         [ProducesResponseType(typeof(GenreReadDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -97,13 +117,19 @@ namespace BackendBiblioMate.Controllers
         /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
         /// </returns>
         [HttpPut("{id}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Updates an existing genre (v1)",
+            Description = "Updates genre details by ID. Requires Librarian or Admin role.",
+            Tags = ["Genres"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> UpdateGenre(
             [FromRoute] int id,
-            [FromBody] GenreUpdateDto dto,               // ← Utilisation de GenreUpdateDto
+            [FromBody] GenreUpdateDto dto,
             CancellationToken cancellationToken)
         {
             if (!await _service.UpdateAsync(id, dto, cancellationToken))
@@ -122,6 +148,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
         /// </returns>
         [HttpDelete("{id}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Deletes a genre (v1)",
+            Description = "Deletes the genre with the specified ID. Requires Librarian or Admin role.",
+            Tags = ["Genres"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]

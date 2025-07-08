@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Interfaces;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -11,7 +12,8 @@ namespace BackendBiblioMate.Controllers
     /// Provides CRUD operations and paginated queries.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     public class ShelfLevelsController : ControllerBase
     {
@@ -38,6 +40,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [Authorize]
         [HttpGet]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves shelf levels (v1)",
+            Description = "Supports optional shelf filtering and pagination.",
+            Tags = ["ShelfLevels"]
+        )]
         [ProducesResponseType(typeof(IEnumerable<ShelfLevelReadDto>), StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<ShelfLevelReadDto>>> GetShelfLevels(
             [FromQuery] int? shelfId = null,
@@ -60,6 +68,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [Authorize]
         [HttpGet("{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves a shelf level by ID (v1)",
+            Description = "Returns a single shelf level by its identifier.",
+            Tags = ["ShelfLevels"]
+        )]
         [ProducesResponseType(typeof(ShelfLevelReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<ShelfLevelReadDto>> GetShelfLevel(
@@ -82,6 +96,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [HttpPost]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Creates a new shelf level (v1)",
+            Description = "Accessible to Librarians and Admins only.",
+            Tags = ["ShelfLevels"]
+        )]
         [ProducesResponseType(typeof(ShelfLevelReadDto), StatusCodes.Status201Created)]
         public async Task<ActionResult<ShelfLevelReadDto>> CreateShelfLevel(
             [FromBody] ShelfLevelCreateDto dto,
@@ -108,6 +128,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [HttpPut("{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Updates a shelf level (v1)",
+            Description = "Accessible to Librarians and Admins only.",
+            Tags = ["ShelfLevels"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -133,6 +159,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [HttpDelete("{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Deletes a shelf level (v1)",
+            Description = "Accessible to Librarians and Admins only.",
+            Tags = ["ShelfLevels"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteShelfLevel(

@@ -3,6 +3,7 @@ using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -11,7 +12,8 @@ namespace BackendBiblioMate.Controllers
     /// Supports paginated queries and full CRUD operations for <see cref="ZoneReadDto"/>.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     public class ZonesController : ControllerBase
     {
@@ -20,7 +22,6 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Initializes a new instance of <see cref="ZonesController"/>.
         /// </summary>
-        /// <param name="service">Service encapsulating zone logic.</param>
         public ZonesController(IZoneService service)
         {
             _service = service;
@@ -29,13 +30,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Retrieves all zones with optional pagination.
         /// </summary>
-        /// <param name="page">Page index (1-based). Default is <c>1</c>.</param>
-        /// <param name="pageSize">Items per page. Default is <c>10</c>.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>200 OK</c> with a collection of <see cref="ZoneReadDto"/>.
-        /// </returns>
         [HttpGet, Authorize]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves all zones (v1)",
+            Description = "Returns paginated list of zones.",
+            Tags = ["Zones"]
+        )]
         [ProducesResponseType(typeof(IEnumerable<ZoneReadDto>), StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<ZoneReadDto>>> GetZones(
             [FromQuery] int page = 1,
@@ -49,13 +50,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Retrieves a specific zone by its identifier.
         /// </summary>
-        /// <param name="id">The zone identifier.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>200 OK</c> with <see cref="ZoneReadDto"/> if found;  
-        /// <c>404 NotFound</c> otherwise.
-        /// </returns>
         [HttpGet("{id}"), Authorize]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves a zone by ID (v1)",
+            Description = "Returns zone details by its ID.",
+            Tags = ["Zones"]
+        )]
         [ProducesResponseType(typeof(ZoneReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<ZoneReadDto>> GetZone(
@@ -70,13 +71,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Creates a new zone.
         /// </summary>
-        /// <param name="dto">Zone data to create.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>201 Created</c> with the created <see cref="ZoneReadDto"/> and its URI;  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-        /// </returns>
         [HttpPost, Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Creates a new zone (v1)",
+            Description = "Accessible to Librarians and Admins only.",
+            Tags = ["Zones"]
+        )]
         [ProducesResponseType(typeof(ZoneReadDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -91,16 +92,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Updates an existing zone.
         /// </summary>
-        /// <param name="id">The identifier of the zone to update.</param>
-        /// <param name="dto">Updated zone data.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>400 BadRequest</c> if IDs mismatch;  
-        /// <c>404 NotFound</c> if zone not found;  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-        /// </returns>
         [HttpPut("{id}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Updates an existing zone (v1)",
+            Description = "Accessible to Librarians and Admins only.",
+            Tags = ["Zones"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -121,14 +119,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Deletes a zone.
         /// </summary>
-        /// <param name="id">The identifier of the zone to delete.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>404 NotFound</c> if zone not found;  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-        /// </returns>
         [HttpDelete("{id}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Deletes a zone (v1)",
+            Description = "Accessible to Librarians and Admins only.",
+            Tags = ["Zones"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
