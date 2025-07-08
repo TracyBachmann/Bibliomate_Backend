@@ -1,7 +1,6 @@
 ﻿using System.Security.Claims;
 using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Models.Enums;
-using BackendBiblioMate.Services.Users;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using BackendBiblioMate.Interfaces;
@@ -19,16 +18,14 @@ namespace BackendBiblioMate.Controllers
     public class UsersController : ControllerBase
     {
         private readonly IUserService _service;
-        private readonly UserActivityLogService _log;
+        private readonly IUserActivityLogService _log;
 
         /// <summary>
         /// Initializes a new instance of <see cref="UsersController"/>.
         /// </summary>
         /// <param name="service">Service encapsulating user logic.</param>
         /// <param name="log">Service for logging user activities.</param>
-        public UsersController(
-            IUserService service,
-            UserActivityLogService log)
+        public UsersController(IUserService service, IUserActivityLogService log)
         {
             _service = service;
             _log     = log;

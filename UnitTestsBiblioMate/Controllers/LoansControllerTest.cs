@@ -16,25 +16,20 @@ namespace UnitTestsBiblioMate.Controllers
         private readonly Mock<ILoanService> _serviceMock;
         private readonly LoansController _controller;
 
-        /// <summary>
-        /// Initializes mocks and controller for testing.
-        /// </summary>
         public LoansControllerTest()
         {
             _serviceMock = new Mock<ILoanService>();
             _controller = new LoansController(_serviceMock.Object);
         }
 
-        /// <summary>
-        /// Ensures CreateLoan returns 200 OK with message and dueDate on success.
-        /// </summary>
         [Fact]
         public async Task CreateLoan_ShouldReturnOkWhenSuccess()
         {
             // Arrange
-            var dto = new LoanCreateDto { /* fill required props */ };
+            var dto = new LoanCreateDto { UserId = 1, BookId = 2 };
             var dueDate = DateTime.UtcNow.AddDays(14);
-            var resultOk = Result<LoanCreatedResult, string>.Ok(new LoanCreatedResult { DueDate = dueDate });
+            var resultOk = Result<LoanCreatedResult, string>
+                .Ok(new LoanCreatedResult { DueDate = dueDate });
 
             _serviceMock
                 .Setup(s => s.CreateAsync(dto, It.IsAny<CancellationToken>()))
@@ -47,17 +42,14 @@ namespace UnitTestsBiblioMate.Controllers
             var ok = Assert.IsType<OkObjectResult>(action);
             dynamic body = ok.Value!;
             Assert.Equal("Loan created successfully.", (string)body.message);
-            Assert.Equal(dueDate, (DateTime)body.dueDate);
+            Assert.Equal(dueDate,   (DateTime)body.dueDate);
         }
 
-        /// <summary>
-        /// Ensures CreateLoan returns 400 BadRequest with error on failure.
-        /// </summary>
         [Fact]
         public async Task CreateLoan_ShouldReturnBadRequestWhenError()
         {
             // Arrange
-            var dto = new LoanCreateDto { /* fill required props */ };
+            var dto = new LoanCreateDto { UserId = 1, BookId = 2 };
             var resultFail = Result<LoanCreatedResult, string>.Fail("Invalid loan data");
 
             _serviceMock
@@ -73,15 +65,19 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal("Invalid loan data", (string)body.error);
         }
 
-        /// <summary>
-        /// Ensures ReturnLoan returns 200 OK with message and reservationNotified on success.
-        /// </summary>
         [Fact]
-        public async Task ReturnLoan_ShouldReturnOkWhenSuccess()
+        public async Task ReturnLoan_ShouldReturnFineInResponse()
         {
             // Arrange
-            var loanId = 42;
-            var resultOk = Result<LoanReturnedResult, string>.Ok(new LoanReturnedResult { ReservationNotified = true });
+            var loanId = 10;
+            var expectedFine = 2.5m;
+            var returnedDto = new BackendBiblioMate.DTOs.LoanReturnedResult
+            {
+                ReservationNotified = false,
+                Fine = expectedFine
+            };
+            var resultOk = Result<BackendBiblioMate.DTOs.LoanReturnedResult, string>
+                .Ok(returnedDto);
 
             _serviceMock
                 .Setup(s => s.ReturnAsync(loanId, It.IsAny<CancellationToken>()))
@@ -93,19 +89,16 @@ namespace UnitTestsBiblioMate.Controllers
             // Assert
             var ok = Assert.IsType<OkObjectResult>(action);
             dynamic body = ok.Value!;
-            Assert.Equal("Book returned successfully.", (string)body.message);
-            Assert.True((bool)body.reservationNotified);
+            Assert.Equal(expectedFine, (decimal)body.fine);
         }
 
-        /// <summary>
-        /// Ensures ReturnLoan returns 400 BadRequest with error on failure.
-        /// </summary>
         [Fact]
         public async Task ReturnLoan_ShouldReturnBadRequestWhenError()
         {
             // Arrange
             var loanId = 99;
-            var resultFail = Result<LoanReturnedResult, string>.Fail("Loan not found");
+            var resultFail = Result<BackendBiblioMate.DTOs.LoanReturnedResult, string>
+                .Fail("Loan not found");
 
             _serviceMock
                 .Setup(s => s.ReturnAsync(loanId, It.IsAny<CancellationToken>()))
@@ -120,18 +113,11 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal("Loan not found", (string)body.error);
         }
 
-        /// <summary>
-        /// Ensures GetAll returns 200 OK with a list of loans on success.
-        /// </summary>
         [Fact]
         public async Task GetAll_ShouldReturnOkWithLoans()
         {
             // Arrange
-            var loans = new List<Loan>
-            {
-                new Loan { /* fill props */ },
-                new Loan { /* fill props */ }
-            };
+            var loans = new List<Loan> { new Loan(), new Loan() };
             var resultOk = Result<IEnumerable<Loan>, string>.Ok(loans);
 
             _serviceMock
@@ -146,9 +132,6 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal(loans, ok.Value);
         }
 
-        /// <summary>
-        /// Ensures GetAll returns 400 BadRequest with error on failure.
-        /// </summary>
         [Fact]
         public async Task GetAll_ShouldReturnBadRequestWhenError()
         {
@@ -168,14 +151,11 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal("Database error", (string)body.error);
         }
 
-        /// <summary>
-        /// Ensures GetById returns 200 OK with the loan on success.
-        /// </summary>
         [Fact]
         public async Task GetById_ShouldReturnOkWhenFound()
         {
             // Arrange
-            var loan = new Loan { /* fill props */ };
+            var loan = new Loan { LoanId = 7 };
             var resultOk = Result<Loan, string>.Ok(loan);
 
             _serviceMock
@@ -190,9 +170,6 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal(loan, ok.Value);
         }
 
-        /// <summary>
-        /// Ensures GetById returns 400 BadRequest with error on failure.
-        /// </summary>
         [Fact]
         public async Task GetById_ShouldReturnBadRequestWhenError()
         {
@@ -212,15 +189,12 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal("Loan not found", (string)body.error);
         }
 
-        /// <summary>
-        /// Ensures UpdateLoan returns 200 OK with the updated loan on success.
-        /// </summary>
         [Fact]
         public async Task UpdateLoan_ShouldReturnOkWhenSuccess()
         {
             // Arrange
-            var dto = new LoanUpdateDto { /* fill props */ };
-            var updatedLoan = new Loan { /* fill props */ };
+            var dto = new LoanUpdateDto { DueDate = DateTime.UtcNow };
+            var updatedLoan = new Loan { LoanId = 5 };
             var resultOk = Result<Loan, string>.Ok(updatedLoan);
 
             _serviceMock
@@ -235,14 +209,11 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal(updatedLoan, ok.Value);
         }
 
-        /// <summary>
-        /// Ensures UpdateLoan returns 400 BadRequest with error on failure.
-        /// </summary>
         [Fact]
         public async Task UpdateLoan_ShouldReturnBadRequestWhenError()
         {
             // Arrange
-            var dto = new LoanUpdateDto { /* fill props */ };
+            var dto = new LoanUpdateDto { DueDate = DateTime.UtcNow };
             var resultFail = Result<Loan, string>.Fail("Cannot update loan");
 
             _serviceMock
@@ -258,9 +229,6 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal("Cannot update loan", (string)body.error);
         }
 
-        /// <summary>
-        /// Ensures DeleteLoan returns 200 OK with message on success.
-        /// </summary>
         [Fact]
         public async Task DeleteLoan_ShouldReturnOkWhenSuccess()
         {
@@ -280,9 +248,6 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal("Loan deleted successfully.", (string)body.message);
         }
 
-        /// <summary>
-        /// Ensures DeleteLoan returns 400 BadRequest with error on failure.
-        /// </summary>
         [Fact]
         public async Task DeleteLoan_ShouldReturnBadRequestWhenError()
         {

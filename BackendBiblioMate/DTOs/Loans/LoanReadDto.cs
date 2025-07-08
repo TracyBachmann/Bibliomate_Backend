@@ -1,5 +1,3 @@
-using System;
-
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>

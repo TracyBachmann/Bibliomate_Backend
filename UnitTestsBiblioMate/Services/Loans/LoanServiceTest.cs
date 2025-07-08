@@ -347,5 +347,33 @@ namespace UnitTestsBiblioMate.Services.Loans
             Assert.False(exists);
             await _historyService.Received(1).LogEventAsync(8, "Delete", 70);
         }
+        
+        [Fact]
+        public async Task ReturnAsync_LateLoan_SetsFineCorrectly()
+        {
+            // Arrange
+            var stock = new Stock { StockId = 1, BookId = 2, Quantity = 0, Book = new Book { Title = "Test" } };
+            var loan = new Loan
+            {
+                LoanId = 1,
+                UserId = 3,
+                Stock = stock,
+                StockId = 1,
+                DueDate = DateTime.UtcNow.AddDays(-5),
+                ReturnDate = null,
+                Fine = 0m
+            };
+            _context.Stocks.Add(stock);
+            _context.Loans.Add(loan);
+            await _context.SaveChangesAsync();
+
+            // Act
+            var result = await _service.ReturnAsync(1);
+
+            // Assert
+            Assert.False(result.IsError);
+            Assert.Equal(5 * LoanPolicy.LateFeePerDay, result.Value!.Fine);
+            _stockService.Received(1).Increase(stock);
+        }
     }
 }

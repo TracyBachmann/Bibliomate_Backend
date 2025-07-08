@@ -35,5 +35,11 @@ namespace BackendBiblioMate.DTOs
         /// </summary>
         /// <example>Your loan for “The Hobbit” is overdue by 3 days.</example>
         public string Message { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Gets the UTC timestamp when the notification was created.
+        /// </summary>
+        /// <example>2025-07-04T15:30:00Z</example>
+        public DateTime Timestamp { get; init; }
     }
 }

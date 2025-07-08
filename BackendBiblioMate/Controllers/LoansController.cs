@@ -1,4 +1,5 @@
-﻿using BackendBiblioMate.DTOs;
+﻿using AutoMapper;
+using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -16,14 +17,17 @@ namespace BackendBiblioMate.Controllers
     public class LoansController : ControllerBase
     {
         private readonly ILoanService _loanService;
+        private readonly IMapper _mapper;
 
         /// <summary>
         /// Initializes a new instance of <see cref="LoansController"/>.
         /// </summary>
         /// <param name="loanService">Injected business service for loans.</param>
-        public LoansController(ILoanService loanService)
+        /// <param name="mapper">Injected AutoMapper instance.</param>
+        public LoansController(ILoanService loanService, IMapper mapper)
         {
-            _loanService = loanService;
+            _loanService = loanService ?? throw new ArgumentNullException(nameof(loanService));
+            _mapper      = mapper      ?? throw new ArgumentNullException(nameof(mapper));
         }
 
         /// <summary>
@@ -59,7 +63,7 @@ namespace BackendBiblioMate.Controllers
         /// <param name="id">Identifier of the loan to return.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>200 OK</c> with { message, reservationNotified } on success;  
+        /// <c>200 OK</c> with { message, reservationNotified, fine } on success;  
         /// <c>400 BadRequest</c> with { error } on failure.
         /// </returns>
         [HttpPut("{id}/return"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
@@ -75,8 +79,9 @@ namespace BackendBiblioMate.Controllers
 
             return Ok(new
             {
-                message             = "Book returned successfully.",
-                reservationNotified = result.Value!.ReservationNotified
+                message = "Book returned successfully.",
+                reservationNotified = result.Value!.ReservationNotified,
+                fine = result.Value.Fine
             });
         }
 
@@ -85,7 +90,7 @@ namespace BackendBiblioMate.Controllers
         /// </summary>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>200 OK</c> with a list of loans;  
+        /// <c>200 OK</c> with a list of <see cref="LoanReadDto"/>;  
         /// <c>400 BadRequest</c> with { error } on failure.
         /// </returns>
         [HttpGet, Authorize]
@@ -98,7 +103,8 @@ namespace BackendBiblioMate.Controllers
             if (result.IsError)
                 return BadRequest(new { error = result.Error });
 
-            return Ok(result.Value);
+            var dtos = _mapper.Map<IEnumerable<LoanReadDto>>(result.Value);
+            return Ok(dtos);
         }
 
         /// <summary>
@@ -107,7 +113,7 @@ namespace BackendBiblioMate.Controllers
         /// <param name="id">Identifier of the loan to retrieve.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>200 OK</c> with the loan;  
+        /// <c>200 OK</c> with a <see cref="LoanReadDto"/>;  
         /// <c>400 BadRequest</c> with { error } on failure.
         /// </returns>
         [HttpGet("{id}"), Authorize]
@@ -121,7 +127,8 @@ namespace BackendBiblioMate.Controllers
             if (result.IsError)
                 return BadRequest(new { error = result.Error });
 
-            return Ok(result.Value);
+            var dto = _mapper.Map<LoanReadDto>(result.Value);
+            return Ok(dto);
         }
 
         /// <summary>
@@ -131,7 +138,7 @@ namespace BackendBiblioMate.Controllers
         /// <param name="dto">Data for updating the loan.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>200 OK</c> with the updated loan;  
+        /// <c>200 OK</c> with the updated <see cref="LoanReadDto"/>;  
         /// <c>400 BadRequest</c> with { error } on failure.
         /// </returns>
         [HttpPut("{id}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
@@ -146,7 +153,8 @@ namespace BackendBiblioMate.Controllers
             if (result.IsError)
                 return BadRequest(new { error = result.Error });
 
-            return Ok(result.Value);
+            var updatedDto = _mapper.Map<LoanReadDto>(result.Value);
+            return Ok(updatedDto);
         }
 
         /// <summary>

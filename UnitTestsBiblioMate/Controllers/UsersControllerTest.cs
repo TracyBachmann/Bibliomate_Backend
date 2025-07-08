@@ -4,10 +4,10 @@ using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Models.Mongo;
-using BackendBiblioMate.Services.Users;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
+using System.Text.Json;
 
 namespace UnitTestsBiblioMate.Controllers
 {
@@ -18,13 +18,13 @@ namespace UnitTestsBiblioMate.Controllers
     public class UsersControllerTest
     {
         private readonly Mock<IUserService>           _serviceMock;
-        private readonly Mock<UserActivityLogService> _logMock;
+        private readonly Mock<IUserActivityLogService> _logMock;        
         private readonly UsersController              _controller;
 
         public UsersControllerTest()
         {
             _serviceMock = new Mock<IUserService>();
-            _logMock     = new Mock<UserActivityLogService>();
+            _logMock = new Mock<IUserActivityLogService>();           
             _controller  = new UsersController(_serviceMock.Object, _logMock.Object);
         }
 
@@ -272,8 +272,14 @@ namespace UnitTestsBiblioMate.Controllers
             var action = await _controller.UpdateUserRole(5, dto);
 
             var ok = Assert.IsType<OkObjectResult>(action);
-            dynamic body = ok.Value!;
-            Assert.Equal($"Role updated to {dto.Role}.", (string)body.message);
+
+            var json = JsonSerializer.Serialize(ok.Value, new JsonSerializerOptions 
+            { 
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
+            });
+            using var doc = JsonDocument.Parse(json);
+            var message = doc.RootElement.GetProperty("message").GetString();
+            Assert.Equal($"Role updated to {dto.Role}.", message);
 
             _logMock.Verify(
                 l => l.LogAsync(

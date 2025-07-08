@@ -32,9 +32,8 @@ namespace BackendBiblioMate.Interfaces
         /// that yields a <see cref="T:BackendBiblioMate.Interfaces.Result{LoanReturnedResult,string}"/>.
         /// On success, <c>Value</c> contains a <see cref="T:BackendBiblioMate.Interfaces.LoanReturnedResult"/>; on failure, <c>Error</c> contains an error message.
         /// </returns>
-        Task<Result<LoanReturnedResult, string>> ReturnAsync(
-            int loanId,
-            CancellationToken cancellationToken = default);
+        Task<Result<DTOs.LoanReturnedResult, string>>   ReturnAsync(
+            int loanId, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Retrieves all loans.

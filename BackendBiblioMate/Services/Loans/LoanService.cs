@@ -20,14 +20,6 @@ namespace BackendBiblioMate.Services.Loans
         private readonly IHistoryService _historyService;
         private readonly IUserActivityLogService _activityLogService;
 
-        /// <summary>
-        /// Initializes a new instance of <see cref="LoanService"/>.
-        /// </summary>
-        /// <param name="context">Database context for loan operations.</param>
-        /// <param name="stockService">Service for stock adjustments.</param>
-        /// <param name="notificationService">Service for sending notifications.</param>
-        /// <param name="historyService">Service for logging history events.</param>
-        /// <param name="activityLogService">Service for logging user activities.</param>
         public LoanService(
             BiblioMateDbContext context,
             IStockService stockService,
@@ -35,21 +27,13 @@ namespace BackendBiblioMate.Services.Loans
             IHistoryService historyService,
             IUserActivityLogService activityLogService)
         {
-            _context            = context              ?? throw new ArgumentNullException(nameof(context));
-            _stockService       = stockService         ?? throw new ArgumentNullException(nameof(stockService));
-            _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
-            _historyService     = historyService       ?? throw new ArgumentNullException(nameof(historyService));
-            _activityLogService = activityLogService   ?? throw new ArgumentNullException(nameof(activityLogService));
+            _context             = context               ?? throw new ArgumentNullException(nameof(context));
+            _stockService        = stockService          ?? throw new ArgumentNullException(nameof(stockService));
+            _notificationService = notificationService   ?? throw new ArgumentNullException(nameof(notificationService));
+            _historyService      = historyService        ?? throw new ArgumentNullException(nameof(historyService));
+            _activityLogService  = activityLogService    ?? throw new ArgumentNullException(nameof(activityLogService));
         }
 
-        /// <summary>
-        /// Creates a new loan if the user exists, has not exceeded max active loans, and stock is available.
-        /// </summary>
-        /// <param name="dto">Loan creation data transfer object.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation requests.</param>
-        /// <returns>
-        /// Result containing <see cref="LoanCreatedResult"/> on success, or error message on failure.
-        /// </returns>
         public async Task<Result<LoanCreatedResult, string>> CreateAsync(
             LoanCreateDto dto,
             CancellationToken cancellationToken = default)
@@ -83,14 +67,12 @@ namespace BackendBiblioMate.Services.Loans
             _stockService.Decrease(stock);
             await _context.SaveChangesAsync(cancellationToken);
 
-            // History log
             await _historyService.LogEventAsync(
                 dto.UserId,
                 eventType: "Loan",
                 loanId:    loan.LoanId,
                 cancellationToken: cancellationToken);
 
-            // Audit log
             await _activityLogService.LogAsync(
                 new UserActivityLogDocument
                 {
@@ -105,14 +87,9 @@ namespace BackendBiblioMate.Services.Loans
         }
 
         /// <summary>
-        /// Marks a loan as returned, updates stock, logs, and processes next reservation.
+        /// Marks a loan as returned and calculates any fine for late return.
         /// </summary>
-        /// <param name="loanId">Identifier of the loan to return.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation requests.</param>
-        /// <returns>
-        /// Result containing <see cref="LoanReturnedResult"/> on success, or error message on failure.
-        /// </returns>
-        public async Task<Result<LoanReturnedResult, string>> ReturnAsync(
+        public async Task<Result<BackendBiblioMate.DTOs.LoanReturnedResult, string>> ReturnAsync(
             int loanId,
             CancellationToken cancellationToken = default)
         {
@@ -121,42 +98,47 @@ namespace BackendBiblioMate.Services.Loans
                 .FirstOrDefaultAsync(l => l.LoanId == loanId, cancellationToken);
 
             if (loan is null)
-                return Result<LoanReturnedResult, string>.Fail("Loan not found.");
+                return Result<BackendBiblioMate.DTOs.LoanReturnedResult, string>.Fail("Loan not found.");
             if (loan.ReturnDate is not null)
-                return Result<LoanReturnedResult, string>.Fail("Loan already returned.");
+                return Result<BackendBiblioMate.DTOs.LoanReturnedResult, string>.Fail("Loan already returned.");
 
-            loan.ReturnDate = DateTime.UtcNow;
+            var now = DateTime.UtcNow;
+            loan.ReturnDate = now;
+
+            // Calculate fine
+            var daysLate = (now.Date - loan.DueDate.Date).Days;
+            loan.Fine = daysLate > 0
+                ? daysLate * LoanPolicy.LateFeePerDay
+                : 0m;
+
             _stockService.Increase(loan.Stock);
             await _context.SaveChangesAsync(cancellationToken);
 
-            // History log
             await _historyService.LogEventAsync(
                 loan.UserId,
                 eventType: "Return",
                 loanId:    loan.LoanId,
                 cancellationToken: cancellationToken);
 
-            // Audit log
             await _activityLogService.LogAsync(
                 new UserActivityLogDocument
                 {
                     UserId  = loan.UserId,
                     Action  = "ReturnLoan",
-                    Details = $"LoanId={loan.LoanId}"
+                    Details = $"LoanId={loan.LoanId}, Fine={loan.Fine}"
                 },
                 cancellationToken);
 
             var notified = await ProcessNextReservationAsync(loan.Stock, cancellationToken);
 
-            return Result<LoanReturnedResult, string>.Ok(
-                new LoanReturnedResult { ReservationNotified = notified });
+            return Result<BackendBiblioMate.DTOs.LoanReturnedResult, string>.Ok(
+                new BackendBiblioMate.DTOs.LoanReturnedResult
+                {
+                    ReservationNotified = notified,
+                    Fine = loan.Fine
+                });
         }
 
-        /// <summary>
-        /// Retrieves all loans.
-        /// </summary>
-        /// <param name="cancellationToken">Token to monitor cancellation requests.</param>
-        /// <returns>Result containing list of <see cref="Loan"/>.</returns>
         public async Task<Result<IEnumerable<Loan>, string>> GetAllAsync(
             CancellationToken cancellationToken = default)
         {
@@ -164,14 +146,6 @@ namespace BackendBiblioMate.Services.Loans
             return Result<IEnumerable<Loan>, string>.Ok(loans);
         }
 
-        /// <summary>
-        /// Retrieves a single loan by its identifier.
-        /// </summary>
-        /// <param name="loanId">Identifier of the loan.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation requests.</param>
-        /// <returns>
-        /// Result containing <see cref="Loan"/> on success, or error message on failure.
-        /// </returns>
         public async Task<Result<Loan, string>> GetByIdAsync(
             int loanId,
             CancellationToken cancellationToken = default)
@@ -182,15 +156,6 @@ namespace BackendBiblioMate.Services.Loans
             return Result<Loan, string>.Ok(loan);
         }
 
-        /// <summary>
-        /// Updates the due date of an existing loan.
-        /// </summary>
-        /// <param name="loanId">Identifier of the loan to update.</param>
-        /// <param name="dto">Loan update data transfer object.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation requests.</param>
-        /// <returns>
-        /// Result containing updated <see cref="Loan"/> on success, or error message on failure.
-        /// </returns>
         public async Task<Result<Loan, string>> UpdateAsync(
             int loanId,
             LoanUpdateDto dto,
@@ -203,14 +168,12 @@ namespace BackendBiblioMate.Services.Loans
             loan.DueDate = dto.DueDate;
             await _context.SaveChangesAsync(cancellationToken);
 
-            // History log
             await _historyService.LogEventAsync(
                 loan.UserId,
                 eventType: "Update",
                 loanId:    loan.LoanId,
                 cancellationToken: cancellationToken);
 
-            // Audit log
             await _activityLogService.LogAsync(
                 new UserActivityLogDocument
                 {
@@ -223,14 +186,6 @@ namespace BackendBiblioMate.Services.Loans
             return Result<Loan, string>.Ok(loan);
         }
 
-        /// <summary>
-        /// Deletes an existing loan.
-        /// </summary>
-        /// <param name="loanId">Identifier of the loan to delete.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation requests.</param>
-        /// <returns>
-        /// Result containing <c>true</c> on success, or error message on failure.
-        /// </returns>
         public async Task<Result<bool, string>> DeleteAsync(
             int loanId,
             CancellationToken cancellationToken = default)
@@ -242,14 +197,12 @@ namespace BackendBiblioMate.Services.Loans
             _context.Loans.Remove(loan);
             await _context.SaveChangesAsync(cancellationToken);
 
-            // History log
             await _historyService.LogEventAsync(
                 loan.UserId,
                 eventType: "Delete",
                 loanId:    loan.LoanId,
                 cancellationToken: cancellationToken);
 
-            // Audit log
             await _activityLogService.LogAsync(
                 new UserActivityLogDocument
                 {
@@ -262,12 +215,6 @@ namespace BackendBiblioMate.Services.Loans
             return Result<bool, string>.Ok(true);
         }
 
-        /// <summary>
-        /// Checks for the next pending reservation for the given stock and notifies the user.
-        /// </summary>
-        /// <param name="stock">Stock entity to check reservations for.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation requests.</param>
-        /// <returns>True if a reservation user was notified; otherwise false.</returns>
         private async Task<bool> ProcessNextReservationAsync(
             Stock stock,
             CancellationToken cancellationToken)

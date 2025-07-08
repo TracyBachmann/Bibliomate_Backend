@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using BackendBiblioMate.Services.Loans;
 using BackendBiblioMate.Controllers;
 using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Interfaces;
@@ -16,14 +15,14 @@ namespace UnitTestsBiblioMate.Controllers
     /// </summary>
     public class ReservationsControllerTest
     {
-        private readonly Mock<IReservationService>      _svcMock;
-        private readonly Mock<ReservationCleanupService> _cleanupMock;
-        private readonly ReservationsController         _controller;
+        private readonly Mock<IReservationService>         _svcMock;
+        private readonly Mock<IReservationCleanupService>  _cleanupMock;
+        private readonly ReservationsController           _controller;
 
         public ReservationsControllerTest()
         {
             _svcMock     = new Mock<IReservationService>();
-            _cleanupMock = new Mock<ReservationCleanupService>(/* no args ctor */);
+            _cleanupMock = new Mock<IReservationCleanupService>();
             _controller  = new ReservationsController(_svcMock.Object, _cleanupMock.Object);
         }
 
@@ -42,7 +41,7 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Admin fetching all reservations should return 200 OK with full list.
+        /// Admin or librarian fetching all reservations should return 200 OK with full list.
         /// </summary>
         [Theory]
         [InlineData(UserRoles.Admin)]
@@ -75,8 +74,10 @@ namespace UnitTestsBiblioMate.Controllers
         {
             // Arrange
             SetUser(2, UserRoles.User);
+
             // Act
             var action = await _controller.GetUserReservations(3, CancellationToken.None);
+
             // Assert
             Assert.IsType<ForbidResult>(action.Result);
         }

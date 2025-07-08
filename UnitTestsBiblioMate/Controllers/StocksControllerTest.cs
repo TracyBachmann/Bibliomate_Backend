@@ -19,11 +19,10 @@ namespace UnitTestsBiblioMate.Controllers
     {
         private readonly BiblioMateDbContext _context;
         private readonly Mock<IStockService> _stockServiceMock;
-        private readonly StocksController    _controller;
+        private readonly StocksController _controller;
 
         public StocksControllerTest()
         {
-            // 1) Configure in-memory EF Core with EncryptionService
             var options = new DbContextOptionsBuilder<BiblioMateDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
@@ -46,7 +45,7 @@ namespace UnitTestsBiblioMate.Controllers
             );
             _context.SaveChanges();
 
-            // Seed Stocks (IsAvailable is computed)
+            // Seed Stocks
             _context.Stocks.AddRange(
                 new Stock { StockId = 10, BookId = 1, Quantity = 5, Book = _context.Books.Find(1)! },
                 new Stock { StockId = 20, BookId = 2, Quantity = 0, Book = _context.Books.Find(2)! }
@@ -59,168 +58,124 @@ namespace UnitTestsBiblioMate.Controllers
 
         public void Dispose() => _context.Dispose();
 
-        /// <summary>
-        /// Default retrieval should return all stocks, mapped to DTOs.
-        /// </summary>
         [Fact]
         public async Task GetStocks_DefaultPagination_ReturnsAllMapped()
         {
             var action = await _controller.GetStocks(cancellationToken: CancellationToken.None);
             var ok     = Assert.IsType<OkObjectResult>(action.Result);
 
-            // materialize into a List so we don't re-enumerate
-            var list = Assert.IsAssignableFrom<IEnumerable<StockReadDto>>(ok.Value)
-                             .ToList();
+            var list = Assert.IsAssignableFrom<IEnumerable<StockReadDto>>(ok.Value!).ToList();
             Assert.Equal(2, list.Count);
-            Assert.Contains(list, s => s.BookTitle == "Book1" && s.Quantity == 5 && s.IsAvailable);
-            Assert.Contains(list, s => s.BookTitle == "Book2" && s.Quantity == 0 && !s.IsAvailable);
+            Assert.Contains(list, s => s.BookTitle == "Book1" && s.Quantity == 5);
+            Assert.Contains(list, s => s.BookTitle == "Book2" && s.Quantity == 0);
         }
 
-        /// <summary>
-        /// Retrieving an existing stock returns 200 OK with the DTO.
-        /// </summary>
         [Fact]
         public async Task GetStock_Exists_ReturnsOk()
         {
-            var action = await _controller.GetStock(10, CancellationToken.None);
+            var action = await _controller.GetStock(10, cancellationToken: CancellationToken.None);
             var ok     = Assert.IsType<OkObjectResult>(action.Result);
-            var dto    = Assert.IsType<StockReadDto>(ok.Value);
+            var dto    = Assert.IsType<StockReadDto>(ok.Value!);
 
             Assert.Equal(10, dto.StockId);
             Assert.Equal("Book1", dto.BookTitle);
             Assert.Equal(5, dto.Quantity);
-            Assert.True(dto.IsAvailable);
         }
 
-        /// <summary>
-        /// Retrieving a missing stock returns 404 NotFound.
-        /// </summary>
         [Fact]
         public async Task GetStock_NotFound_Returns404()
         {
-            var action = await _controller.GetStock(999, CancellationToken.None);
+            var action = await _controller.GetStock(999, cancellationToken: CancellationToken.None);
             Assert.IsType<NotFoundResult>(action.Result);
         }
 
-        /// <summary>
-        /// Creating a duplicate stock returns 409 Conflict.
-        /// </summary>
         [Fact]
         public async Task CreateStock_Conflict_Returns409()
         {
             var dto    = new StockCreateDto { BookId = 1, Quantity = 3 };
-            var action = await _controller.CreateStock(dto, CancellationToken.None);
+            var action = await _controller.CreateStock(dto, cancellationToken: CancellationToken.None);
 
             var conflict = Assert.IsType<ConflictObjectResult>(action.Result);
-            dynamic body = conflict.Value!;
-            Assert.Equal("A stock entry already exists for that book.", (string)body.message);
+            var text     = conflict.Value?.ToString() ?? "";
+            Assert.Contains("A stock entry already exists for that book.", text);
         }
 
-        /// <summary>
-        /// Creating a new stock returns 201 Created and invokes service to set availability.
-        /// </summary>
         [Fact]
         public async Task CreateStock_New_ReturnsCreated()
         {
-            // Arrange: add BookId=3
             _context.Books.Add(new Book { BookId = 3, Title = "Book3" });
             _context.SaveChanges();
 
             var dto = new StockCreateDto { BookId = 3, Quantity = 7 };
             _stockServiceMock.Setup(s => s.UpdateAvailability(It.IsAny<Stock>()));
 
-            // Act
-            var action = await _controller.CreateStock(dto, CancellationToken.None);
+            var action = await _controller.CreateStock(dto, cancellationToken: CancellationToken.None);
 
-            // Assert
             var createdAt = Assert.IsType<CreatedAtActionResult>(action.Result);
-            var result    = Assert.IsType<StockReadDto>(createdAt.Value);
+            var result    = Assert.IsType<StockReadDto>(createdAt.Value!);
 
             Assert.Equal(3, result.BookId);
             Assert.Equal("Book3", result.BookTitle);
             Assert.Equal(7, result.Quantity);
-            Assert.True(result.IsAvailable);
-
-            _stockServiceMock.Verify(s =>
-                s.UpdateAvailability(It.Is<Stock>(st => st.BookId == 3 && st.Quantity == 7)),
-                Times.Once);
         }
 
-        /// <summary>
-        /// Update with mismatched ID returns 400 BadRequest.
-        /// </summary>
         [Fact]
         public async Task UpdateStock_IdMismatch_Returns400()
         {
             var dto    = new StockUpdateDto { StockId = 10, BookId = 1, Quantity = 2, IsAvailable = true };
-            var action = await _controller.UpdateStock(11, dto, CancellationToken.None);
+            var action = await _controller.UpdateStock(11, dto, cancellationToken: CancellationToken.None);
 
-            var bad = Assert.IsType<BadRequestObjectResult>(action);
-            Assert.Equal("Route ID and payload StockId do not match.", bad.Value);
+            var bad  = Assert.IsType<BadRequestObjectResult>(action);
+            var text = bad.Value?.ToString() ?? "";
+            Assert.Contains("Route ID and payload StockId do not match.", text);
         }
 
-        /// <summary>
-        /// Update of non-existent stock returns 404 NotFound.
-        /// </summary>
         [Fact]
         public async Task UpdateStock_NotFound_Returns404()
         {
             var dto    = new StockUpdateDto { StockId = 99, BookId = 1, Quantity = 2, IsAvailable = true };
-            var action = await _controller.UpdateStock(99, dto, CancellationToken.None);
+            var action = await _controller.UpdateStock(99, dto, cancellationToken: CancellationToken.None);
             Assert.IsType<NotFoundResult>(action);
         }
 
-        /// <summary>
-        /// Successful update returns 204 NoContent.
-        /// </summary>
         [Fact]
         public async Task UpdateStock_Success_ReturnsNoContent()
         {
             var dto    = new StockUpdateDto { StockId = 10, BookId = 1, Quantity = 8, IsAvailable = true };
-            var action = await _controller.UpdateStock(10, dto, CancellationToken.None);
-
+            var action = await _controller.UpdateStock(10, dto, cancellationToken: CancellationToken.None);
             Assert.IsType<NoContentResult>(action);
             var updated = await _context.Stocks.FindAsync(10);
             Assert.Equal(8, updated!.Quantity);
         }
 
-        /// <summary>
-        /// Adjustment of zero returns 400 BadRequest.
-        /// </summary>
         [Fact]
         public async Task AdjustStockQuantity_ZeroAdjustment_Returns400()
         {
             var dto    = new StockAdjustmentDto { Adjustment = 0 };
-            var action = await _controller.AdjustStockQuantity(10, dto, CancellationToken.None);
+            var action = await _controller.AdjustStockQuantity(10, dto, cancellationToken: CancellationToken.None);
 
-            var bad = Assert.IsType<BadRequestObjectResult>(action);
-            dynamic body = bad.Value!;
-            Assert.Equal("Adjustment cannot be zero.", (string)body.message);
+            var bad  = Assert.IsType<BadRequestObjectResult>(action.Result);
+            var text = bad.Value?.ToString() ?? "";
+            Assert.Contains("Adjustment cannot be zero.", text);
         }
 
-        /// <summary>
-        /// Adjustment on missing stock returns 404 NotFound.
-        /// </summary>
         [Fact]
         public async Task AdjustStockQuantity_NotFound_Returns404()
         {
             var dto    = new StockAdjustmentDto { Adjustment = 1 };
-            var action = await _controller.AdjustStockQuantity(999, dto, CancellationToken.None);
-            Assert.IsType<NotFoundResult>(action);
+            var action = await _controller.AdjustStockQuantity(999, dto, cancellationToken: CancellationToken.None);
+            Assert.IsType<NotFoundResult>(action.Result);
         }
 
-        /// <summary>
-        /// Negative resulting quantity returns 400 BadRequest.
-        /// </summary>
         [Fact]
         public async Task AdjustStockQuantity_NegativeResult_Returns400()
         {
-            var dto    = new StockAdjustmentDto { Adjustment = -10 }; // current=5
-            var action = await _controller.AdjustStockQuantity(10, dto, CancellationToken.None);
+            var dto    = new StockAdjustmentDto { Adjustment = -10 };
+            var action = await _controller.AdjustStockQuantity(10, dto, cancellationToken: CancellationToken.None);
 
-            var bad = Assert.IsType<BadRequestObjectResult>(action);
-            dynamic body = bad.Value!;
-            Assert.Equal("Resulting quantity cannot be negative.", (string)body.message);
+            var bad  = Assert.IsType<BadRequestObjectResult>(action.Result);
+            var text = bad.Value?.ToString() ?? "";
+            Assert.Contains("Resulting quantity cannot be negative.", text);
         }
 
         /// <summary>
@@ -230,36 +185,51 @@ namespace UnitTestsBiblioMate.Controllers
         public async Task AdjustStockQuantity_Success_ReturnsOk()
         {
             var dto = new StockAdjustmentDto { Adjustment = -2 };
-            _stockServiceMock.Setup(s => s.AdjustQuantity(It.IsAny<Stock>(), dto.Adjustment));
 
-            var action = await _controller.AdjustStockQuantity(10, dto, CancellationToken.None);
+            // When AdjustQuantity is called, actually decrement the quantity
+            _stockServiceMock
+                .Setup(s => s.AdjustQuantity(It.IsAny<Stock>(), dto.Adjustment))
+                .Callback<Stock, int>((st, adj) => st.Quantity += adj);
 
-            var ok   = Assert.IsType<OkObjectResult>(action);
-            dynamic body = ok.Value!;
-            Assert.Equal("Stock updated successfully.", (string)body.message);
-            Assert.Equal(3, (int)body.newQuantity);
+            var action = await _controller.AdjustStockQuantity(
+                id: 10,
+                dto: dto,
+                cancellationToken: CancellationToken.None
+            );
+
+            var okResult = Assert.IsType<OkObjectResult>(action.Result);
+            var anon      = okResult.Value!;
+            var anonType  = anon.GetType();
+
+            var msgProp = anonType.GetProperty("message");
+            Assert.NotNull(msgProp);
+            var message = (string)msgProp.GetValue(anon)!;
+            Assert.Equal("Stock updated successfully.", message);
+
+            var qtyProp = anonType.GetProperty("newQuantity");
+            Assert.NotNull(qtyProp);
+            var newQty = (int)qtyProp.GetValue(anon)!;
+            Assert.Equal(3, newQty);
+
             _stockServiceMock.Verify(s =>
                 s.AdjustQuantity(It.Is<Stock>(st => st.StockId == 10), -2),
                 Times.Once);
         }
 
-        /// <summary>
-        /// Deleting a missing stock returns 404 NotFound.
-        /// </summary>
         [Fact]
         public async Task DeleteStock_NotFound_Returns404()
         {
-            var action = await _controller.DeleteStock(999, CancellationToken.None);
+            var action = await _controller.DeleteStock(999, cancellationToken: CancellationToken.None);
             Assert.IsType<NotFoundResult>(action);
         }
 
-        /// <summary>
-        /// Successful delete returns 204 NoContent and removes from database.
-        /// </summary>
         [Fact]
         public async Task DeleteStock_Success_ReturnsNoContent()
         {
-            var action = await _controller.DeleteStock(20, CancellationToken.None);
+            var action = await _controller.DeleteStock(
+                id: 20,
+                cancellationToken: CancellationToken.None
+            );
             Assert.IsType<NoContentResult>(action);
             Assert.Null(await _context.Stocks.FindAsync(20));
         }

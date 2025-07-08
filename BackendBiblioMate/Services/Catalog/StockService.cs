@@ -27,25 +27,26 @@ namespace BackendBiblioMate.Services.Catalog
         }
 
         /// <summary>
-        /// Updates the stock's availability flag.
-        /// No-op if availability is a computed property.
+        /// Ensures the stock's availability flag is up to date.
         /// </summary>
         /// <param name="stock">The stock entry to refresh.</param>
         public void UpdateAvailability(Stock stock)
         {
-            // No-op: IsAvailable is computed (Quantity > 0).
+            // Met à jour le flag IsAvailable en fonction de la quantité
+            stock.IsAvailable = stock.Quantity > 0;
         }
 
         /// <summary>
-        /// Adjusts the stock quantity by a given delta, ensuring it does not drop below zero.
+        /// Adjusts the stock quantity by a given delta, clamping at zero.
         /// Persists the change if a database context is available.
         /// </summary>
         /// <param name="stock">The stock entry to modify.</param>
         /// <param name="delta">The amount to add (or subtract if negative).</param>
         public void AdjustQuantity(Stock stock, int delta)
         {
-            int newQty = stock.Quantity + delta;
+            var newQty = stock.Quantity + delta;
             stock.Quantity = newQty < 0 ? 0 : newQty;
+            stock.IsAvailable = stock.Quantity > 0;
 
             if (_context != null)
             {
@@ -57,13 +58,11 @@ namespace BackendBiblioMate.Services.Catalog
         /// <summary>
         /// Increases the stock quantity by 1.
         /// </summary>
-        /// <param name="stock">The stock entry to modify.</param>
         public void Increase(Stock stock) => AdjustQuantity(stock, +1);
 
         /// <summary>
         /// Decreases the stock quantity by 1.
         /// </summary>
-        /// <param name="stock">The stock entry to modify.</param>
         public void Decrease(Stock stock) => AdjustQuantity(stock, -1);
     }
 }

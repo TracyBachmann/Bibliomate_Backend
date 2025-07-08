@@ -141,10 +141,11 @@ builder.Services.AddSingleton<IMongoClient>(sp =>
 #endregion
 
 #region Application Services Registration
-// Core application services
+// -- Core application services --
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IUserService, UserService>();
+
 builder.Services.AddScoped<IHistoryService, HistoryService>();
 builder.Services.AddScoped<IUserActivityLogService, UserActivityLogService>();
 builder.Services.AddScoped<IAuthorService, AuthorService>();
@@ -163,19 +164,18 @@ builder.Services.AddScoped<IShelfService, ShelfService>();
 builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IZoneService, ZoneService>();
 
-// Infrastructure & external
+// -- Infrastructure & external --
 builder.Services.AddSingleton<EncryptionService>();
 builder.Services.AddHttpClient<IGoogleBooksService, GoogleBooksService>();
 builder.Services.AddScoped<IEmailService, SendGridEmailService>();
 builder.Services.AddScoped<IMongoLogService, MongoLogService>();
 
-// Correction: register missing dependencies
-builder.Services.AddScoped<INotificationLogCollection, NotificationLogCollection>(); // pour MongoLogService
-builder.Services.AddScoped<HistoryService>();                                   // pour ReservationCleanupService
-builder.Services.AddScoped<NotificationService>();                              // pour LoanReminderService
+// -- Corrections locales pour la log des notifications --
+builder.Services.AddScoped<INotificationLogCollection, NotificationLogCollection>();
+builder.Services.AddScoped<NotificationService>();
 
-// Background & hosted services
-builder.Services.AddScoped<ReservationCleanupService>();
+// -- Hosted & Background Services --
+builder.Services.AddScoped<IReservationCleanupService, ReservationCleanupService>();
 builder.Services.AddScoped<LoanReminderService>();
 builder.Services.AddHostedService<LoanReminderBackgroundService>();
 #endregion
@@ -226,7 +226,6 @@ if (app.Environment.IsDevelopment())
     app.MapGet("/", () => Results.Redirect("/swagger"));
 }
 
-
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("Default");
@@ -236,7 +235,6 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-// Inline endpoint for notification logs
 app.MapGet("/api/notifications/logs/user/{userId}",
     [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
     async (int userId, INotificationLogService logService, CancellationToken ct) =>
@@ -244,7 +242,6 @@ app.MapGet("/api/notifications/logs/user/{userId}",
         var logs = await logService.GetByUserAsync(userId, ct);
         return Results.Ok(logs);
     });
-
 #endregion
 
 app.Run();

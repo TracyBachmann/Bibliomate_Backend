@@ -34,7 +34,7 @@ namespace BackendBiblioMate.Models
         /// Gets a value indicating whether at least one copy is available for loan.
         /// </summary>
         [NotMapped]
-        public bool IsAvailable => Quantity > 0;
+        public bool IsAvailable { get; set; }
 
         /// <summary>
         /// Navigation property for the related book.

@@ -25,6 +25,10 @@ namespace UnitTestsBiblioMate.Controllers
         {
             _serviceMock = new Mock<IBookService>();
             _controller = new BooksController(_serviceMock.Object);
+            _controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            };
         }
 
         /// <summary>

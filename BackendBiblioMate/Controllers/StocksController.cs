@@ -1,8 +1,8 @@
 ﻿using BackendBiblioMate.Data;
 using BackendBiblioMate.DTOs;
+using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Models;
 using BackendBiblioMate.Models.Enums;
-using BackendBiblioMate.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -30,19 +30,16 @@ namespace BackendBiblioMate.Controllers
             BiblioMateDbContext context,
             IStockService stockService)
         {
-            _context = context;
-            _stockService = stockService;
+            _context      = context ?? throw new System.ArgumentNullException(nameof(context));
+            _stockService = stockService ?? throw new System.ArgumentNullException(nameof(stockService));
         }
 
         /// <summary>
         /// Retrieves all stock entries with optional pagination.
         /// </summary>
-        /// <param name="page">Page index (1-based). Default is <c>1</c>.</param>
-        /// <param name="pageSize">Items per page. Default is <c>10</c>.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>200 OK</c> with a paginated list of <see cref="StockReadDto"/>.
-        /// </returns>
+        /// <param name="page">Page number (1-based).</param>
+        /// <param name="pageSize">Items per page.</param>
+        /// <param name="cancellationToken">Token for cancellation.</param>
         [HttpGet, Authorize]
         [ProducesResponseType(typeof(IEnumerable<StockReadDto>), StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<StockReadDto>>> GetStocks(
@@ -52,22 +49,28 @@ namespace BackendBiblioMate.Controllers
         {
             var stocks = await _context.Stocks
                 .Include(s => s.Book)
+                .OrderBy(s => s.StockId)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync(cancellationToken);
 
-            return Ok(stocks.Select(MapToDto));
+            var dtos = stocks.Select(s => new StockReadDto
+            {
+                StockId     = s.StockId,
+                BookId      = s.BookId,
+                BookTitle   = s.Book.Title,
+                Quantity    = s.Quantity,
+                IsAvailable = s.IsAvailable
+            });
+
+            return Ok(dtos);
         }
 
         /// <summary>
         /// Retrieves a specific stock entry by its identifier.
         /// </summary>
-        /// <param name="id">The stock identifier.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>200 OK</c> with <see cref="StockReadDto"/>,  
-        /// <c>404 NotFound</c> if not found.
-        /// </returns>
+        /// <param name="id">Stock identifier.</param>
+        /// <param name="cancellationToken">Token for cancellation.</param>
         [HttpGet("{id}"), Authorize]
         [ProducesResponseType(typeof(StockReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -75,39 +78,39 @@ namespace BackendBiblioMate.Controllers
             [FromRoute] int id,
             CancellationToken cancellationToken = default)
         {
-            var stock = await _context.Stocks
-                .Include(s => s.Book)
-                .FirstOrDefaultAsync(s => s.StockId == id, cancellationToken);
+            var s = await _context.Stocks
+                .Include(x => x.Book)
+                .FirstOrDefaultAsync(x => x.StockId == id, cancellationToken);
 
-            if (stock is null)
+            if (s == null)
                 return NotFound();
 
-            return Ok(MapToDto(stock));
+            var dto = new StockReadDto
+            {
+                StockId     = s.StockId,
+                BookId      = s.BookId,
+                BookTitle   = s.Book.Title,
+                Quantity    = s.Quantity,
+                IsAvailable = s.IsAvailable
+            };
+
+            return Ok(dto);
         }
 
         /// <summary>
         /// Creates a new stock entry.
         /// </summary>
-        /// <param name="dto">The stock creation payload.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>201 Created</c> with the created <see cref="StockReadDto"/> and location header;  
-        /// <c>409 Conflict</c> if a stock entry already exists for the given book;  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-        /// </returns>
+        /// <param name="dto">Data to create stock.</param>
+        /// <param name="cancellationToken">Token for cancellation.</param>
         [HttpPost, Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [ProducesResponseType(typeof(StockReadDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<ActionResult<StockReadDto>> CreateStock(
             [FromBody] StockCreateDto dto,
             CancellationToken cancellationToken = default)
         {
             if (await _context.Stocks.AnyAsync(s => s.BookId == dto.BookId, cancellationToken))
-            {
                 return Conflict(new { message = "A stock entry already exists for that book." });
-            }
 
             var entity = new Stock
             {
@@ -118,74 +121,63 @@ namespace BackendBiblioMate.Controllers
 
             _context.Stocks.Add(entity);
             await _context.SaveChangesAsync(cancellationToken);
-
-            // Reload Book navigation for title
             await _context.Entry(entity).Reference(e => e.Book).LoadAsync(cancellationToken);
 
-            var result = MapToDto(entity);
-            return CreatedAtAction(nameof(GetStock), new { id = result.StockId }, result);
+            var result = new StockReadDto
+            {
+                StockId     = entity.StockId,
+                BookId      = entity.BookId,
+                BookTitle   = entity.Book!.Title,
+                Quantity    = entity.Quantity,
+                IsAvailable = entity.IsAvailable
+            };
+
+            return CreatedAtAction(
+                nameof(GetStock),
+                new { id = result.StockId },
+                result);
         }
 
         /// <summary>
         /// Updates an existing stock entry.
         /// </summary>
-        /// <param name="id">The stock entry ID to update.</param>
-        /// <param name="dto">The updated stock data.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>400 BadRequest</c> if the ID does not match;  
-        /// <c>404 NotFound</c> if not found;  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-        /// </returns>
+        /// <param name="id">Identifier in route.</param>
+        /// <param name="dto">Updated data.</param>
+        /// <param name="cancellationToken">Token for cancellation.</param>
         [HttpPut("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> UpdateStock(
             [FromRoute] int id,
             [FromBody] StockUpdateDto dto,
             CancellationToken cancellationToken = default)
         {
             if (id != dto.StockId)
-                return BadRequest("Route ID and payload StockId do not match.");
+                return BadRequest(new { error = "Route ID and payload StockId do not match." });
 
-            // Exécution directe de l'UPDATE en base, sans passer par l'entité C# en mémoire
-            var rows = await _context.Stocks
-                .Where(s => s.StockId == id)
-                .ExecuteUpdateAsync(updates => updates
-                        .SetProperty(s => s.BookId,     dto.BookId)
-                        .SetProperty(s => s.Quantity,   dto.Quantity)
-                        .SetProperty(s => s.IsAvailable, dto.IsAvailable),
-                    cancellationToken);
-
-            if (rows == 0)
+            var e = await _context.Stocks.FindAsync(new object[] { id }, cancellationToken);
+            if (e == null)
                 return NotFound();
+
+            e.BookId   = dto.BookId;
+            e.Quantity = dto.Quantity;
+            await _context.SaveChangesAsync(cancellationToken);
 
             return NoContent();
         }
 
         /// <summary>
-        /// Adjusts the quantity and availability of a stock entry.
+        /// Adjusts the quantity of a stock entry.
         /// </summary>
-        /// <param name="id">The stock entry ID.</param>
-        /// <param name="dto">The adjustment payload (positive or negative).</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>200 OK</c> with the new quantity;  
-        /// <c>400 BadRequest</c> for invalid adjustments;  
-        /// <c>404 NotFound</c> if not found;  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-        /// </returns>
-        [HttpPatch("{id}/adjust"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        /// <param name="id">Stock identifier.</param>
+        /// <param name="dto">Adjustment delta.</param>
+        /// <param name="cancellationToken">Token for cancellation.</param>
+        [HttpPatch("{id}/adjustQuantity"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> AdjustStockQuantity(
+        public async Task<ActionResult<object>> AdjustStockQuantity(
             [FromRoute] int id,
             [FromBody] StockAdjustmentDto dto,
             CancellationToken cancellationToken = default)
@@ -193,57 +185,42 @@ namespace BackendBiblioMate.Controllers
             if (dto.Adjustment == 0)
                 return BadRequest(new { message = "Adjustment cannot be zero." });
 
-            var entity = await _context.Stocks.FindAsync(new object[] { id }, cancellationToken);
-            if (entity is null)
+            var e = await _context.Stocks.FindAsync(new object[] { id }, cancellationToken);
+            if (e == null)
                 return NotFound();
 
-            if (entity.Quantity + dto.Adjustment < 0)
+            if (e.Quantity + dto.Adjustment < 0)
                 return BadRequest(new { message = "Resulting quantity cannot be negative." });
 
-            _stockService.AdjustQuantity(entity, dto.Adjustment);
+            _stockService.AdjustQuantity(e, dto.Adjustment);
             await _context.SaveChangesAsync(cancellationToken);
 
-            return Ok(new { message = "Stock updated successfully.", newQuantity = entity.Quantity });
+            return Ok(new
+            {
+                message     = "Stock updated successfully.",
+                newQuantity = e.Quantity
+            });
         }
 
         /// <summary>
         /// Deletes a stock entry.
         /// </summary>
-        /// <param name="id">The stock entry ID to delete.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>404 NotFound</c> if not found;  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-        /// </returns>
+        /// <param name="id">Stock identifier.</param>
+        /// <param name="cancellationToken">Token for cancellation.</param>
         [HttpDelete("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> DeleteStock(
             [FromRoute] int id,
             CancellationToken cancellationToken = default)
         {
-            var entity = await _context.Stocks.FindAsync(new object[] { id }, cancellationToken);
-            if (entity is null)
+            var e = await _context.Stocks.FindAsync(new object[] { id }, cancellationToken);
+            if (e == null)
                 return NotFound();
 
-            _context.Stocks.Remove(entity);
+            _context.Stocks.Remove(e);
             await _context.SaveChangesAsync(cancellationToken);
             return NoContent();
         }
-
-        /// <summary>
-        /// Maps a <see cref="Stock"/> entity to its DTO.
-        /// </summary>
-        private static StockReadDto MapToDto(Stock s) => new()
-        {
-            StockId     = s.StockId,
-            BookId      = s.BookId,
-            BookTitle   = s.Book.Title,
-            Quantity    = s.Quantity,
-            IsAvailable = s.IsAvailable
-        };
     }
 }

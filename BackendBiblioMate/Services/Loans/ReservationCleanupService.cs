@@ -1,56 +1,57 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using BackendBiblioMate.Data;
 using BackendBiblioMate.Models.Enums;
-using BackendBiblioMate.Services.Users;
+using BackendBiblioMate.Interfaces;
 
 namespace BackendBiblioMate.Services.Loans
 {
     /// <summary>
-    /// Service that purges expired reservations, restores stock, logs each expiration,
-    /// and returns the count of removed reservations.
+    /// Removes expired reservations, restores stock availability, logs each expiration event,
+    /// and returns the total count of removed reservations.
     /// </summary>
-    public class ReservationCleanupService
+    public class ReservationCleanupService : IReservationCleanupService
     {
         private readonly BiblioMateDbContext _context;
-        private readonly HistoryService _historyService;
+        private readonly IHistoryService _historyService;
 
         /// <summary>
-        /// Time window (in hours) after which an available reservation expires.
+        /// Number of hours after which an available reservation expires.
         /// </summary>
         private const int ExpirationWindowHours = 48;
 
         /// <summary>
-        /// Initializes a new instance of <see cref="ReservationCleanupService"/>.
+        /// Initializes a new instance of the <see cref="ReservationCleanupService"/> class.
         /// </summary>
-        /// <param name="context">Database context for accessing reservations and stock.</param>
-        /// <param name="historyService">Service for logging history events.</param>
+        /// <param name="context">The database context used to access reservations and stock data.</param>
+        /// <param name="historyService">The service used to log history events.</param>
         public ReservationCleanupService(
             BiblioMateDbContext context,
-            HistoryService historyService)
+            IHistoryService historyService)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _historyService = historyService ?? throw new ArgumentNullException(nameof(historyService));
         }
 
         /// <summary>
-        /// Cleans up reservations that have been available for longer than <see cref="ExpirationWindowHours"/> hours.
-        /// Restores stock, logs an expiration event for each reservation, removes them, and returns the number removed.
+        /// Finds and removes all reservations in the "Available" status that have
+        /// been available for longer than the expiration window, restores any assigned stock,
+        /// logs the expiration to history, and saves the changes.
         /// </summary>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>The number of expired reservations that were removed.</returns>
+        /// <param name="cancellationToken">A token to observe for cancellation requests.</param>
+        /// <returns>The number of reservations that were removed.</returns>
         public async Task<int> CleanupExpiredReservationsAsync(
             CancellationToken cancellationToken = default)
         {
             var expirationThreshold = DateTime.UtcNow.AddHours(-ExpirationWindowHours);
 
-            var expired = await _context.Reservations
+            var expiredReservations = await _context.Reservations
                 .Where(r =>
                     r.Status == ReservationStatus.Available &&
                     r.AvailableAt.HasValue &&
                     r.AvailableAt.Value <= expirationThreshold)
                 .ToListAsync(cancellationToken);
 
-            foreach (var reservation in expired)
+            foreach (var reservation in expiredReservations)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -60,8 +61,8 @@ namespace BackendBiblioMate.Services.Loans
                 }
 
                 await _historyService.LogEventAsync(
-                    userId:       reservation.UserId,
-                    eventType:    "ReservationExpired",
+                    userId: reservation.UserId,
+                    eventType: "ReservationExpired",
                     reservationId: reservation.ReservationId,
                     cancellationToken: cancellationToken);
 
@@ -69,17 +70,18 @@ namespace BackendBiblioMate.Services.Loans
             }
 
             await _context.SaveChangesAsync(cancellationToken);
-            return expired.Count;
+            return expiredReservations.Count;
         }
 
         /// <summary>
-        /// Restores the stock record with the specified identifier to available.
+        /// Marks the specified stock as available again.
         /// </summary>
-        /// <param name="stockId">Identifier of the stock to restore.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        private async Task RestoreStockAsync(int stockId, CancellationToken cancellationToken)
+        /// <param name="stockId">The identifier of the stock record to update.</param>
+        /// <param name="cancellationToken">A token to observe for cancellation requests.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        private Task RestoreStockAsync(int stockId, CancellationToken cancellationToken)
         {
-            await _context.Stocks
+            return _context.Stocks
                 .Where(s => s.StockId == stockId)
                 .ExecuteUpdateAsync(u => u.SetProperty(s => s.IsAvailable, true), cancellationToken);
         }
