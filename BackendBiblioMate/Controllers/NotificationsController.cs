@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using BackendBiblioMate.Models.Enums;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -16,7 +17,8 @@ namespace BackendBiblioMate.Controllers
     /// dispatches real-time SignalR notifications, and logs each dispatch.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     [Authorize]
     public class NotificationsController : ControllerBase
@@ -59,6 +61,12 @@ namespace BackendBiblioMate.Controllers
         /// Retrieves all notifications visible to the current user.
         /// </summary>
         [HttpGet]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves all notifications (v1)",
+            Description = "Returns all notifications visible to the current user.",
+            Tags = ["Notifications"]
+        )]
         [ProducesResponseType(typeof(IEnumerable<NotificationReadDto>), StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<NotificationReadDto>>> GetNotifications(
             CancellationToken cancellationToken = default)
@@ -75,6 +83,12 @@ namespace BackendBiblioMate.Controllers
         /// Retrieves a specific notification by its identifier.
         /// </summary>
         [HttpGet("{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves a notification by ID (v1)",
+            Description = "Returns a single notification by ID. Enforces authorization.",
+            Tags = ["Notifications"]
+        )]
         [ProducesResponseType(typeof(NotificationReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -95,6 +109,12 @@ namespace BackendBiblioMate.Controllers
         /// </summary>
         [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [HttpPost]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Creates and dispatches a notification (v1)",
+            Description = "Creates a new notification, sends it via SignalR, and logs it. Requires Librarian or Admin role.",
+            Tags = ["Notifications"]
+        )]
         [ProducesResponseType(typeof(NotificationReadDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<ActionResult<NotificationReadDto>> CreateNotification(
@@ -134,6 +154,12 @@ namespace BackendBiblioMate.Controllers
         /// </summary>
         [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [HttpPut("{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Updates a notification (v1)",
+            Description = "Updates title, message, and user. Requires Librarian or Admin role.",
+            Tags = ["Notifications"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -143,7 +169,7 @@ namespace BackendBiblioMate.Controllers
             CancellationToken cancellationToken = default)
         {
             if (id != dto.NotificationId)
-                return BadRequest();  // Renvoie BadRequestResult pur, pas BadRequestObjectResult
+                return BadRequest();
 
             var note = await _context.Notifications.FindAsync(new object[]{ id }, cancellationToken);
             if (note == null)
@@ -163,6 +189,12 @@ namespace BackendBiblioMate.Controllers
         /// </summary>
         [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [HttpDelete("{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Deletes a notification (v1)",
+            Description = "Deletes a notification by ID. Requires Librarian or Admin role.",
+            Tags = ["Notifications"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteNotification(

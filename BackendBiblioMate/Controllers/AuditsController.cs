@@ -3,6 +3,7 @@ using BackendBiblioMate.Models.Mongo;
 using BackendBiblioMate.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -13,7 +14,8 @@ namespace BackendBiblioMate.Controllers
     /// Accessible only by users in the Admin or Librarian roles.
     /// </remarks>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
     [Produces("application/json")]
     public class AuditsController : ControllerBase
@@ -51,6 +53,12 @@ namespace BackendBiblioMate.Controllers
         /// No activity logs found for the specified user.
         /// </response>
         [HttpGet("user/{userId}/logs")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves all activity logs for a user (v1)",
+            Description = "Returns the list of activity logs for a specific user.",
+            Tags = ["Audits"]
+        )]
         [ProducesResponseType(typeof(List<UserActivityLogDocument>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<List<UserActivityLogDocument>>> GetUserActivityLogs(
@@ -58,7 +66,7 @@ namespace BackendBiblioMate.Controllers
             CancellationToken cancellationToken)
         {
             var logs = await _activityLog.GetByUserAsync(userId, cancellationToken);
-            if ( logs.Count == 0)
+            if (logs.Count == 0)
             {
                 return NotFound($"No activity logs found for user {userId}.");
             }

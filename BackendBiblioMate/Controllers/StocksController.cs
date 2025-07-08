@@ -6,6 +6,7 @@ using BackendBiblioMate.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -14,7 +15,8 @@ namespace BackendBiblioMate.Controllers
     /// Provides CRUD operations and quantity adjustments for <see cref="StockReadDto"/>.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     public class StocksController : ControllerBase
     {
@@ -30,17 +32,20 @@ namespace BackendBiblioMate.Controllers
             BiblioMateDbContext context,
             IStockService stockService)
         {
-            _context      = context ?? throw new System.ArgumentNullException(nameof(context));
-            _stockService = stockService ?? throw new System.ArgumentNullException(nameof(stockService));
+            _context      = context ?? throw new ArgumentNullException(nameof(context));
+            _stockService = stockService ?? throw new ArgumentNullException(nameof(stockService));
         }
 
         /// <summary>
         /// Retrieves all stock entries with optional pagination.
         /// </summary>
-        /// <param name="page">Page number (1-based).</param>
-        /// <param name="pageSize">Items per page.</param>
-        /// <param name="cancellationToken">Token for cancellation.</param>
         [HttpGet, Authorize]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves all stock entries (v1)",
+            Description = "Supports optional pagination.",
+            Tags = ["Stocks"]
+        )]
         [ProducesResponseType(typeof(IEnumerable<StockReadDto>), StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<StockReadDto>>> GetStocks(
             [FromQuery] int page = 1,
@@ -69,9 +74,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Retrieves a specific stock entry by its identifier.
         /// </summary>
-        /// <param name="id">Stock identifier.</param>
-        /// <param name="cancellationToken">Token for cancellation.</param>
         [HttpGet("{id}"), Authorize]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves a stock entry by ID (v1)",
+            Description = "Returns a single stock entry.",
+            Tags = ["Stocks"]
+        )]
         [ProducesResponseType(typeof(StockReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<StockReadDto>> GetStock(
@@ -100,9 +109,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Creates a new stock entry.
         /// </summary>
-        /// <param name="dto">Data to create stock.</param>
-        /// <param name="cancellationToken">Token for cancellation.</param>
         [HttpPost, Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Creates a new stock entry (v1)",
+            Description = "Accessible to Librarians and Admins only.",
+            Tags = ["Stocks"]
+        )]
         [ProducesResponseType(typeof(StockReadDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<ActionResult<StockReadDto>> CreateStock(
@@ -127,7 +140,7 @@ namespace BackendBiblioMate.Controllers
             {
                 StockId     = entity.StockId,
                 BookId      = entity.BookId,
-                BookTitle   = entity.Book!.Title,
+                BookTitle   = entity.Book.Title,
                 Quantity    = entity.Quantity,
                 IsAvailable = entity.IsAvailable
             };
@@ -141,10 +154,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Updates an existing stock entry.
         /// </summary>
-        /// <param name="id">Identifier in route.</param>
-        /// <param name="dto">Updated data.</param>
-        /// <param name="cancellationToken">Token for cancellation.</param>
         [HttpPut("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Updates a stock entry (v1)",
+            Description = "Accessible to Librarians and Admins only.",
+            Tags = ["Stocks"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -170,10 +186,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Adjusts the quantity of a stock entry.
         /// </summary>
-        /// <param name="id">Stock identifier.</param>
-        /// <param name="dto">Adjustment delta.</param>
-        /// <param name="cancellationToken">Token for cancellation.</param>
         [HttpPatch("{id}/adjustQuantity"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Adjusts stock quantity (v1)",
+            Description = "Allows incrementing or decrementing stock quantity.",
+            Tags = ["Stocks"]
+        )]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -205,9 +224,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Deletes a stock entry.
         /// </summary>
-        /// <param name="id">Stock identifier.</param>
-        /// <param name="cancellationToken">Token for cancellation.</param>
         [HttpDelete("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Deletes a stock entry (v1)",
+            Description = "Accessible to Librarians and Admins only.",
+            Tags = ["Stocks"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteStock(

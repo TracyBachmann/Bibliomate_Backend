@@ -4,6 +4,7 @@ using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -12,7 +13,8 @@ namespace BackendBiblioMate.Controllers
     /// Provides endpoints to create, return, retrieve, update, and delete loans.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     public class LoansController : ControllerBase
     {
@@ -40,6 +42,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>400 BadRequest</c> with { error } on failure.
         /// </returns>
         [HttpPost, Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Creates a new loan (v1)",
+            Description = "Creates a new loan. Requires Librarian or Admin role.",
+            Tags = ["Loans"]
+        )]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> CreateLoan(
@@ -67,6 +75,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>400 BadRequest</c> with { error } on failure.
         /// </returns>
         [HttpPut("{id}/return"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Returns a book for an existing loan (v1)",
+            Description = "Marks a loan as returned. Requires Librarian or Admin role.",
+            Tags = ["Loans"]
+        )]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ReturnLoan(
@@ -94,6 +108,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>400 BadRequest</c> with { error } on failure.
         /// </returns>
         [HttpGet, Authorize]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves all loans (v1)",
+            Description = "Returns all loans. Requires authentication.",
+            Tags = ["Loans"]
+        )]
         [ProducesResponseType(typeof(IEnumerable<LoanReadDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetAll(
@@ -117,6 +137,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>400 BadRequest</c> with { error } on failure.
         /// </returns>
         [HttpGet("{id}"), Authorize]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves a loan by ID (v1)",
+            Description = "Returns the loan with the specified ID. Requires authentication.",
+            Tags = ["Loans"]
+        )]
         [ProducesResponseType(typeof(LoanReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetById(
@@ -142,6 +168,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>400 BadRequest</c> with { error } on failure.
         /// </returns>
         [HttpPut("{id}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Updates an existing loan (v1)",
+            Description = "Updates a loan's fields. Requires Librarian or Admin role.",
+            Tags = ["Loans"]
+        )]
         [ProducesResponseType(typeof(LoanReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> UpdateLoan(
@@ -167,6 +199,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>400 BadRequest</c> with { error } on failure.
         /// </returns>
         [HttpDelete("{id}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Deletes an existing loan (v1)",
+            Description = "Deletes the loan with the specified ID. Requires Librarian or Admin role.",
+            Tags = ["Loans"]
+        )]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> DeleteLoan(

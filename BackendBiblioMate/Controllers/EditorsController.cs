@@ -3,6 +3,7 @@ using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -11,7 +12,8 @@ namespace BackendBiblioMate.Controllers
     /// Provides CRUD endpoints for <see cref="EditorReadDto"/>.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     public class EditorsController : ControllerBase
     {
@@ -34,6 +36,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>200 OK</c> with list of <see cref="EditorReadDto"/>.
         /// </returns>
         [HttpGet, AllowAnonymous]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves all editors (v1)",
+            Description = "Returns the list of all editors.",
+            Tags = ["Editors"]
+        )]
         [ProducesResponseType(typeof(IEnumerable<EditorReadDto>), StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<EditorReadDto>>> GetEditors(
             CancellationToken cancellationToken)
@@ -52,6 +60,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>404 NotFound</c> if not found.
         /// </returns>
         [HttpGet("{id}"), AllowAnonymous]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves an editor by ID (v1)",
+            Description = "Returns the editor with the specified ID.",
+            Tags = ["Editors"]
+        )]
         [ProducesResponseType(typeof(EditorReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetEditor(
@@ -74,6 +88,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
         /// </returns>
         [HttpPost, Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Creates a new editor (v1)",
+            Description = "Creates a new editor entry. Requires Admin or Librarian role.",
+            Tags = ["Editors"]
+        )]
         [ProducesResponseType(typeof(EditorReadDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -97,6 +117,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
         /// </returns>
         [HttpPut("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Updates an existing editor (v1)",
+            Description = "Updates editor details by ID. Requires Admin or Librarian role.",
+            Tags = ["Editors"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -122,6 +148,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
         /// </returns>
         [HttpDelete("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Deletes an editor (v1)",
+            Description = "Deletes the editor with the specified ID. Requires Admin or Librarian role.",
+            Tags = ["Editors"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]

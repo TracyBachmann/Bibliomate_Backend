@@ -4,6 +4,7 @@ using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Helpers;
 using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Interfaces;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -12,7 +13,8 @@ namespace BackendBiblioMate.Controllers
     /// Provides CRUD endpoints for <see cref="ReportReadDto"/> and enforces ownership.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     public class ReportsController : ControllerBase
     {
@@ -36,6 +38,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [HttpGet]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves all reports (v1)",
+            Description = "Accessible only by Admins and Librarians.",
+            Tags = ["Reports"]
+        )]
         [ProducesResponseType(typeof(IEnumerable<ReportReadDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<ActionResult<IEnumerable<ReportReadDto>>> GetReports(
@@ -57,6 +65,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [Authorize]
         [HttpGet("{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves a report by ID (v1)",
+            Description = "Enforces ownership or Admin access.",
+            Tags = ["Reports"]
+        )]
         [ProducesResponseType(typeof(ReportReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -85,6 +99,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [Authorize]
         [HttpPost]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Creates a new report (v1)",
+            Description = "Creates a new report for the current user.",
+            Tags = ["Reports"]
+        )]
         [ProducesResponseType(typeof(ReportReadDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<ActionResult<ReportReadDto>> CreateReport(
@@ -114,6 +134,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [Authorize]
         [HttpPut("{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Updates an existing report (v1)",
+            Description = "Updates a report if the user owns it or is Admin.",
+            Tags = ["Reports"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -150,6 +176,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [Authorize]
         [HttpDelete("{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Deletes a report (v1)",
+            Description = "Deletes a report if the user owns it or is Admin.",
+            Tags = ["Reports"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]

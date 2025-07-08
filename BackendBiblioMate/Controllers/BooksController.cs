@@ -1,13 +1,11 @@
 ﻿using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Helpers;
 using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -17,7 +15,8 @@ namespace BackendBiblioMate.Controllers
     /// and filtered search with activity logging.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     public class BooksController : ControllerBase
     {
@@ -37,6 +36,12 @@ namespace BackendBiblioMate.Controllers
         /// </summary>
         [AllowAnonymous]
         [HttpGet]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves a paged list of books (v1)",
+            Description = "Returns a paged, sorted, ETag-enabled list of books.",
+            Tags = ["Books"]
+        )]
         [ProducesResponseType(typeof(PagedResult<BookReadDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status304NotModified)]
         public async Task<IActionResult> GetBooks(
@@ -61,6 +66,12 @@ namespace BackendBiblioMate.Controllers
         /// </summary>
         [AllowAnonymous]
         [HttpGet("{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves a book by ID (v1)",
+            Description = "Returns the book with the specified ID.",
+            Tags = ["Books"]
+        )]
         [ProducesResponseType(typeof(BookReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetBook(
@@ -77,6 +88,12 @@ namespace BackendBiblioMate.Controllers
         /// </summary>
         [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [HttpPost]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Creates a new book (v1)",
+            Description = "Creates a new book entry. Requires Librarian or Admin role.",
+            Tags = ["Books"]
+        )]
         [ProducesResponseType(typeof(BookReadDto), StatusCodes.Status201Created)]
         public async Task<IActionResult> CreateBook(
             [FromBody] BookCreateDto dto,
@@ -95,6 +112,12 @@ namespace BackendBiblioMate.Controllers
         /// </summary>
         [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [HttpPut("{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Updates an existing book (v1)",
+            Description = "Updates book details by ID. Requires Librarian or Admin role.",
+            Tags = ["Books"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> UpdateBook(
@@ -113,6 +136,12 @@ namespace BackendBiblioMate.Controllers
         /// </summary>
         [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [HttpDelete("{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Deletes a book by ID (v1)",
+            Description = "Deletes the specified book. Requires Librarian or Admin role.",
+            Tags = ["Books"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteBook(
@@ -130,6 +159,12 @@ namespace BackendBiblioMate.Controllers
         /// </summary>
         [AllowAnonymous]
         [HttpPost("search")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Searches books with filters (v1)",
+            Description = "Searches books by multiple criteria. Supports logged-in user activity logging.",
+            Tags = ["Books"]
+        )]
         [ProducesResponseType(typeof(IEnumerable<BookReadDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> SearchBooks(
             [FromBody] BookSearchDto dto,

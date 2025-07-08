@@ -3,6 +3,7 @@ using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -11,7 +12,8 @@ namespace BackendBiblioMate.Controllers
     /// including registration, login, email confirmation, password reset, and admin approval.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     public class AuthsController : ControllerBase
     {
@@ -43,6 +45,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [AllowAnonymous]
         [HttpPost("register")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Registers a new user account (v1)",
+            Description = "Registers a new user with the provided details.",
+            Tags = ["Auths"]
+        )]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> Register(
@@ -68,6 +76,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [AllowAnonymous]
         [HttpPost("login")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Authenticates a user and returns a JWT (v1)",
+            Description = "Authenticates user credentials and returns a token.",
+            Tags = ["Auths"]
+        )]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Login(
@@ -93,6 +107,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [AllowAnonymous]
         [HttpGet("confirm-email")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Confirms a user's email address (v1)",
+            Description = "Verifies a user's email using the confirmation token.",
+            Tags = ["Auths"]
+        )]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ConfirmEmail(
@@ -118,6 +138,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [AllowAnonymous]
         [HttpPost("request-password-reset")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Requests a password reset email (v1)",
+            Description = "Sends a password reset link to the user's email.",
+            Tags = ["Auths"]
+        )]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> RequestPasswordReset(
@@ -143,6 +169,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [AllowAnonymous]
         [HttpPost("reset-password")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Resets the user's password (v1)",
+            Description = "Resets a user's password using a token.",
+            Tags = ["Auths"]
+        )]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ResetPassword(
@@ -169,6 +201,12 @@ namespace BackendBiblioMate.Controllers
         /// </returns>
         [Authorize(Roles = UserRoles.Admin)]
         [HttpPost("approve/{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Approves a pending user account (v1)",
+            Description = "Admin endpoint to approve new users.",
+            Tags = ["Auths"]
+        )]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]

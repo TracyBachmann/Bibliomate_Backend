@@ -4,6 +4,7 @@ using BackendBiblioMate.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -11,7 +12,8 @@ namespace BackendBiblioMate.Controllers
     /// Controller for retrieving a user’s history of domain events.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     [Authorize]
     public class HistoriesController : ControllerBase
@@ -39,6 +41,12 @@ namespace BackendBiblioMate.Controllers
         /// <c>403 Forbidden</c> if the current user is neither the owner nor has Librarian/Admin role.
         /// </returns>
         [HttpGet("user/{userId}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves a user's history (v1)",
+            Description = "Returns a paged list of history events for the specified user.",
+            Tags = ["Histories"]
+        )]
         [ProducesResponseType(typeof(IEnumerable<HistoryReadDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<ActionResult<IEnumerable<HistoryReadDto>>> GetUserHistory(

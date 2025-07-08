@@ -3,6 +3,7 @@ using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
@@ -11,7 +12,8 @@ namespace BackendBiblioMate.Controllers
     /// Provides CRUD and paginated, zone-filtered endpoints for <see cref="ShelfReadDto"/>.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [ApiVersion("1.0")]
     [Produces("application/json")]
     public class ShelvesController : ControllerBase
     {
@@ -29,14 +31,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Retrieves all shelves with optional zone filtering and pagination.
         /// </summary>
-        /// <param name="zoneId">Optional zone identifier to filter results.</param>
-        /// <param name="page">Page index (1-based). Default is <c>1</c>.</param>
-        /// <param name="pageSize">Items per page. Default is <c>10</c>.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>200 OK</c> with list of <see cref="ShelfReadDto"/>.
-        /// </returns>
         [HttpGet, Authorize]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves all shelves (v1)",
+            Description = "Supports optional zone filtering and pagination.",
+            Tags = ["Shelves"]
+        )]
         [ProducesResponseType(typeof(IEnumerable<ShelfReadDto>), StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<ShelfReadDto>>> GetShelves(
             [FromQuery] int? zoneId,
@@ -51,13 +52,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Retrieves a specific shelf by its identifier.
         /// </summary>
-        /// <param name="id">The shelf identifier.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>200 OK</c> with <see cref="ShelfReadDto"/>,  
-        /// <c>404 NotFound</c> if missing.
-        /// </returns>
         [HttpGet("{id}"), Authorize]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Retrieves a shelf by ID (v1)",
+            Description = "Returns a single shelf by its identifier.",
+            Tags = ["Shelves"]
+        )]
         [ProducesResponseType(typeof(ShelfReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<ShelfReadDto>> GetShelf(
@@ -73,13 +74,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Creates a new shelf.
         /// </summary>
-        /// <param name="dto">Data to create the shelf.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>201 Created</c> with created <see cref="ShelfReadDto"/> and location header,  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-        /// </returns>
         [HttpPost, Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Creates a new shelf (v1)",
+            Description = "Accessible to Librarians and Admins only.",
+            Tags = ["Shelves"]
+        )]
         [ProducesResponseType(typeof(ShelfReadDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -94,16 +95,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Updates an existing shelf.
         /// </summary>
-        /// <param name="id">The identifier of the shelf to update.</param>
-        /// <param name="dto">New shelf data.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>400 BadRequest</c> if the IDs do not match;  
-        /// <c>404 NotFound</c> if missing;  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-        /// </returns>
         [HttpPut("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Updates an existing shelf (v1)",
+            Description = "Accessible to Librarians and Admins only.",
+            Tags = ["Shelves"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -124,14 +122,13 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Deletes a shelf.
         /// </summary>
-        /// <param name="id">The identifier of the shelf to delete.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>404 NotFound</c> if missing;  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-        /// </returns>
         [HttpDelete("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Deletes a shelf (v1)",
+            Description = "Accessible to Librarians and Admins only.",
+            Tags = ["Shelves"]
+        )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]

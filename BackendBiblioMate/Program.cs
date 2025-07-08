@@ -21,6 +21,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.AspNetCore.Mvc.Versioning;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -42,6 +44,25 @@ builder.Services.AddCors(options =>
                         .AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials()));
+#endregion
+
+#region API Versioning
+builder.Services.AddApiVersioning(opts =>
+{
+    opts.AssumeDefaultVersionWhenUnspecified = true;
+    opts.DefaultApiVersion = new ApiVersion(1, 0);
+    opts.ReportApiVersions = true;
+    opts.ApiVersionReader = ApiVersionReader.Combine(
+        new QueryStringApiVersionReader("api-version"),
+        new HeaderApiVersionReader("X-API-Version"),
+        new UrlSegmentApiVersionReader()
+    );
+});
+builder.Services.AddVersionedApiExplorer(opts =>
+{
+    opts.GroupNameFormat = "'v'VVV";
+    opts.SubstituteApiVersionInUrl = true;
+});
 #endregion
 
 #region Database Configuration
@@ -85,18 +106,11 @@ builder.Services
 #region Health Checks
 builder.Services
     .AddHealthChecks()
-    // EF Core-backed health check
     .AddDbContextCheck<BiblioMateDbContext>(name: "sqlserver", tags: new[] { "db", "sql" })
-    // SQL Server raw connection
-    .AddSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection")!,
-        name: "sqlserver-raw",
-        tags: new[] { "db", "sql" })
-    // MongoDB
-    .AddMongoDb(
-        mongodbConnectionString: builder.Configuration.GetConnectionString("MongoDb")!,
-        name: "mongodb",
-        tags: new[] { "db", "mongo" });
+    .AddSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")!,
+        name: "sqlserver-raw", tags: new[] { "db", "sql" })
+    .AddMongoDb(builder.Configuration.GetConnectionString("MongoDb")!,
+        name: "mongodb", tags: new[] { "db", "mongo" });
 #endregion
 
 #region Authentication & JWT
@@ -119,8 +133,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey         = new SymmetricSecurityKey(keyBytes),
             RoleClaimType            = ClaimTypes.Role
         };
-
-        // Enable SignalR to pick token from query string
         opts.Events = new JwtBearerEvents
         {
             OnMessageReceived = ctx =>
@@ -134,12 +146,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             },
             OnTokenValidated = async ctx =>
             {
-                // Verify security stamp
                 var db     = ctx.HttpContext.RequestServices.GetRequiredService<BiblioMateDbContext>();
                 var userId = int.Parse(ctx.Principal!.FindFirst(ClaimTypes.NameIdentifier)!.Value);
                 var stamp  = ctx.Principal.FindFirst("stamp")?.Value;
                 var user   = await db.Users.FindAsync(userId);
-
                 if (user == null || user.SecurityStamp != stamp)
                     ctx.Fail("Invalid token: security stamp mismatch.");
             }
@@ -150,7 +160,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 #region MongoDB Configuration
 builder.Services.Configure<MongoSettings>(
     builder.Configuration.GetSection("MongoDb"));
-
 builder.Services.AddSingleton<IMongoClient>(sp =>
 {
     var settings = sp.GetRequiredService<IOptions<MongoSettings>>().Value;
@@ -180,29 +189,41 @@ builder.Services.AddScoped<ISearchActivityLogService, SearchActivityLogService>(
 builder.Services.AddScoped<IShelfService, ShelfService>();
 builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IZoneService, ZoneService>();
-
 // -- Infrastructure & external --
 builder.Services.AddSingleton<EncryptionService>();
 builder.Services.AddHttpClient<IGoogleBooksService, GoogleBooksService>();
 builder.Services.AddScoped<IEmailService, SendGridEmailService>();
 builder.Services.AddScoped<IMongoLogService, MongoLogService>();
-
 // -- Local fixes for notification logging --
 builder.Services.AddScoped<INotificationLogCollection, NotificationLogCollection>();
 builder.Services.AddScoped<NotificationService>();
-
 // -- Hosted & Background Services --
 builder.Services.AddScoped<IReservationCleanupService, ReservationCleanupService>();
 builder.Services.AddScoped<LoanReminderService>();
 builder.Services.AddHostedService<LoanReminderBackgroundService>();
 #endregion
 
-#region SignalR & Swagger
+#region SignalR, API Explorer & Swagger
 builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
+
+// Récupère le provider pour SwaggerGen
+var apiVersionProvider = builder.Services.BuildServiceProvider()
+    .GetRequiredService<IApiVersionDescriptionProvider>();
+
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "BiblioMate API", Version = "v1" });
+    // Génère un document par version
+    foreach (var desc in apiVersionProvider.ApiVersionDescriptions)
+    {
+        c.SwaggerDoc(desc.GroupName, new OpenApiInfo
+        {
+            Title = $"BiblioMate API {desc.ApiVersion}",
+            Version = desc.GroupName,
+            Description = desc.IsDeprecated ? "Cette version est obsolète." : null
+        });
+    }
+
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     c.IncludeXmlComments(xmlPath);
@@ -232,18 +253,19 @@ builder.Services.AddSwaggerGen(c =>
 var app = builder.Build();
 
 #region Middleware Pipeline
-// Swagger only in Development
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "BiblioMate API v1");
+        // Ajoute un endpoint UI par version
+        foreach (var desc in app.Services.GetRequiredService<IApiVersionDescriptionProvider>().ApiVersionDescriptions)
+        {
+            c.SwaggerEndpoint($"/swagger/{desc.GroupName}/swagger.json", desc.GroupName.ToUpperInvariant());
+        }
         c.RoutePrefix = "swagger";
     });
-    // masquer la racine de redirection
-    app.MapGet("/", () => Results.Redirect("/swagger"))
-       .ExcludeFromDescription();
+    app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
@@ -253,13 +275,12 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // ** Prometheus instrumentation **
-app.UseMetricServer();  
+app.UseMetricServer();
 app.UseHttpMetrics();
 
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-// Additional minimal endpoint for logs
 app.MapGet("/api/notifications/logs/user/{userId}",
     [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
     async (int userId, INotificationLogService logService, CancellationToken ct) =>
@@ -269,7 +290,6 @@ app.MapGet("/api/notifications/logs/user/{userId}",
     })
    .ExcludeFromDescription();
 
-// Health Checks endpoint
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     ResponseWriter = async (ctx, report) =>
