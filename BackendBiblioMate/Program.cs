@@ -29,6 +29,8 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
 using Prometheus;
+using AspNetCoreRateLimit;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -65,8 +67,16 @@ builder.Services.AddVersionedApiExplorer(opts =>
 });
 #endregion
 
+#region Rate Limiting Configuration
+builder.Services.AddMemoryCache();
+builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
+builder.Services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
+builder.Services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounterStore>();
+builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
+builder.Services.AddSingleton<IProcessingStrategy, AsyncKeyLockProcessingStrategy>();
+#endregion
+
 #region Database Configuration
-// SQL Server via EF Core
 builder.Services.AddDbContext<BiblioMateDbContext>(opts =>
     opts.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 #endregion
@@ -75,7 +85,6 @@ builder.Services.AddDbContext<BiblioMateDbContext>(opts =>
 builder.Services
     .AddControllers(opts =>
     {
-        // Global authorization: require authenticated user by default
         var policy = new AuthorizationPolicyBuilder()
             .RequireAuthenticatedUser()
             .Build();
@@ -107,9 +116,11 @@ builder.Services
 builder.Services
     .AddHealthChecks()
     .AddDbContextCheck<BiblioMateDbContext>(name: "sqlserver", tags: new[] { "db", "sql" })
-    .AddSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")!,
+    .AddSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection")!,
         name: "sqlserver-raw", tags: new[] { "db", "sql" })
-    .AddMongoDb(builder.Configuration.GetConnectionString("MongoDb")!,
+    .AddMongoDb(
+        builder.Configuration.GetConnectionString("MongoDb")!,
         name: "mongodb", tags: new[] { "db", "mongo" });
 #endregion
 
@@ -207,36 +218,27 @@ builder.Services.AddHostedService<LoanReminderBackgroundService>();
 builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 
-// Récupère le provider pour SwaggerGen
-var apiVersionProvider = builder.Services.BuildServiceProvider()
-    .GetRequiredService<IApiVersionDescriptionProvider>();
-
 builder.Services.AddSwaggerGen(c =>
 {
-    // Génère un document par version
-    foreach (var desc in apiVersionProvider.ApiVersionDescriptions)
+    c.DocInclusionPredicate((docName, apiDesc) =>
     {
-        c.SwaggerDoc(desc.GroupName, new OpenApiInfo
-        {
-            Title = $"BiblioMate API {desc.ApiVersion}",
-            Version = desc.GroupName,
-            Description = desc.IsDeprecated ? "Cette version est obsolète." : null
-        });
-    }
+        var versions = apiDesc.CustomAttributes()
+            .OfType<ApiVersionAttribute>()
+            .SelectMany(a => a.Versions);
+        return versions.Any(v => $"v{v.ToString()}" == docName);
+    });
 
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     c.IncludeXmlComments(xmlPath);
     c.EnableAnnotations();
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme {
         Description  = "JWT Authorization header using the Bearer scheme.",
         Type         = SecuritySchemeType.Http,
         Scheme       = "bearer",
         BearerFormat = "JWT"
     });
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement {
         {
             new OpenApiSecurityScheme {
                 Reference = new OpenApiReference {
@@ -255,28 +257,46 @@ var app = builder.Build();
 #region Middleware Pipeline
 if (app.Environment.IsDevelopment())
 {
+    using var scope = app.Services.CreateScope();
+    var provider = scope.ServiceProvider.GetRequiredService<IApiVersionDescriptionProvider>();
+
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        // Ajoute un endpoint UI par version
-        foreach (var desc in app.Services.GetRequiredService<IApiVersionDescriptionProvider>().ApiVersionDescriptions)
+        foreach (var desc in provider.ApiVersionDescriptions)
         {
-            c.SwaggerEndpoint($"/swagger/{desc.GroupName}/swagger.json", desc.GroupName.ToUpperInvariant());
+            c.SwaggerEndpoint($"/swagger/{desc.GroupName}/swagger.json",
+                              $"BiblioMate API {desc.ApiVersion}");
         }
         c.RoutePrefix = "swagger";
     });
-    app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
+
+    app.MapGet("/", () => Results.Redirect("/swagger"))
+       .ExcludeFromDescription();
 }
 
+// HTTP security headers
+app.UseHsts();
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.Headers["X-Content-Type-Options"]  = "nosniff";
+    ctx.Response.Headers["X-Frame-Options"]         = "DENY";
+    ctx.Response.Headers["Referrer-Policy"]         = "no-referrer";
+    ctx.Response.Headers["Content-Security-Policy"] = "default-src 'self'";
+    await next();
+});
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseIpRateLimiting();
+
+// Prometheus metrics
+app.UseMetricServer();
+app.UseHttpMetrics();
+
 app.UseHttpsRedirection();
 app.UseCors("Default");
 app.UseAuthentication();
 app.UseAuthorization();
-
-// ** Prometheus instrumentation **
-app.UseMetricServer();
-app.UseHttpMetrics();
 
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
@@ -295,14 +315,13 @@ app.MapHealthChecks("/health", new HealthCheckOptions
     ResponseWriter = async (ctx, report) =>
     {
         ctx.Response.ContentType = "application/json";
-        var result = new
-        {
+        var result = new {
             status = report.Status.ToString(),
-            checks = report.Entries.Select(entry => new {
-                name     = entry.Key,
-                status   = entry.Value.Status.ToString(),
-                error    = entry.Value.Exception?.Message,
-                duration = entry.Value.Duration.ToString()
+            checks = report.Entries.Select(e => new {
+                name     = e.Key,
+                status   = e.Value.Status.ToString(),
+                error    = e.Value.Exception?.Message,
+                duration = e.Value.Duration.ToString()
             })
         };
         await ctx.Response.WriteAsJsonAsync(result);

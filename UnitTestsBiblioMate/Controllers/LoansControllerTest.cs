@@ -4,6 +4,7 @@ using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Models;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
+using AutoMapper;
 
 namespace UnitTestsBiblioMate.Controllers
 {
@@ -14,12 +15,14 @@ namespace UnitTestsBiblioMate.Controllers
     public class LoansControllerTest
     {
         private readonly Mock<ILoanService> _serviceMock;
+        private readonly Mock<IMapper> _mapperMock;
         private readonly LoansController _controller;
 
         public LoansControllerTest()
         {
             _serviceMock = new Mock<ILoanService>();
-            _controller = new LoansController(_serviceMock.Object);
+            _mapperMock = new Mock<IMapper>();
+            _controller = new LoansController(_serviceMock.Object, _mapperMock.Object);
         }
 
         [Fact]
@@ -124,12 +127,16 @@ namespace UnitTestsBiblioMate.Controllers
                 .Setup(s => s.GetAllAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(resultOk);
 
+            _mapperMock
+                .Setup(m => m.Map<IEnumerable<LoanReadDto>>(loans))
+                .Returns(loans.Select(l => new LoanReadDto()).ToList());
+
             // Act
             var action = await _controller.GetAll(CancellationToken.None);
 
             // Assert
             var ok = Assert.IsType<OkObjectResult>(action);
-            Assert.Equal(loans, ok.Value);
+            Assert.IsAssignableFrom<IEnumerable<LoanReadDto>>(ok.Value);
         }
 
         [Fact]
@@ -162,12 +169,16 @@ namespace UnitTestsBiblioMate.Controllers
                 .Setup(s => s.GetByIdAsync(7, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(resultOk);
 
+            _mapperMock
+                .Setup(m => m.Map<LoanReadDto>(loan))
+                .Returns(new LoanReadDto());
+
             // Act
             var action = await _controller.GetById(7, CancellationToken.None);
 
             // Assert
             var ok = Assert.IsType<OkObjectResult>(action);
-            Assert.Equal(loan, ok.Value);
+            Assert.IsType<LoanReadDto>(ok.Value);
         }
 
         [Fact]
@@ -201,12 +212,16 @@ namespace UnitTestsBiblioMate.Controllers
                 .Setup(s => s.UpdateAsync(5, dto, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(resultOk);
 
+            _mapperMock
+                .Setup(m => m.Map<LoanReadDto>(updatedLoan))
+                .Returns(new LoanReadDto());
+
             // Act
             var action = await _controller.UpdateLoan(5, dto, CancellationToken.None);
 
             // Assert
             var ok = Assert.IsType<OkObjectResult>(action);
-            Assert.Equal(updatedLoan, ok.Value);
+            Assert.IsType<LoanReadDto>(ok.Value);
         }
 
         [Fact]

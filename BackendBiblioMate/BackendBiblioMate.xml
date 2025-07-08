@@ -865,61 +865,26 @@
             <summary>
             Retrieves all shelves with optional zone filtering and pagination.
             </summary>
-            <param name="zoneId">Optional zone identifier to filter results.</param>
-            <param name="page">Page index (1-based). Default is <c>1</c>.</param>
-            <param name="pageSize">Items per page. Default is <c>10</c>.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>200 OK</c> with list of <see cref="T:BackendBiblioMate.DTOs.ShelfReadDto"/>.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.ShelvesController.GetShelf(System.Int32,System.Threading.CancellationToken)">
             <summary>
             Retrieves a specific shelf by its identifier.
             </summary>
-            <param name="id">The shelf identifier.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>200 OK</c> with <see cref="T:BackendBiblioMate.DTOs.ShelfReadDto"/>,  
-            <c>404 NotFound</c> if missing.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.ShelvesController.CreateShelf(BackendBiblioMate.DTOs.ShelfCreateDto,System.Threading.CancellationToken)">
             <summary>
             Creates a new shelf.
             </summary>
-            <param name="dto">Data to create the shelf.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>201 Created</c> with created <see cref="T:BackendBiblioMate.DTOs.ShelfReadDto"/> and location header,  
-            <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.ShelvesController.UpdateShelf(System.Int32,BackendBiblioMate.DTOs.ShelfUpdateDto,System.Threading.CancellationToken)">
             <summary>
             Updates an existing shelf.
             </summary>
-            <param name="id">The identifier of the shelf to update.</param>
-            <param name="dto">New shelf data.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>204 NoContent</c> on success;  
-            <c>400 BadRequest</c> if the IDs do not match;  
-            <c>404 NotFound</c> if missing;  
-            <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.ShelvesController.DeleteShelf(System.Int32,System.Threading.CancellationToken)">
             <summary>
             Deletes a shelf.
             </summary>
-            <param name="id">The identifier of the shelf to delete.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>204 NoContent</c> on success;  
-            <c>404 NotFound</c> if missing;  
-            <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-            </returns>
         </member>
         <member name="T:BackendBiblioMate.Controllers.StocksController">
             <summary>
@@ -938,46 +903,31 @@
             <summary>
             Retrieves all stock entries with optional pagination.
             </summary>
-            <param name="page">Page number (1-based).</param>
-            <param name="pageSize">Items per page.</param>
-            <param name="cancellationToken">Token for cancellation.</param>
         </member>
         <member name="M:BackendBiblioMate.Controllers.StocksController.GetStock(System.Int32,System.Threading.CancellationToken)">
             <summary>
             Retrieves a specific stock entry by its identifier.
             </summary>
-            <param name="id">Stock identifier.</param>
-            <param name="cancellationToken">Token for cancellation.</param>
         </member>
         <member name="M:BackendBiblioMate.Controllers.StocksController.CreateStock(BackendBiblioMate.DTOs.StockCreateDto,System.Threading.CancellationToken)">
             <summary>
             Creates a new stock entry.
             </summary>
-            <param name="dto">Data to create stock.</param>
-            <param name="cancellationToken">Token for cancellation.</param>
         </member>
         <member name="M:BackendBiblioMate.Controllers.StocksController.UpdateStock(System.Int32,BackendBiblioMate.DTOs.StockUpdateDto,System.Threading.CancellationToken)">
             <summary>
             Updates an existing stock entry.
             </summary>
-            <param name="id">Identifier in route.</param>
-            <param name="dto">Updated data.</param>
-            <param name="cancellationToken">Token for cancellation.</param>
         </member>
         <member name="M:BackendBiblioMate.Controllers.StocksController.AdjustStockQuantity(System.Int32,BackendBiblioMate.DTOs.StockAdjustmentDto,System.Threading.CancellationToken)">
             <summary>
             Adjusts the quantity of a stock entry.
             </summary>
-            <param name="id">Stock identifier.</param>
-            <param name="dto">Adjustment delta.</param>
-            <param name="cancellationToken">Token for cancellation.</param>
         </member>
         <member name="M:BackendBiblioMate.Controllers.StocksController.DeleteStock(System.Int32,System.Threading.CancellationToken)">
             <summary>
             Deletes a stock entry.
             </summary>
-            <param name="id">Stock identifier.</param>
-            <param name="cancellationToken">Token for cancellation.</param>
         </member>
         <member name="T:BackendBiblioMate.Controllers.TagsController">
             <summary>
@@ -995,59 +945,26 @@
             <summary>
             Retrieves all tags.
             </summary>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>200 OK</c> with a collection of <see cref="T:BackendBiblioMate.DTOs.TagReadDto"/>.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.TagsController.GetTag(System.Int32,System.Threading.CancellationToken)">
             <summary>
             Retrieves a specific tag by its identifier.
             </summary>
-            <param name="id">The tag identifier.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>200 OK</c> with the <see cref="T:BackendBiblioMate.DTOs.TagReadDto"/> if found;  
-            <c>404 NotFound</c> if not found.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.TagsController.CreateTag(BackendBiblioMate.DTOs.TagCreateDto,System.Threading.CancellationToken)">
             <summary>
             Creates a new tag.
             </summary>
-            <param name="dto">The tag data to create.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>201 Created</c> with the created <see cref="T:BackendBiblioMate.DTOs.TagReadDto"/> and its URI;  
-            <c>400 BadRequest</c> if validation fails;  
-            <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.TagsController.UpdateTag(System.Int32,BackendBiblioMate.DTOs.TagUpdateDto,System.Threading.CancellationToken)">
             <summary>
             Updates an existing tag.
             </summary>
-            <param name="id">The identifier of the tag to update.</param>
-            <param name="dto">The updated tag data.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>204 NoContent</c> on success;  
-            <c>400 BadRequest</c> if IDs mismatch;  
-            <c>404 NotFound</c> if the tag does not exist;  
-            <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.TagsController.DeleteTag(System.Int32,System.Threading.CancellationToken)">
             <summary>
             Deletes a tag.
             </summary>
-            <param name="id">The identifier of the tag to delete.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>204 NoContent</c> on success;  
-            <c>404 NotFound</c> if the tag is not found;  
-            <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-            </returns>
         </member>
         <member name="T:BackendBiblioMate.Controllers.UsersController">
             <summary>
@@ -1060,98 +977,47 @@
             <summary>
             Initializes a new instance of <see cref="T:BackendBiblioMate.Controllers.UsersController"/>.
             </summary>
-            <param name="service">Service encapsulating user logic.</param>
-            <param name="log">Service for logging user activities.</param>
         </member>
         <member name="M:BackendBiblioMate.Controllers.UsersController.GetUsers(System.Threading.CancellationToken)">
             <summary>
             Retrieves all users (admin only).
             </summary>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>200 OK</c> with a collection of <see cref="T:BackendBiblioMate.DTOs.UserReadDto"/>.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.UsersController.GetUser(System.Int32,System.Threading.CancellationToken)">
             <summary>
             Retrieves a user by its identifier (admin only).
             </summary>
-            <param name="id">The user identifier.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>200 OK</c> with <see cref="T:BackendBiblioMate.DTOs.UserReadDto"/> if found;  
-            <c>404 NotFound</c> otherwise.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.UsersController.PostUser(BackendBiblioMate.DTOs.UserCreateDto,System.Threading.CancellationToken)">
             <summary>
             Creates a new user via the admin panel.
             </summary>
-            <param name="dto">User registration data.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>201 Created</c> with the created <see cref="T:BackendBiblioMate.DTOs.UserReadDto"/>;  
-            <c>400 BadRequest</c> if validation fails.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.UsersController.UpdateUser(System.Int32,BackendBiblioMate.DTOs.UserUpdateDto,System.Threading.CancellationToken)">
             <summary>
             Updates basic info of an existing user (admin only).
             Does <b>not</b> allow changing password or role.
             </summary>
-            <param name="id">The user identifier.</param>
-            <param name="dto">Updated data.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>204 NoContent</c> on success;  
-            <c>404 NotFound</c> if user not found.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.UsersController.UpdateCurrentUser(BackendBiblioMate.DTOs.UserUpdateDto,System.Threading.CancellationToken)">
             <summary>
             Updates the currently authenticated user’s personal data.
             </summary>
-            <param name="dto">The updated profile data.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>200 OK</c> on success;  
-            <c>404 NotFound</c> if user not found.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.UsersController.GetCurrentUser(System.Threading.CancellationToken)">
             <summary>
             Retrieves the profile of the currently authenticated user.
             </summary>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>200 OK</c> with the user’s profile data;  
-            <c>404 NotFound</c> if user not found.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.UsersController.UpdateUserRole(System.Int32,BackendBiblioMate.DTOs.UserRoleUpdateDto,System.Threading.CancellationToken)">
             <summary>
             Updates a user’s role (admin only).
             </summary>
-            <param name="id">The user identifier.</param>
-            <param name="dto">New role data.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>200 OK</c> on success;  
-            <c>400 BadRequest</c> for invalid role;  
-            <c>404 NotFound</c> if user not found.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.UsersController.DeleteUser(System.Int32,System.Threading.CancellationToken)">
             <summary>
             Deletes a user account (admin only). Cannot delete your own account.
             </summary>
-            <param name="id">The user identifier.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>204 NoContent</c> on success;  
-            <c>400 BadRequest</c> if self-deletion attempt;  
-            <c>404 NotFound</c> if user not found.
-            </returns>
         </member>
         <member name="T:BackendBiblioMate.Controllers.ZonesController">
             <summary>
@@ -1163,66 +1029,31 @@
             <summary>
             Initializes a new instance of <see cref="T:BackendBiblioMate.Controllers.ZonesController"/>.
             </summary>
-            <param name="service">Service encapsulating zone logic.</param>
         </member>
         <member name="M:BackendBiblioMate.Controllers.ZonesController.GetZones(System.Int32,System.Int32,System.Threading.CancellationToken)">
             <summary>
             Retrieves all zones with optional pagination.
             </summary>
-            <param name="page">Page index (1-based). Default is <c>1</c>.</param>
-            <param name="pageSize">Items per page. Default is <c>10</c>.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>200 OK</c> with a collection of <see cref="T:BackendBiblioMate.DTOs.ZoneReadDto"/>.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.ZonesController.GetZone(System.Int32,System.Threading.CancellationToken)">
             <summary>
             Retrieves a specific zone by its identifier.
             </summary>
-            <param name="id">The zone identifier.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>200 OK</c> with <see cref="T:BackendBiblioMate.DTOs.ZoneReadDto"/> if found;  
-            <c>404 NotFound</c> otherwise.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.ZonesController.CreateZone(BackendBiblioMate.DTOs.ZoneCreateDto,System.Threading.CancellationToken)">
             <summary>
             Creates a new zone.
             </summary>
-            <param name="dto">Zone data to create.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>201 Created</c> with the created <see cref="T:BackendBiblioMate.DTOs.ZoneReadDto"/> and its URI;  
-            <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.ZonesController.UpdateZone(System.Int32,BackendBiblioMate.DTOs.ZoneUpdateDto,System.Threading.CancellationToken)">
             <summary>
             Updates an existing zone.
             </summary>
-            <param name="id">The identifier of the zone to update.</param>
-            <param name="dto">Updated zone data.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>204 NoContent</c> on success;  
-            <c>400 BadRequest</c> if IDs mismatch;  
-            <c>404 NotFound</c> if zone not found;  
-            <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-            </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.ZonesController.DeleteZone(System.Int32,System.Threading.CancellationToken)">
             <summary>
             Deletes a zone.
             </summary>
-            <param name="id">The identifier of the zone to delete.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            <c>204 NoContent</c> on success;  
-            <c>404 NotFound</c> if zone not found;  
-            <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
-            </returns>
         </member>
         <member name="T:BackendBiblioMate.Data.BiblioMateDbContext">
             <summary>
