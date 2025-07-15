@@ -46,7 +46,7 @@ namespace BackendBiblioMate.Controllers
         [SwaggerOperation(
             Summary = "Creates a new loan (v1)",
             Description = "Creates a new loan. Requires Librarian or Admin role.",
-            Tags = ["Loans"]
+            Tags = new[] { "Loans" }
         )]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -54,6 +54,9 @@ namespace BackendBiblioMate.Controllers
             [FromBody] LoanCreateDto dto,
             CancellationToken cancellationToken = default)
         {
+            if (dto == null || !ModelState.IsValid)
+                return BadRequest(new { error = "Invalid payload." });
+
             var result = await _loanService.CreateAsync(dto, cancellationToken);
             if (result.IsError)
                 return BadRequest(new { error = result.Error });
@@ -79,7 +82,7 @@ namespace BackendBiblioMate.Controllers
         [SwaggerOperation(
             Summary = "Returns a book for an existing loan (v1)",
             Description = "Marks a loan as returned. Requires Librarian or Admin role.",
-            Tags = ["Loans"]
+            Tags = new[] { "Loans" }
         )]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -87,6 +90,9 @@ namespace BackendBiblioMate.Controllers
             [FromRoute] int id,
             CancellationToken cancellationToken = default)
         {
+            if (id <= 0)
+                return BadRequest(new { error = "Invalid loan ID." });
+
             var result = await _loanService.ReturnAsync(id, cancellationToken);
             if (result.IsError)
                 return BadRequest(new { error = result.Error });
@@ -112,7 +118,7 @@ namespace BackendBiblioMate.Controllers
         [SwaggerOperation(
             Summary = "Retrieves all loans (v1)",
             Description = "Returns all loans. Requires authentication.",
-            Tags = ["Loans"]
+            Tags = new[] { "Loans" }
         )]
         [ProducesResponseType(typeof(IEnumerable<LoanReadDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -141,7 +147,7 @@ namespace BackendBiblioMate.Controllers
         [SwaggerOperation(
             Summary = "Retrieves a loan by ID (v1)",
             Description = "Returns the loan with the specified ID. Requires authentication.",
-            Tags = ["Loans"]
+            Tags = new[] { "Loans" }
         )]
         [ProducesResponseType(typeof(LoanReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -149,6 +155,9 @@ namespace BackendBiblioMate.Controllers
             [FromRoute] int id,
             CancellationToken cancellationToken = default)
         {
+            if (id <= 0)
+                return BadRequest(new { error = "Invalid loan ID." });
+
             var result = await _loanService.GetByIdAsync(id, cancellationToken);
             if (result.IsError)
                 return BadRequest(new { error = result.Error });
@@ -172,7 +181,7 @@ namespace BackendBiblioMate.Controllers
         [SwaggerOperation(
             Summary = "Updates an existing loan (v1)",
             Description = "Updates a loan's fields. Requires Librarian or Admin role.",
-            Tags = ["Loans"]
+            Tags = new[] { "Loans" }
         )]
         [ProducesResponseType(typeof(LoanReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -181,6 +190,11 @@ namespace BackendBiblioMate.Controllers
             [FromBody] LoanUpdateDto dto,
             CancellationToken cancellationToken = default)
         {
+            if (id <= 0)
+                return BadRequest(new { error = "Invalid loan ID." });
+            if (dto == null || !ModelState.IsValid)
+                return BadRequest(new { error = "Invalid payload." });
+
             var result = await _loanService.UpdateAsync(id, dto, cancellationToken);
             if (result.IsError)
                 return BadRequest(new { error = result.Error });
@@ -203,7 +217,7 @@ namespace BackendBiblioMate.Controllers
         [SwaggerOperation(
             Summary = "Deletes an existing loan (v1)",
             Description = "Deletes the loan with the specified ID. Requires Librarian or Admin role.",
-            Tags = ["Loans"]
+            Tags = new[] { "Loans" }
         )]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -211,6 +225,9 @@ namespace BackendBiblioMate.Controllers
             [FromRoute] int id,
             CancellationToken cancellationToken = default)
         {
+            if (id <= 0)
+                return BadRequest(new { error = "Invalid loan ID." });
+
             var result = await _loanService.DeleteAsync(id, cancellationToken);
             if (result.IsError)
                 return BadRequest(new { error = result.Error });

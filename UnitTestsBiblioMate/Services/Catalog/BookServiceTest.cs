@@ -75,6 +75,7 @@ namespace UnitTestsBiblioMate.Services.Catalog
             {
                 Title           = "Test Book",
                 Isbn            = "1234567890123",
+                Description     = "Une description de test",
                 PublicationDate = new DateTime(2000, 1, 1),
                 AuthorId        = author.AuthorId,
                 GenreId         = genre.GenreId,
@@ -91,6 +92,7 @@ namespace UnitTestsBiblioMate.Services.Catalog
             Assert.NotNull(result);
             Assert.Equal(dto.Title, result.Title);
             Assert.Equal(dto.Isbn, result.Isbn);
+            Assert.Equal(dto.Description, result.Description);
             Assert.True(await _db.Books.AnyAsync(b => b.BookId == result.BookId));
         }
 
@@ -128,6 +130,7 @@ namespace UnitTestsBiblioMate.Services.Catalog
             {
                 Title           = "Old Title",
                 Isbn            = "1111111111111",
+                Description     = "Ancienne description",
                 PublicationDate = new DateTime(1999, 1, 1),
                 AuthorId        = author.AuthorId,
                 GenreId         = genre.GenreId,
@@ -142,6 +145,7 @@ namespace UnitTestsBiblioMate.Services.Catalog
                 BookId          = book.BookId,
                 Title           = "Updated Title",
                 Isbn            = "2222222222222",
+                Description     = "Nouvelle description",
                 PublicationDate = new DateTime(2010, 5, 5),
                 AuthorId        = author.AuthorId,
                 GenreId         = genre.GenreId,
@@ -155,8 +159,9 @@ namespace UnitTestsBiblioMate.Services.Catalog
             // Assert
             Assert.True(success);
             var updated = await _db.Books.FindAsync(book.BookId);
-            Assert.Equal(dto.Title, updated?.Title);
-            Assert.Equal(dto.Isbn,  updated?.Isbn);
+            Assert.Equal(dto.Title,       updated?.Title);
+            Assert.Equal(dto.Isbn,        updated?.Isbn);
+            Assert.Equal(dto.Description, updated?.Description);
         }
 
         /// <summary>
@@ -180,6 +185,7 @@ namespace UnitTestsBiblioMate.Services.Catalog
             {
                 Title           = "Delete Me",
                 Isbn            = "9999999999999",
+                Description     = "À supprimer",
                 PublicationDate = new DateTime(2000, 1, 1),
                 AuthorId        = author.AuthorId,
                 GenreId         = genre.GenreId,
@@ -220,6 +226,7 @@ namespace UnitTestsBiblioMate.Services.Catalog
                 {
                     Title           = $"Book {i}",
                     Isbn            = $"97800000000{i}",
+                    Description     = $"Desc {i}",
                     PublicationDate = new DateTime(2000 + i, 1, 1),
                     AuthorId        = author.AuthorId,
                     GenreId         = genre.GenreId,
@@ -267,6 +274,7 @@ namespace UnitTestsBiblioMate.Services.Catalog
                 {
                     Title           = "SpecialTitle",
                     Isbn            = "9781111111111",
+                    Description     = "Une description spéciale",
                     PublicationDate = new DateTime(2010, 1, 1),
                     AuthorId        = author.AuthorId,
                     GenreId         = genre.GenreId,
@@ -277,6 +285,7 @@ namespace UnitTestsBiblioMate.Services.Catalog
                 {
                     Title           = "AnotherBook",
                     Isbn            = "9782222222222",
+                    Description     = "Description générique",
                     PublicationDate = new DateTime(2012, 1, 1),
                     AuthorId        = author.AuthorId,
                     GenreId         = genre.GenreId,

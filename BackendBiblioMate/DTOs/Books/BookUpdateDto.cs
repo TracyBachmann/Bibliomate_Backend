@@ -41,6 +41,16 @@ namespace BackendBiblioMate.DTOs
         public string Isbn { get; init; } = string.Empty;
 
         /// <summary>
+        /// Gets the updated description or synopsis of the book.
+        /// </summary>
+        /// <remarks>
+        /// Maximum length 4000 characters.
+        /// </remarks>
+        /// <example>An expanded edition with new foreword.</example>
+        [MaxLength(4000, ErrorMessage = "Description cannot exceed 4000 characters.")]
+        public string? Description { get; init; }
+
+        /// <summary>
         /// Gets the updated publication date of the book.
         /// </summary>
         /// <example>1937-09-21</example>
@@ -74,7 +84,7 @@ namespace BackendBiblioMate.DTOs
 
         /// <summary>
         /// Gets the updated shelf level identifier where the book is located.
-        /// </summary>
+       /// </summary>
         /// <example>5</example>
         [Required(ErrorMessage = "ShelfLevelId is required.")]
         [Range(1, int.MaxValue, ErrorMessage = "ShelfLevelId must be a positive integer.")]

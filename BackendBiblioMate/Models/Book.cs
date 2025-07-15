@@ -30,7 +30,13 @@ namespace BackendBiblioMate.Models
         [Required(ErrorMessage = "ISBN is required.")]
         [StringLength(13, MinimumLength = 10, ErrorMessage = "ISBN must be between 10 and 13 characters.")]
         public string Isbn { get; set; } = string.Empty;
-
+        
+        /// <summary>
+        /// Gets or sets the description or synopsis of the book.
+        /// </summary>
+        [StringLength(4000, ErrorMessage = "Description cannot exceed 4000 characters.")]
+        public string? Description { get; set; }
+        
         /// <summary>
         /// Gets or sets the date when the book was published.
         /// </summary>

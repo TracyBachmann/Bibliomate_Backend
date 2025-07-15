@@ -1250,6 +1250,15 @@
             </remarks>
             <example>9780261103344</example>
         </member>
+        <member name="P:BackendBiblioMate.DTOs.BookCreateDto.Description">
+            <summary>
+            Gets the description or synopsis of the book.
+            </summary>
+            <remarks>
+            Maximum length 4000 characters.
+            </remarks>
+            <example>An epic tale of hobbits, dragons, and adventure.</example>
+        </member>
         <member name="P:BackendBiblioMate.DTOs.BookCreateDto.PublicationDate">
             <summary>
             Gets the publication date of the book.
@@ -1318,6 +1327,12 @@
             Gets the International Standard Book Number (ISBN).
             </summary>
             <example>9780261103344</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.BookReadDto.Description">
+            <summary>
+            Gets the description or synopsis of the book.
+            </summary>
+            <example>An epic tale of hobbits, dragons, and adventure.</example>
         </member>
         <member name="P:BackendBiblioMate.DTOs.BookReadDto.PublicationYear">
             <summary>
@@ -1435,6 +1450,15 @@
             If specified, the list must contain at least one element.
             </remarks>
         </member>
+        <member name="P:BackendBiblioMate.DTOs.BookSearchDto.Description">
+            <summary>
+            Gets the partial or full description text to filter by.
+            </summary>
+            <remarks>
+            Allows searching within the description.
+            </remarks>
+            <example>epic tale</example>
+        </member>
         <member name="T:BackendBiblioMate.DTOs.BookUpdateDto">
             <summary>
             DTO used to update an existing book.
@@ -1464,6 +1488,15 @@
             Must be between 10 and 13 characters.
             </remarks>
             <example>9780261102217</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.BookUpdateDto.Description">
+            <summary>
+            Gets the updated description or synopsis of the book.
+            </summary>
+            <remarks>
+            Maximum length 4000 characters.
+            </remarks>
+            <example>An expanded edition with new foreword.</example>
         </member>
         <member name="P:BackendBiblioMate.DTOs.BookUpdateDto.PublicationDate">
             <summary>
@@ -2843,6 +2876,12 @@
             <summary>
             Asynchronously creates a <see cref="T:BackendBiblioMate.Helpers.PagedResult`1"/> from the given queryable source.
             Falls back to synchronous LINQ when the provider does not support IAsyncQueryProvider.
+            </summary>
+        </member>
+        <member name="T:BackendBiblioMate.Helpers.SwaggerDefaultValues">
+            <summary>
+            Fills in default values for versioned routes so that {version} is replaced
+            and each operationId is unique.
             </summary>
         </member>
         <member name="T:BackendBiblioMate.Helpers.TokenHelper">
@@ -4364,6 +4403,18 @@
         <member name="M:BackendBiblioMate.Migrations.AddSecurityStampToUser.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:BackendBiblioMate.Migrations.AddBookDescriptionToBook">
+            <inheritdoc />
+        </member>
+        <member name="M:BackendBiblioMate.Migrations.AddBookDescriptionToBook.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:BackendBiblioMate.Migrations.AddBookDescriptionToBook.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:BackendBiblioMate.Migrations.AddBookDescriptionToBook.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="T:BackendBiblioMate.Models.Author">
             <summary>
             Represents an author of a book in the system.
@@ -4404,6 +4455,11 @@
         <member name="P:BackendBiblioMate.Models.Book.Isbn">
             <summary>
             Gets or sets the International Standard Book Number (ISBN).
+            </summary>
+        </member>
+        <member name="P:BackendBiblioMate.Models.Book.Description">
+            <summary>
+            Gets or sets the description or synopsis of the book.
             </summary>
         </member>
         <member name="P:BackendBiblioMate.Models.Book.PublicationDate">
