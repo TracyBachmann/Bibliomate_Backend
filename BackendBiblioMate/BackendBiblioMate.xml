@@ -456,81 +456,81 @@
         </member>
         <member name="T:BackendBiblioMate.Controllers.LoansController">
             <summary>
-            Controller for managing loans.
+            Controller responsible for managing loans.
             Provides endpoints to create, return, retrieve, update, and delete loans.
             </summary>
         </member>
         <member name="M:BackendBiblioMate.Controllers.LoansController.#ctor(BackendBiblioMate.Interfaces.ILoanService,AutoMapper.IMapper)">
             <summary>
-            Initializes a new instance of <see cref="T:BackendBiblioMate.Controllers.LoansController"/>.
+            Initializes a new instance of the <see cref="T:BackendBiblioMate.Controllers.LoansController"/> class.
             </summary>
-            <param name="loanService">Injected business service for loans.</param>
-            <param name="mapper">Injected AutoMapper instance.</param>
+            <param name="loanService">The loan service to handle business logic.</param>
+            <param name="mapper">The AutoMapper instance for DTO conversions.</param>
         </member>
         <member name="M:BackendBiblioMate.Controllers.LoansController.CreateLoan(BackendBiblioMate.DTOs.LoanCreateDto,System.Threading.CancellationToken)">
             <summary>
             Creates a new loan.
             </summary>
-            <param name="dto">Data required to create the loan.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+            <param name="dto">The loan creation data transfer object.</param>
+            <param name="cancellationToken">Cancellation token.</param>
             <returns>
-            <c>200 OK</c> with { message, dueDate } on success;  
-            <c>400 BadRequest</c> with { error } on failure.
+            200 OK with { message, dueDate } on success;
+            400 BadRequest with { error } on failure.
             </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.LoansController.ReturnLoan(System.Int32,System.Threading.CancellationToken)">
             <summary>
             Returns a book for an existing loan.
             </summary>
-            <param name="id">Identifier of the loan to return.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+            <param name="id">The identifier of the loan to return.</param>
+            <param name="cancellationToken">Cancellation token.</param>
             <returns>
-            <c>200 OK</c> with { message, reservationNotified, fine } on success;  
-            <c>400 BadRequest</c> with { error } on failure.
+            200 OK with { message, reservationNotified, fine } on success;
+            400 BadRequest with { error } on failure.
             </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.LoansController.GetAll(System.Threading.CancellationToken)">
             <summary>
-            Retrieves all loans in the system.
+            Retrieves all loans.
             </summary>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+            <param name="cancellationToken">Cancellation token.</param>
             <returns>
-            <c>200 OK</c> with a list of <see cref="T:BackendBiblioMate.DTOs.LoanReadDto"/>;  
-            <c>400 BadRequest</c> with { error } on failure.
+            200 OK with list of LoanReadDto on success;
+            400 BadRequest with { error } on failure.
             </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.LoansController.GetById(System.Int32,System.Threading.CancellationToken)">
             <summary>
-            Retrieves a specific loan by its identifier.
+            Retrieves a loan by its ID.
             </summary>
-            <param name="id">Identifier of the loan to retrieve.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+            <param name="id">The identifier of the loan to retrieve.</param>
+            <param name="cancellationToken">Cancellation token.</param>
             <returns>
-            <c>200 OK</c> with a <see cref="T:BackendBiblioMate.DTOs.LoanReadDto"/>;  
-            <c>400 BadRequest</c> with { error } on failure.
+            200 OK with LoanReadDto on success;
+            400 BadRequest with { error } on failure.
             </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.LoansController.UpdateLoan(System.Int32,BackendBiblioMate.DTOs.LoanUpdateDto,System.Threading.CancellationToken)">
             <summary>
-            Updates fields of an existing loan (e.g., due date).
+            Updates an existing loan.
             </summary>
-            <param name="id">Identifier of the loan to update.</param>
-            <param name="dto">Data for updating the loan.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+            <param name="id">The identifier of the loan to update.</param>
+            <param name="dto">The loan update DTO.</param>
+            <param name="cancellationToken">Cancellation token.</param>
             <returns>
-            <c>200 OK</c> with the updated <see cref="T:BackendBiblioMate.DTOs.LoanReadDto"/>;  
-            <c>400 BadRequest</c> with { error } on failure.
+            200 OK with updated LoanReadDto on success;
+            400 BadRequest with { error } on failure.
             </returns>
         </member>
         <member name="M:BackendBiblioMate.Controllers.LoansController.DeleteLoan(System.Int32,System.Threading.CancellationToken)">
             <summary>
             Deletes an existing loan.
             </summary>
-            <param name="id">Identifier of the loan to delete.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+            <param name="id">The identifier of the loan to delete.</param>
+            <param name="cancellationToken">Cancellation token.</param>
             <returns>
-            <c>200 OK</c> with { message } on success;  
-            <c>400 BadRequest</c> with { error } on failure.
+            200 OK with { message } on success;
+            400 BadRequest with { error } on failure.
             </returns>
         </member>
         <member name="T:BackendBiblioMate.Controllers.NotificationsController">
