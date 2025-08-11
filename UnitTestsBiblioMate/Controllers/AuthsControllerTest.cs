@@ -33,22 +33,27 @@ namespace UnitTestsBiblioMate.Controllers
             // Arrange
             var dto = new RegisterDto
             {
-                Name = "User",
-                Email = "u@x.com",
-                Password = "Pass123!",
-                Address = "123 St",
-                Phone = "0000000000"
+                FirstName         = "Jane",
+                LastName          = "Doe",
+                Email             = "jane@x.com",
+                Password          = "Pass123!",
+                Phone             = "0000000000",
+                Address1          = "123 St",
+                Address2          = null,
+                DateOfBirth       = null,
+                FavoriteGenreIds  = new[] { 1, 2 }
             };
-            var action = new CreatedResult("/dummy", null);
+
+            var action = new OkObjectResult("ok");
             _authServiceMock
                 .Setup(s => s.RegisterAsync(dto, It.IsAny<CancellationToken>()))
-                .ReturnsAsync((default, action));
+                .ReturnsAsync((true, action));
 
             // Act
             var result = await _controller.Register(dto, CancellationToken.None);
 
             // Assert
-            Assert.IsType<CreatedResult>(result);
+            Assert.IsType<OkObjectResult>(result);
         }
 
         /// <summary>
@@ -59,10 +64,10 @@ namespace UnitTestsBiblioMate.Controllers
         {
             // Arrange
             var dto = new LoginDto { Email = "u@x.com", Password = "pass" };
-            var ok = new OkObjectResult(new { Token = "jwt" });
+            var ok = new OkObjectResult(new { token = "jwt" });
             _authServiceMock
                 .Setup(s => s.LoginAsync(dto, It.IsAny<CancellationToken>()))
-                .ReturnsAsync((default, ok));
+                .ReturnsAsync((true, ok));
 
             // Act
             var result = await _controller.Login(dto, CancellationToken.None);
@@ -83,7 +88,7 @@ namespace UnitTestsBiblioMate.Controllers
             var ok = new OkResult();
             _authServiceMock
                 .Setup(s => s.ConfirmEmailAsync(token, It.IsAny<CancellationToken>()))
-                .ReturnsAsync((default, ok));
+                .ReturnsAsync((true, ok));
 
             // Act
             var result = await _controller.ConfirmEmail(token, CancellationToken.None);
@@ -100,16 +105,16 @@ namespace UnitTestsBiblioMate.Controllers
         {
             // Arrange
             var dto = new RequestPasswordResetDto { Email = "u@x.com" };
-            var notFound = new NotFoundResult();
+            var ok = new OkObjectResult("sent");
             _authServiceMock
                 .Setup(s => s.RequestPasswordResetAsync(dto.Email, It.IsAny<CancellationToken>()))
-                .ReturnsAsync((default, notFound));
+                .ReturnsAsync((true, ok));
 
             // Act
             var result = await _controller.RequestPasswordReset(dto, CancellationToken.None);
 
             // Assert
-            Assert.IsType<NotFoundResult>(result);
+            Assert.IsType<OkObjectResult>(result);
         }
 
         /// <summary>
@@ -124,16 +129,16 @@ namespace UnitTestsBiblioMate.Controllers
                 Token = "t",
                 NewPassword = "NewPass123!"
             };
-            var bad = new BadRequestResult();
+            var bad = new BadRequestObjectResult("bad");
             _authServiceMock
                 .Setup(s => s.ResetPasswordAsync(dto, It.IsAny<CancellationToken>()))
-                .ReturnsAsync((default, bad));
+                .ReturnsAsync((false, bad));
 
             // Act
             var result = await _controller.ResetPassword(dto, CancellationToken.None);
 
             // Assert
-            Assert.IsType<BadRequestResult>(result);
+            Assert.IsType<BadRequestObjectResult>(result);
         }
 
         /// <summary>
@@ -144,16 +149,16 @@ namespace UnitTestsBiblioMate.Controllers
         {
             // Arrange
             const int id = 5;
-            var forbid = new ForbidResult();
+            var notFound = new NotFoundResult();
             _authServiceMock
                 .Setup(s => s.ApproveUserAsync(id, It.IsAny<CancellationToken>()))
-                .ReturnsAsync((default, forbid));
+                .ReturnsAsync((false, notFound));
 
             // Act
             var result = await _controller.ApproveUser(id, CancellationToken.None);
 
             // Assert
-            Assert.IsType<ForbidResult>(result);
+            Assert.IsType<NotFoundResult>(result);
         }
     }
 }

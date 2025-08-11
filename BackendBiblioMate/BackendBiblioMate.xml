@@ -1092,7 +1092,12 @@
         </member>
         <member name="M:BackendBiblioMate.Data.BiblioMateDbContext.CreateEncryptionConverter">
             <summary>
-            Builds a value converter that encrypts/decrypts string properties.
+            Builds a value converter that encrypts/decrypts non-null string properties.
+            </summary>
+        </member>
+        <member name="M:BackendBiblioMate.Data.BiblioMateDbContext.CreateNullableEncryptionConverter">
+            <summary>
+            Builds a value converter that encrypts/decrypts nullable string properties.
             </summary>
         </member>
         <member name="T:BackendBiblioMate.DTOs.AuthorCreateDto">
@@ -1152,23 +1157,62 @@
         <member name="T:BackendBiblioMate.DTOs.RegisterDto">
             <summary>
             DTO used to register a new user.
-            Contains the necessary fields for creating a user account.
+            Contains all fields required by the multi-step signup form.
             </summary>
         </member>
-        <member name="P:BackendBiblioMate.DTOs.RegisterDto.Name">
+        <member name="P:BackendBiblioMate.DTOs.RegisterDto.FirstName">
             <summary>
-            Gets the full name of the user.
+            Gets the user's given name.
             </summary>
             <remarks>
-            Must be between 2 and 100 characters.
+            Must be between 2 and 60 characters.
             </remarks>
-            <example>Jane Doe</example>
+            <example>Jane</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.RegisterDto.LastName">
+            <summary>
+            Gets the user's family name.
+            </summary>
+            <remarks>
+            Must be between 2 and 60 characters.
+            </remarks>
+            <example>Doe</example>
         </member>
         <member name="P:BackendBiblioMate.DTOs.RegisterDto.Email">
             <summary>
             Gets the email address of the user.
             </summary>
             <example>jane.doe@example.com</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.RegisterDto.Phone">
+            <summary>
+            Gets the phone number of the user.
+            </summary>
+            <example>+33 6 12 34 56 78</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.RegisterDto.Address1">
+            <summary>
+            Gets the primary address line of the user.
+            </summary>
+            <remarks>
+            Maximum length of 200 characters.
+            </remarks>
+            <example>123 Main St</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.RegisterDto.Address2">
+            <summary>
+            Gets the secondary address line of the user (optional).
+            </summary>
+            <remarks>
+            Maximum length of 200 characters.
+            </remarks>
+            <example>Apartment 4B</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.RegisterDto.DateOfBirth">
+            <summary>
+            Gets the user's date of birth (optional).
+            </summary>
+            <example>1995-04-21</example>
         </member>
         <member name="P:BackendBiblioMate.DTOs.RegisterDto.Password">
             <summary>
@@ -1179,20 +1223,20 @@
             </remarks>
             <example>P@ssw0rd!</example>
         </member>
-        <member name="P:BackendBiblioMate.DTOs.RegisterDto.Address">
+        <member name="P:BackendBiblioMate.DTOs.RegisterDto.ProfileImage">
             <summary>
-            Gets the postal address of the user.
+            Gets the profile image payload or path (optional).
             </summary>
             <remarks>
-            Maximum length of 200 characters.
+            Can be a URL/path or a Base64-encoded string depending on the chosen storage strategy.
             </remarks>
-            <example>123 Main St, Springfield</example>
+            <example>https://cdn.example.com/u/42/profile.png</example>
         </member>
-        <member name="P:BackendBiblioMate.DTOs.RegisterDto.Phone">
+        <member name="P:BackendBiblioMate.DTOs.RegisterDto.FavoriteGenreIds">
             <summary>
-            Gets the phone number of the user.
+            Gets the list of preferred genre identifiers (optional).
             </summary>
-            <example>+33 6 12 34 56 78</example>
+            <example>[1, 3, 7]</example>
         </member>
         <member name="T:BackendBiblioMate.DTOs.RequestPasswordResetDto">
             <summary>
@@ -2658,7 +2702,7 @@
         <member name="T:BackendBiblioMate.DTOs.UserReadDto">
             <summary>
             DTO returned when retrieving user account information.
-            Contains identifier, personal details, and assigned role.
+            Contains identifier, personal details, assigned role, and profile data.
             </summary>
         </member>
         <member name="P:BackendBiblioMate.DTOs.UserReadDto.UserId">
@@ -2667,11 +2711,17 @@
             </summary>
             <example>7</example>
         </member>
-        <member name="P:BackendBiblioMate.DTOs.UserReadDto.Name">
+        <member name="P:BackendBiblioMate.DTOs.UserReadDto.FirstName">
             <summary>
-            Gets the full name of the user.
+            Gets the given name of the user.
             </summary>
-            <example>Jane Doe</example>
+            <example>Jane</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.UserReadDto.LastName">
+            <summary>
+            Gets the family name of the user.
+            </summary>
+            <example>Doe</example>
         </member>
         <member name="P:BackendBiblioMate.DTOs.UserReadDto.Email">
             <summary>
@@ -2687,6 +2737,42 @@
             Possible values: User, Librarian, Admin.
             </remarks>
             <example>User</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.UserReadDto.Address1">
+            <summary>
+            Gets the primary address line of the user.
+            </summary>
+            <example>123 Main St</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.UserReadDto.Address2">
+            <summary>
+            Gets the secondary address line of the user, if any.
+            </summary>
+            <example>Apartment 4B</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.UserReadDto.Phone">
+            <summary>
+            Gets the phone number of the user.
+            </summary>
+            <example>+33 6 12 34 56 78</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.UserReadDto.DateOfBirth">
+            <summary>
+            Gets the date of birth of the user, if provided.
+            </summary>
+            <example>1995-04-21</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.UserReadDto.ProfileImagePath">
+            <summary>
+            Gets the profile image path or URL of the user, if provided.
+            </summary>
+            <example>https://cdn.example.com/u/42/profile.png</example>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.UserReadDto.FavoriteGenreIds">
+            <summary>
+            Gets the list of preferred genre identifiers for the user.
+            </summary>
+            <example>[1, 3, 7]</example>
         </member>
         <member name="T:BackendBiblioMate.DTOs.UserRoleUpdateDto">
             <summary>
@@ -4415,6 +4501,18 @@
         <member name="M:BackendBiblioMate.Migrations.AddBookDescriptionToBook.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:BackendBiblioMate.Migrations.UpdateUserEntity">
+            <inheritdoc />
+        </member>
+        <member name="M:BackendBiblioMate.Migrations.UpdateUserEntity.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:BackendBiblioMate.Migrations.UpdateUserEntity.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:BackendBiblioMate.Migrations.UpdateUserEntity.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="T:BackendBiblioMate.Models.Author">
             <summary>
             Represents an author of a book in the system.
@@ -5236,9 +5334,14 @@
             Gets the primary key of the user.
             </summary>
         </member>
-        <member name="P:BackendBiblioMate.Models.User.Name">
+        <member name="P:BackendBiblioMate.Models.User.FirstName">
             <summary>
-            Gets or sets the full name of the user.
+            Gets or sets the given name of the user.
+            </summary>
+        </member>
+        <member name="P:BackendBiblioMate.Models.User.LastName">
+            <summary>
+            Gets or sets the family name of the user.
             </summary>
         </member>
         <member name="P:BackendBiblioMate.Models.User.Email">
@@ -5251,14 +5354,29 @@
             Gets or sets the hashed password for authentication.
             </summary>
         </member>
-        <member name="P:BackendBiblioMate.Models.User.Address">
+        <member name="P:BackendBiblioMate.Models.User.Address1">
             <summary>
-            Gets or sets the postal address of the user.
+            Gets or sets the primary postal address of the user.
+            </summary>
+        </member>
+        <member name="P:BackendBiblioMate.Models.User.Address2">
+            <summary>
+            Gets or sets the secondary postal address of the user (optional).
             </summary>
         </member>
         <member name="P:BackendBiblioMate.Models.User.Phone">
             <summary>
             Gets or sets the phone number of the user.
+            </summary>
+        </member>
+        <member name="P:BackendBiblioMate.Models.User.DateOfBirth">
+            <summary>
+            Gets or sets the date of birth of the user (optional).
+            </summary>
+        </member>
+        <member name="P:BackendBiblioMate.Models.User.ProfileImagePath">
+            <summary>
+            Gets or sets the profile image path or URL of the user (optional).
             </summary>
         </member>
         <member name="P:BackendBiblioMate.Models.User.Role">
@@ -5291,6 +5409,11 @@
             Gets a value indicating whether the user account has been approved by an administrator.
             </summary>
         </member>
+        <member name="P:BackendBiblioMate.Models.User.SecurityStamp">
+            <summary>
+            Gets or sets the security stamp used to invalidate existing tokens on critical changes.
+            </summary>
+        </member>
         <member name="P:BackendBiblioMate.Models.User.Loans">
             <summary>
             Gets the collection of loan records associated with the user.
@@ -5319,11 +5442,6 @@
         <member name="P:BackendBiblioMate.Models.User.UserGenres">
             <summary>
             Gets the preferred genres of the user for personalized recommendations.
-            </summary>
-        </member>
-        <member name="P:BackendBiblioMate.Models.User.SecurityStamp">
-            <summary>
-            Gets or sets the security stamp used to invalidate existing tokens on critical changes.
             </summary>
         </member>
         <member name="T:BackendBiblioMate.Models.UserGenre">
@@ -6589,9 +6707,7 @@
             </summary>
             <param name="dto">Registration data.</param>
             <param name="cancellationToken">Token to monitor cancellation.</param>
-            <returns>
-            Tuple of (success flag, <see cref="T:Microsoft.AspNetCore.Mvc.IActionResult"/>).
-            </returns>
+            <returns>Tuple of (success flag, <see cref="T:Microsoft.AspNetCore.Mvc.IActionResult"/>).</returns>
         </member>
         <member name="M:BackendBiblioMate.Services.Users.AuthService.LoginAsync(BackendBiblioMate.DTOs.LoginDto,System.Threading.CancellationToken)">
             <summary>
@@ -6599,56 +6715,24 @@
             </summary>
             <param name="dto">Login credentials.</param>
             <param name="cancellationToken">Token to monitor cancellation.</param>
-            <returns>
-            Tuple of (success flag, <see cref="T:Microsoft.AspNetCore.Mvc.IActionResult"/> containing token or error).
-            </returns>
+            <returns>Tuple of (success flag, <see cref="T:Microsoft.AspNetCore.Mvc.IActionResult"/> containing token or error).</returns>
         </member>
         <member name="M:BackendBiblioMate.Services.Users.AuthService.ConfirmEmailAsync(System.String,System.Threading.CancellationToken)">
-            <summary>
-            Confirms a user's email using the provided token.
-            </summary>
-            <param name="token">Email confirmation token.</param>
-            <param name="cancellationToken">Token to monitor cancellation.</param>
-            <returns>
-            Tuple of (success flag, <see cref="T:Microsoft.AspNetCore.Mvc.IActionResult"/>).
-            </returns>
+            <summary>Confirms a user's email using the provided token.</summary>
         </member>
         <member name="M:BackendBiblioMate.Services.Users.AuthService.RequestPasswordResetAsync(System.String,System.Threading.CancellationToken)">
-            <summary>
-            Generates and emails a password reset token if the email exists.
-            </summary>
-            <param name="email">User's email address.</param>
-            <param name="cancellationToken">Token to monitor cancellation.</param>
-            <returns>
-            Tuple of (success flag, <see cref="T:Microsoft.AspNetCore.Mvc.IActionResult"/>).
-            </returns>
+            <summary>Generates and emails a password reset token if the email exists.</summary>
         </member>
         <member name="M:BackendBiblioMate.Services.Users.AuthService.ResetPasswordAsync(BackendBiblioMate.DTOs.ResetPasswordDto,System.Threading.CancellationToken)">
-            <summary>
-            Resets a user's password using a valid reset token.
-            </summary>
-            <param name="dto">Password reset data containing token and new password.</param>
-            <param name="cancellationToken">Token to monitor cancellation.</param>
-            <returns>
-            Tuple of (success flag, <see cref="T:Microsoft.AspNetCore.Mvc.IActionResult"/>).
-            </returns>
+            <summary>Resets a user's password using a valid reset token.</summary>
         </member>
         <member name="M:BackendBiblioMate.Services.Users.AuthService.ApproveUserAsync(System.Int32,System.Threading.CancellationToken)">
-            <summary>
-            Approves a pending user account.
-            </summary>
-            <param name="userId">Identifier of the user to approve.</param>
-            <param name="cancellationToken">Token to monitor cancellation.</param>
-            <returns>
-            Tuple of (success flag, <see cref="T:Microsoft.AspNetCore.Mvc.IActionResult"/>).
-            </returns>
+            <summary>Approves a pending user account.</summary>
         </member>
         <member name="M:BackendBiblioMate.Services.Users.AuthService.GenerateJwtToken(BackendBiblioMate.Models.User)">
             <summary>
             Generates a JWT token for the authenticated user.
             </summary>
-            <param name="user">Authenticated user entity.</param>
-            <returns>JWT token string.</returns>
         </member>
         <member name="T:BackendBiblioMate.Services.Users.HistoryService">
             <summary>

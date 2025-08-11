@@ -141,14 +141,19 @@ namespace BackendBiblioMate.Data
             });
 
             // 7) Encrypt sensitive User fields
-            var encryptionConverter = CreateEncryptionConverter();
+            var encString        = CreateEncryptionConverter();
+            var encNullableString = CreateNullableEncryptionConverter();
+
             modelBuilder.Entity<User>(entity =>
             {
-                entity.Property(u => u.Address)
-                      .HasConversion(encryptionConverter);
+                entity.Property(u => u.Address1)
+                      .HasConversion(encString);
+
+                entity.Property(u => u.Address2)
+                      .HasConversion(encNullableString);
 
                 entity.Property(u => u.Phone)
-                      .HasConversion(encryptionConverter);
+                      .HasConversion(encString);
             });
 
             base.OnModelCreating(modelBuilder);
@@ -193,13 +198,22 @@ namespace BackendBiblioMate.Data
         }
 
         /// <summary>
-        /// Builds a value converter that encrypts/decrypts string properties.
+        /// Builds a value converter that encrypts/decrypts non-null string properties.
         /// </summary>
         private ValueConverter<string, string> CreateEncryptionConverter()
             => new ValueConverter<string, string>(
-                   plain => _encryptionService.Encrypt(plain),
-                   cipher => _encryptionService.Decrypt(cipher)
-               );
+                v => _encryptionService.Encrypt(v),
+                v => _encryptionService.Decrypt(v)
+            );
+
+        /// <summary>
+        /// Builds a value converter that encrypts/decrypts nullable string properties.
+        /// </summary>
+        private ValueConverter<string?, string?> CreateNullableEncryptionConverter()
+            => new ValueConverter<string?, string?>(
+                v => v == null ? null : _encryptionService.Encrypt(v),
+                v => v == null ? null : _encryptionService.Decrypt(v)
+            );
 
         #endregion
     }

@@ -201,7 +201,7 @@ namespace BackendBiblioMate.Services.Reports
         {
             ReportId      = r.ReportId,
             UserId        = r.UserId,
-            UserName      = r.User.Name,
+            UserName      = r.User != null ? $"{r.User.FirstName} {r.User.LastName}".Trim() : string.Empty,
             Title         = r.Title,
             Content       = r.Content,
             GeneratedDate = r.GeneratedDate

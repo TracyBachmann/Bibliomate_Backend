@@ -216,7 +216,8 @@ namespace BackendBiblioMate.Controllers
         {
             NotificationId = n.NotificationId,
             UserId         = n.UserId,
-            UserName       = n.User.Name,
+            // Combine FirstName + LastName; Trim() avoids trailing space if one part is empty.
+            UserName       = n.User != null ? $"{n.User.FirstName} {n.User.LastName}".Trim() : string.Empty,
             Title          = n.Title,
             Message        = n.Message,
             Timestamp      = n.Timestamp
