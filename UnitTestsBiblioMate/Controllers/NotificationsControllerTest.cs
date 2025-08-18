@@ -25,7 +25,7 @@ namespace UnitTestsBiblioMate.Controllers
         private readonly Mock<INotificationLogService> _logMock;
         private readonly NotificationsController _controller;
 
-        private const int NormalUserId = 1;
+        private const int NormalUserId    = 1;
         private const int LibrarianUserId = 2;
 
         /// <summary>
@@ -52,10 +52,10 @@ namespace UnitTestsBiblioMate.Controllers
 
             _context = new BiblioMateDbContext(options, encryptionService);
 
-            // Seed users
+            // Seed users (✅ FirstName / LastName instead of deprecated Name)
             _context.Users.AddRange(
-                new User { UserId = NormalUserId, Name = "User1" },
-                new User { UserId = LibrarianUserId, Name = "Lib1" }
+                new User { UserId = NormalUserId,    FirstName = "User1", LastName = string.Empty },
+                new User { UserId = LibrarianUserId, FirstName = "Lib1",  LastName = string.Empty }
             );
 
             // Seed notifications
@@ -63,18 +63,18 @@ namespace UnitTestsBiblioMate.Controllers
                 new Notification
                 {
                     NotificationId = 10,
-                    UserId = NormalUserId,
-                    Title = "N1",
-                    Message = "Msg1",
-                    User = _context.Users.Find(NormalUserId)!
+                    UserId         = NormalUserId,
+                    Title          = "N1",
+                    Message        = "Msg1",
+                    User           = _context.Users.Find(NormalUserId)!
                 },
                 new Notification
                 {
                     NotificationId = 20,
-                    UserId = LibrarianUserId,
-                    Title = "N2",
-                    Message = "Msg2",
-                    User = _context.Users.Find(LibrarianUserId)!
+                    UserId         = LibrarianUserId,
+                    Title          = "N2",
+                    Message        = "Msg2",
+                    User           = _context.Users.Find(LibrarianUserId)!
                 }
             );
             _context.SaveChanges();

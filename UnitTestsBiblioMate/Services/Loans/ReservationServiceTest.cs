@@ -53,8 +53,8 @@ namespace UnitTestsBiblioMate.Services.Loans
         [Fact]
         public async Task GetAllAsync_ShouldReturnAll()
         {
-            var user = new User  { Name = "Alice" };
-            var book = new Book  { Title = "Book A" };
+            var user = MakeUser("Alice", "A", "alice@example.com");
+            var book = new Book { Title = "Book A" };
             _db.Users.Add(user);
             _db.Books.Add(book);
             await _db.SaveChangesAsync();
@@ -89,8 +89,8 @@ namespace UnitTestsBiblioMate.Services.Loans
         [Fact]
         public async Task GetByUserAsync_ShouldFilterByUserAndStatus()
         {
-            var u1   = new User { Name = "Bob" };
-            var u2   = new User { Name = "Carol" };
+            var u1   = MakeUser("Bob", "B", "bob@example.com");
+            var u2   = MakeUser("Carol", "C", "carol@example.com");
             var book = new Book { Title = "Book B" };
             _db.Users.AddRange(u1, u2);
             _db.Books.Add(book);
@@ -117,7 +117,7 @@ namespace UnitTestsBiblioMate.Services.Loans
         [Fact]
         public async Task GetPendingForBookAsync_ShouldReturnOnlyPending()
         {
-            var user  = new User { Name = "Dan" };
+            var user  = MakeUser("Dan", "D", "dan@example.com");
             var b1    = new Book { Title = "Book C" };
             var b2    = new Book { Title = "Book D" };
             _db.Users.Add(user);
@@ -154,7 +154,7 @@ namespace UnitTestsBiblioMate.Services.Loans
         [Fact]
         public async Task GetByIdAsync_ShouldReturnDto_WhenExists()
         {
-            var u    = new User { Name = "Eve" };
+            var u    = MakeUser("Eve", "E", "eve@example.com");
             var book = new Book { Title = "Book E" };
             _db.Users.Add(u);
             _db.Books.Add(book);
@@ -173,7 +173,7 @@ namespace UnitTestsBiblioMate.Services.Loans
 
             var dto = await _service.GetByIdAsync(res.ReservationId);
             Assert.NotNull(dto);
-            Assert.Equal(u.UserId,   dto.UserId);
+            Assert.Equal(u.UserId,    dto!.UserId);
             Assert.Equal(book.BookId, dto.BookId);
         }
 
@@ -183,12 +183,13 @@ namespace UnitTestsBiblioMate.Services.Loans
         [Fact]
         public async Task CreateAsync_ShouldCreateAndReturnDto()
         {
-            var u    = new User { Name = "Frank" };
+            var u    = MakeUser("Frank", "F", "frank@example.com");
             var book = new Book { Title = "Book F" };
             _db.Users.Add(u);
             _db.Books.Add(book);
+            await _db.SaveChangesAsync(); // obtenir BookId
 
-            // Ensure at least one stock exists
+            // Ensure at least one stock exists (après SaveChanges pour avoir le bon FK)
             _db.Stocks.Add(new Stock { BookId = book.BookId, Quantity = 1 });
             await _db.SaveChangesAsync();
 
@@ -218,10 +219,12 @@ namespace UnitTestsBiblioMate.Services.Loans
         [Fact]
         public async Task CreateAsync_ShouldThrowInvalidOperation_WhenDuplicate()
         {
-            var u    = new User { Name = "Gina" };
+            var u    = MakeUser("Gina", "G", "gina@example.com");
             var book = new Book { Title = "Book G" };
             _db.Users.Add(u);
             _db.Books.Add(book);
+            await _db.SaveChangesAsync();
+
             _db.Reservations.Add(new Reservation
             {
                 UserId          = u.UserId,
@@ -244,7 +247,7 @@ namespace UnitTestsBiblioMate.Services.Loans
         [Fact]
         public async Task CreateAsync_ShouldThrowInvalidOperation_WhenNoStock()
         {
-            var u    = new User { Name = "Hank" };
+            var u    = MakeUser("Hank", "H", "hank@example.com");
             var book = new Book { Title = "Book H" };
             _db.Users.Add(u);
             _db.Books.Add(book);
@@ -341,7 +344,7 @@ namespace UnitTestsBiblioMate.Services.Loans
             Assert.False(ok);
         }
 
-        // Dummy stub implementations for dependencies
+        // ------------ Dummy stubs ------------
         private class DummyHistoryService : IHistoryService
         {
             public Task LogEventAsync(
@@ -372,5 +375,20 @@ namespace UnitTestsBiblioMate.Services.Loans
                 CancellationToken cancellationToken = default)
                 => Task.FromResult(new List<UserActivityLogDocument>());
         }
+
+        // ------------ helpers ------------
+        private static User MakeUser(string first, string last, string email) => new User
+        {
+            FirstName = first,
+            LastName  = last,
+            Email     = email,
+            Password  = "hashed",
+            Address1  = "1 Test Street",
+            Phone     = "0600000000",
+            Role      = UserRoles.User,
+            IsEmailConfirmed = true,
+            IsApproved       = true,
+            SecurityStamp    = Guid.NewGuid().ToString()
+        };
     }
 }
