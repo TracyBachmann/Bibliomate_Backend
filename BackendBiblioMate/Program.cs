@@ -1,8 +1,10 @@
 using System.Reflection;
 using System.Security.Claims;
 using System.Text;
+using AspNetCoreRateLimit;
 using BackendBiblioMate.Configuration;
 using BackendBiblioMate.Data;
+using BackendBiblioMate.Helpers;
 using BackendBiblioMate.Hubs;
 using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Middlewares;
@@ -16,76 +18,64 @@ using BackendBiblioMate.Services.Notifications;
 using BackendBiblioMate.Services.Recommendations;
 using BackendBiblioMate.Services.Reports;
 using BackendBiblioMate.Services.Users;
-using BackendBiblioMate.Helpers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Mvc.Versioning;
-using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
 using Prometheus;
-using AspNetCoreRateLimit;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configuration CORS améliorée
+// ---------------- CORS ----------------
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Default", policy =>
-        policy
-            .WithOrigins(
-                "http://localhost:4200", 
-                "https://localhost:4200",
-                "http://localhost:5000",
-                "https://localhost:5001"
-            )
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials()
-    );
-    
-    // Politique pour le développement (plus permissive mais sans credentials)
-    options.AddPolicy("Development", policy =>
-        policy
-            .WithOrigins(
-                "http://localhost:4200", 
-                "https://localhost:4200",
-                "http://localhost:3000",
-                "http://localhost:5000",
-                "https://localhost:5001",
-                "https://localhost:7000",
-                "https://localhost:7001"
-            )
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials()
-    );
+    options.AddPolicy("Default", p => p
+        .WithOrigins(
+            "http://localhost:4200",
+            "https://localhost:4200"
+        )
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials());
+
+    options.AddPolicy("Development", p => p
+        .WithOrigins(
+            "http://localhost:4200",
+            "https://localhost:4200"
+        )
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials());
 });
 
-builder.Services.AddApiVersioning(opts =>
+// ---------------- API versioning ----------------
+builder.Services.AddApiVersioning(o =>
 {
-    opts.AssumeDefaultVersionWhenUnspecified = true;
-    opts.DefaultApiVersion = new ApiVersion(1, 0);
-    opts.ReportApiVersions = true;
-    opts.ApiVersionReader = ApiVersionReader.Combine(
+    o.AssumeDefaultVersionWhenUnspecified = true;
+    o.DefaultApiVersion = new ApiVersion(1, 0);
+    o.ReportApiVersions = true;
+    o.ApiVersionReader = ApiVersionReader.Combine(
         new QueryStringApiVersionReader("api-version"),
         new HeaderApiVersionReader("X-API-Version"),
         new UrlSegmentApiVersionReader()
     );
 });
-builder.Services.AddVersionedApiExplorer(opts =>
+builder.Services.AddVersionedApiExplorer(o =>
 {
-    opts.GroupNameFormat = "'v'VVV";
-    opts.SubstituteApiVersionInUrl = true;
+    o.GroupNameFormat = "'v'VVV";
+    o.SubstituteApiVersionInUrl = true;
 });
 
+// ---------------- Rate limiting / cache ----------------
 builder.Services.AddMemoryCache();
 builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
 builder.Services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
@@ -93,9 +83,11 @@ builder.Services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounte
 builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 builder.Services.AddSingleton<IProcessingStrategy, AsyncKeyLockProcessingStrategy>();
 
+// ---------------- EF Core ----------------
 builder.Services.AddDbContext<BiblioMateDbContext>(o =>
     o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// ---------------- Controllers & JSON ----------------
 builder.Services
     .AddControllers(o =>
     {
@@ -111,13 +103,13 @@ builder.Services
     })
     .ConfigureApiBehaviorOptions(opts =>
     {
-        opts.InvalidModelStateResponseFactory = (ActionContext ctx) =>
+        opts.InvalidModelStateResponseFactory = ctx =>
         {
             var errors = ctx.ModelState
-                .Where(kv => kv.Value!.Errors.Count > 0)
+                .Where(x => x.Value!.Errors.Count > 0)
                 .ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray()
+                    kv => kv.Key,
+                    kv => kv.Value!.Errors.Select(e => e.ErrorMessage).ToArray()
                 );
             var result = new BadRequestObjectResult(new { error = "ValidationError", details = errors });
             result.ContentTypes.Add("application/json");
@@ -125,18 +117,21 @@ builder.Services
         };
     });
 
+// ---------------- HealthChecks ----------------
+// IMPORTANT : pour Mongo, on lit la section, PAS GetConnectionString.
 builder.Services
     .AddHealthChecks()
     .AddDbContextCheck<BiblioMateDbContext>(name: "sqlserver", tags: new[] { "db", "sql" })
     .AddSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection")!,
+        connectionString: builder.Configuration.GetConnectionString("DefaultConnection")!,
         name: "sqlserver-raw",
         tags: new[] { "db", "sql" })
     .AddMongoDb(
-        mongodbConnectionString: builder.Configuration.GetConnectionString("MongoDb")!,
+        mongodbConnectionString: builder.Configuration["MongoDb:ConnectionString"]!, // ✅ fix
         name: "mongodb",
         tags: new[] { "db", "mongo" });
 
+// ---------------- JWT ----------------
 var jwt = builder.Configuration.GetSection("Jwt");
 var key = Encoding.UTF8.GetBytes(jwt["Key"]!);
 
@@ -147,14 +142,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         o.SaveToken = true;
         o.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuer           = true,
-            ValidateAudience         = true,
-            ValidateLifetime         = true,
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer              = jwt["Issuer"],
-            ValidAudience            = jwt["Audience"],
-            IssuerSigningKey         = new SymmetricSecurityKey(key),
-            RoleClaimType            = ClaimTypes.Role
+            ValidIssuer = jwt["Issuer"],
+            ValidAudience = jwt["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(key),
+            RoleClaimType = ClaimTypes.Role
         };
         o.Events = new JwtBearerEvents
         {
@@ -169,24 +164,25 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             },
             OnTokenValidated = async ctx =>
             {
-                var db     = ctx.HttpContext.RequestServices.GetRequiredService<BiblioMateDbContext>();
+                var db = ctx.HttpContext.RequestServices.GetRequiredService<BiblioMateDbContext>();
                 var userId = int.Parse(ctx.Principal!.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-                var stamp  = ctx.Principal.FindFirst("stamp")?.Value;
-                var user   = await db.Users.FindAsync(userId);
+                var stamp = ctx.Principal.FindFirst("stamp")?.Value;
+                var user = await db.Users.FindAsync(userId);
                 if (user == null || user.SecurityStamp != stamp)
                     ctx.Fail("Invalid token: security stamp mismatch.");
             }
         };
     });
 
-builder.Services.Configure<MongoSettings>(
-    builder.Configuration.GetSection("MongoDb"));
+// ---------------- Mongo client (logs) ----------------
+builder.Services.Configure<MongoSettings>(builder.Configuration.GetSection("MongoDb"));
 builder.Services.AddSingleton<IMongoClient>(sp =>
 {
     var s = sp.GetRequiredService<IOptions<MongoSettings>>().Value;
     return new MongoClient(s.ConnectionString);
 });
 
+// ---------------- DI Services (inchangé) ----------------
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IUserService, UserService>();
@@ -207,19 +203,17 @@ builder.Services.AddScoped<ISearchActivityLogService, SearchActivityLogService>(
 builder.Services.AddScoped<IShelfService, ShelfService>();
 builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IZoneService, ZoneService>();
-
 builder.Services.AddScoped<INotificationLogCollection, NotificationLogCollection>();
 builder.Services.AddScoped<IMongoLogService, MongoLogService>();
 builder.Services.AddScoped<NotificationService>();
-
 builder.Services.AddSingleton<EncryptionService>();
 builder.Services.AddHttpClient<IGoogleBooksService, GoogleBooksService>();
 builder.Services.AddScoped<IEmailService, SendGridEmailService>();
-
 builder.Services.AddScoped<IReservationCleanupService, ReservationCleanupService>();
 builder.Services.AddScoped<LoanReminderService>();
 builder.Services.AddHostedService<LoanReminderBackgroundService>();
 
+// ---------------- Swagger ----------------
 builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -229,7 +223,11 @@ builder.Services
     {
         foreach (var desc in provider.ApiVersionDescriptions)
         {
-            options.SwaggerDoc(desc.GroupName, new OpenApiInfo { Title = $"BiblioMate API {desc.ApiVersion}", Version = desc.GroupName });
+            options.SwaggerDoc(desc.GroupName, new OpenApiInfo
+            {
+                Title = $"BiblioMate API {desc.ApiVersion}",
+                Version = desc.GroupName
+            });
         }
         options.DocInclusionPredicate((docName, apiDesc) =>
         {
@@ -244,9 +242,9 @@ builder.Services
         options.EnableAnnotations();
         options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
         {
-            Description  = "JWT Authorization header using the Bearer scheme.",
-            Type         = SecuritySchemeType.Http,
-            Scheme       = "bearer",
+            Description = "JWT Authorization header using the Bearer scheme.",
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
             BearerFormat = "JWT"
         });
         options.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -261,27 +259,29 @@ builder.Services
 var app = builder.Build();
 
 var apiVersions = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
-
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         foreach (var desc in apiVersions.ApiVersionDescriptions)
-        {
             c.SwaggerEndpoint($"/swagger/{desc.GroupName}/swagger.json", $"BiblioMate API {desc.ApiVersion}");
-        }
         c.RoutePrefix = "swagger";
     });
     app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 }
 
-app.UseHsts();
+// ---------------- HTTPS/HSTS seulement en prod ----------------
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
 
-// Gestion des requêtes OPTIONS et CORS en premier
+// ---------------- Preflight OPTIONS ----------------
 app.Use(async (ctx, next) =>
 {
-    if (ctx.Request.Method == HttpMethods.Options)
+    if (HttpMethods.IsOptions(ctx.Request.Method))
     {
         ctx.Response.StatusCode = StatusCodes.Status204NoContent;
         return;
@@ -289,35 +289,22 @@ app.Use(async (ctx, next) =>
     await next();
 });
 
-// CORS doit être placé très tôt dans le pipeline
-if (app.Environment.IsDevelopment())
-{
-    app.UseCors("Development");
-}
-else
-{
-    app.UseCors("Default");
-}
+// ---------------- CORS ----------------
+app.UseCors(app.Environment.IsDevelopment() ? "Development" : "Default");
 
-// Headers de sécurité
+// ---------------- Security headers (light) ----------------
 app.Use(async (ctx, next) =>
 {
     ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
     ctx.Response.Headers["X-Frame-Options"] = "DENY";
     ctx.Response.Headers["Referrer-Policy"] = "no-referrer";
-    // Commenté temporairement pour tester
-    // ctx.Response.Headers["Content-Security-Policy"] = "default-src 'self'";
     await next();
 });
 
-// Middleware de débogage pour les requêtes (optionnel, à retirer en production)
+// ---------------- (optionnel) log requêtes ----------------
 app.Use(async (ctx, next) =>
 {
     Console.WriteLine($"Request: {ctx.Request.Method} {ctx.Request.Path}");
-    Console.WriteLine($"Origin: {ctx.Request.Headers.Origin}");
-    Console.WriteLine($"User-Agent: {ctx.Request.Headers.UserAgent}");
-    Console.WriteLine($"Referer: {ctx.Request.Headers.Referer}");
-    Console.WriteLine("---");
     await next();
 });
 
@@ -326,22 +313,13 @@ app.UseIpRateLimiting();
 app.UseMetricServer();
 app.UseHttpMetrics();
 
-app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-app.MapGet("/api/notifications/logs/user/{userId}",
-    [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
-    async (int userId, INotificationLogService logService, CancellationToken ct) =>
-    {
-        var logs = await logService.GetByUserAsync(userId, ct);
-        return Results.Ok(logs);
-    })
-   .ExcludeFromDescription();
-
+// ---------------- Health ----------------
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     ResponseWriter = async (ctx, report) =>
@@ -350,16 +328,16 @@ app.MapHealthChecks("/health", new HealthCheckOptions
         var result = new
         {
             status = report.Status.ToString(),
-            checks = report.Entries.Select(e => new {
-                name     = e.Key,
-                status   = e.Value.Status.ToString(),
-                error    = e.Value.Exception?.Message,
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                error = e.Value.Exception?.Message,
                 duration = e.Value.Duration.ToString()
             })
         };
         await ctx.Response.WriteAsJsonAsync(result);
     }
-})
-.AllowAnonymous();
+}).AllowAnonymous();
 
 app.Run();
