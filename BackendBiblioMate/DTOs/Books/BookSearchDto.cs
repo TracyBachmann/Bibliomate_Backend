@@ -81,5 +81,15 @@ namespace BackendBiblioMate.DTOs
         /// </remarks>
         [MinLength(1, ErrorMessage = "If specified, TagIds must contain at least one element.")]
         public IList<int> TagIds { get; init; } = new List<int>();
+
+        /// <summary>
+        /// Gets the partial or full description text to filter by.
+        /// </summary>
+        /// <remarks>
+        /// Allows searching within the description.
+        /// </remarks>
+        /// <example>epic tale</example>
+        [MaxLength(4000, ErrorMessage = "Description filter cannot exceed 4000 characters.")]
+        public string? Description { get; init; }
     }
 }

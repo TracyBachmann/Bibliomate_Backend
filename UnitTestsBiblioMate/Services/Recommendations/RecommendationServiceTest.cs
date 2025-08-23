@@ -24,7 +24,6 @@ namespace UnitTestsBiblioMate.Services.Recommendations
         {
             _output = output;
 
-            // In-memory EF Core database with encryption
             var options = new DbContextOptionsBuilder<BiblioMateDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
@@ -42,34 +41,25 @@ namespace UnitTestsBiblioMate.Services.Recommendations
             _service = new RecommendationService(_db);
         }
 
-        /// <summary>
-        /// When the user has genre preferences,
-        /// only books in those genres should be returned,
-        /// with null CoverUrl mapped to empty string.
-        /// </summary>
         [Fact]
         public async Task GetRecommendationsForUserAsync_ShouldReturnMatchingBooks()
         {
             _output.WriteLine("=== GetRecommendationsForUserAsync (matching) ===");
 
-            // Seed genres
             var fantasy = new Genre { Name = "Fantasy" };
             var scifi   = new Genre { Name = "Sci-Fi" };
             _db.Genres.AddRange(fantasy, scifi);
             await _db.SaveChangesAsync();
 
-            // User 1 prefers Fantasy
             const int userId = 1;
-            _db.Users.Add(new User { UserId = userId, Name = "Alice" });
+            _db.Users.Add(new User { UserId = userId, FirstName = "Alice", LastName = "Smith" });
             _db.UserGenres.Add(new UserGenre { UserId = userId, GenreId = fantasy.GenreId });
 
-            // Seed authors
             var tolkien = new Author { Name = "Tolkien" };
             var asimov  = new Author { Name = "Asimov" };
             _db.Authors.AddRange(tolkien, asimov);
             await _db.SaveChangesAsync();
 
-            // Seed books: two fantasy, one sci-fi
             _db.Books.Add(new Book
             {
                 BookId   = 1,
@@ -96,10 +86,8 @@ namespace UnitTestsBiblioMate.Services.Recommendations
             });
             await _db.SaveChangesAsync();
 
-            // Act
             var result = await _service.GetRecommendationsForUserAsync(userId);
 
-            // Assert exactly the two fantasy books
             Assert.Equal(2, result.Count);
             Assert.Contains(result, r =>
                 r.BookId   == 1 &&
@@ -117,21 +105,15 @@ namespace UnitTestsBiblioMate.Services.Recommendations
             );
         }
 
-        /// <summary>
-        /// When the user has no preferences,
-        /// the result should be empty.
-        /// </summary>
         [Fact]
         public async Task GetRecommendationsForUserAsync_ShouldReturnEmpty_WhenNoPreferences()
         {
             _output.WriteLine("=== GetRecommendationsForUserAsync (no prefs) ===");
 
-            // User with no genre preferences
             const int userId = 42;
-            _db.Users.Add(new User { UserId = userId, Name = "Bob" });
+            _db.Users.Add(new User { UserId = userId, FirstName = "Bob", LastName = "Johnson" });
             await _db.SaveChangesAsync();
 
-            // Seed one book in some other genre
             var mystery = new Genre { Name = "Mystery" };
             _db.Genres.Add(mystery);
             await _db.SaveChangesAsync();
@@ -150,36 +132,27 @@ namespace UnitTestsBiblioMate.Services.Recommendations
             });
             await _db.SaveChangesAsync();
 
-            // Act
             var result = await _service.GetRecommendationsForUserAsync(userId);
 
-            // Assert
             Assert.Empty(result);
         }
 
-        /// <summary>
-        /// When more than 10 matching books exist,
-        /// only the first 10 (ordered by Title ascending) are returned.
-        /// </summary>
         [Fact]
         public async Task GetRecommendationsForUserAsync_ShouldLimitTo10Items()
         {
             _output.WriteLine("=== GetRecommendationsForUserAsync (limit 10) ===");
 
-            // User 5 prefers GenreX
             const int userId = 5;
             var genre = new Genre { Name = "GenreX" };
             _db.Genres.Add(genre);
-            _db.Users.Add(new User { UserId = userId, Name = "Carol" });
+            _db.Users.Add(new User { UserId = userId, FirstName = "Carol", LastName = "Lee" });
             _db.UserGenres.Add(new UserGenre { UserId = userId, GenreId = genre.GenreId });
             await _db.SaveChangesAsync();
 
-            // Seed author
             var author = new Author { Name = "AuthorX" };
             _db.Authors.Add(author);
             await _db.SaveChangesAsync();
 
-            // Add 15 books all in that genre, titles Book1..Book15
             for (int i = 1; i <= 15; i++)
             {
                 _db.Books.Add(new Book
@@ -193,10 +166,8 @@ namespace UnitTestsBiblioMate.Services.Recommendations
             }
             await _db.SaveChangesAsync();
 
-            // Act
             var result = await _service.GetRecommendationsForUserAsync(userId);
 
-            // Assert only 10 items, sorted by Title ascending
             Assert.Equal(10, result.Count);
             Assert.Equal("Book1",  result[0].Title);
             Assert.Equal("Book10", result[9].Title);

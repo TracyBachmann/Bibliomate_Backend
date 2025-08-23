@@ -8,12 +8,12 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 COPY . .
-RUN dotnet restore "./backend.csproj"
-RUN dotnet build "./backend.csproj" -c Release -o /app/build
+RUN dotnet restore "./BackendBiblioMate.csproj"
+RUN dotnet build "./BackendBiblioMate.csproj" -c Release -o /app/build
 
 # ---------------- PUBLISH ----------------
 FROM build AS publish
-RUN dotnet publish "./backend.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "./BackendBiblioMate.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 # ---------------- FINAL ----------------
 FROM base AS final
@@ -23,4 +23,4 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "backend.dll"]
+ENTRYPOINT ["dotnet", "BackendBiblioMate.dll"]

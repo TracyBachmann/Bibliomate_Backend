@@ -16,11 +16,18 @@ namespace BackendBiblioMate.Models
         public int UserId { get; init; }
 
         /// <summary>
-        /// Gets or sets the full name of the user.
+        /// Gets or sets the given name of the user.
         /// </summary>
-        [Required(ErrorMessage = "Name is required.")]
-        [StringLength(100, MinimumLength = 2, ErrorMessage = "Name must be between 2 and 100 characters.")]
-        public string Name { get; set; } = string.Empty;
+        [Required(ErrorMessage = "First name is required.")]
+        [StringLength(60, MinimumLength = 2, ErrorMessage = "First name must be between 2 and 60 characters.")]
+        public string FirstName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the family name of the user.
+        /// </summary>
+        [Required(ErrorMessage = "Last name is required.")]
+        [StringLength(60, MinimumLength = 2, ErrorMessage = "Last name must be between 2 and 60 characters.")]
+        public string LastName { get; set; } = string.Empty;
 
         /// <summary>
         /// Gets or sets the email address, used for login and notifications.
@@ -38,11 +45,17 @@ namespace BackendBiblioMate.Models
         public string Password { get; set; } = string.Empty;
 
         /// <summary>
-        /// Gets or sets the postal address of the user.
+        /// Gets or sets the primary postal address of the user.
         /// </summary>
-        [Required(ErrorMessage = "Address is required.")]
-        [StringLength(200, ErrorMessage = "Address cannot exceed 200 characters.")]
-        public string Address { get; set; } = string.Empty;
+        [Required(ErrorMessage = "Primary address is required.")]
+        [StringLength(200, ErrorMessage = "Primary address cannot exceed 200 characters.")]
+        public string Address1 { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the secondary postal address of the user (optional).
+        /// </summary>
+        [StringLength(200, ErrorMessage = "Secondary address cannot exceed 200 characters.")]
+        public string? Address2 { get; set; }
 
         /// <summary>
         /// Gets or sets the phone number of the user.
@@ -50,6 +63,17 @@ namespace BackendBiblioMate.Models
         [Required(ErrorMessage = "Phone is required.")]
         [Phone(ErrorMessage = "Phone must be a valid phone number.")]
         public string Phone { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the date of birth of the user (optional).
+        /// </summary>
+        public DateTime? DateOfBirth { get; set; }
+
+        /// <summary>
+        /// Gets or sets the profile image path or URL of the user (optional).
+        /// </summary>
+        [StringLength(1000, ErrorMessage = "Profile image path cannot exceed 1000 characters.")]
+        public string? ProfileImagePath { get; set; }
 
         /// <summary>
         /// Gets or sets the role of the user (User, Librarian, Admin).
@@ -87,6 +111,13 @@ namespace BackendBiblioMate.Models
         public bool IsApproved { get; set; } = false;
 
         /// <summary>
+        /// Gets or sets the security stamp used to invalidate existing tokens on critical changes.
+        /// </summary>
+        [Required(ErrorMessage = "SecurityStamp is required.")]
+        [StringLength(1000, ErrorMessage = "SecurityStamp cannot exceed 1000 characters.")]
+        public string SecurityStamp { get; set; } = Guid.NewGuid().ToString();
+
+        /// <summary>
         /// Gets the collection of loan records associated with the user.
         /// </summary>
         public ICollection<Loan> Loans { get; init; } = new List<Loan>();
@@ -115,12 +146,5 @@ namespace BackendBiblioMate.Models
         /// Gets the preferred genres of the user for personalized recommendations.
         /// </summary>
         public ICollection<UserGenre> UserGenres { get; init; } = new List<UserGenre>();
-
-        /// <summary>
-        /// Gets or sets the security stamp used to invalidate existing tokens on critical changes.
-        /// </summary>
-        [Required(ErrorMessage = "SecurityStamp is required.")]
-        [StringLength(1000, ErrorMessage = "SecurityStamp cannot exceed 1000 characters.")]
-        public string SecurityStamp { get; set; } = Guid.NewGuid().ToString();
     }
 }

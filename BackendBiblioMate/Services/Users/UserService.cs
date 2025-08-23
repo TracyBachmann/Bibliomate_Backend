@@ -34,6 +34,7 @@ namespace BackendBiblioMate.Services.Users
         {
             var users = await _context.Users
                 .AsNoTracking()
+                .Include(u => u.UserGenres)
                 .ToListAsync(cancellationToken);
 
             return users.Select(MapToDto);
@@ -49,15 +50,12 @@ namespace BackendBiblioMate.Services.Users
         /// </returns>
         public async Task<UserReadDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
-            // FindAsync est disponible **directement** sur DbSet<T>
             var user = await _context.Users
-                .FindAsync(new object[]{ id }, cancellationToken)
-                .AsTask();            // FindAsync retourne une ValueTask<EntityEntry>, on convertit en Task<T>
-        
-            if (user == null)
-                return null;
+                .Include(u => u.UserGenres)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.UserId == id, cancellationToken);
 
-            return MapToDto(user);
+            return user is null ? null : MapToDto(user);
         }
 
         /// <summary>
@@ -70,12 +68,17 @@ namespace BackendBiblioMate.Services.Users
             UserCreateDto dto,
             CancellationToken cancellationToken = default)
         {
+            // UserCreateDto possède encore Name / Address : on convertit.
+            SplitName(dto.Name, out var first, out var last);
+
             var user = new User
             {
-                Name             = dto.Name,
+                FirstName        = first,
+                LastName         = last,
                 Email            = dto.Email,
                 Password         = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                Address          = dto.Address ?? string.Empty,
+                Address1         = dto.Address ?? string.Empty,
+                Address2         = null,
                 Phone            = dto.Phone ?? string.Empty,
                 Role             = dto.Role,
                 IsEmailConfirmed = true,
@@ -100,15 +103,17 @@ namespace BackendBiblioMate.Services.Users
             UserUpdateDto dto,
             CancellationToken cancellationToken = default)
         {
-            var user = await _context.Users
-                .FindAsync(new object[] { id }, cancellationToken);
+            var user = await _context.Users.FindAsync(new object[] { id }, cancellationToken);
             if (user is null) 
                 return false;
 
-            user.Name    = dto.Name;
-            user.Email   = dto.Email;
-            user.Address = dto.Address;
-            user.Phone   = dto.Phone;
+            SplitName(dto.Name, out var first, out var last);
+
+            user.FirstName = first;
+            user.LastName  = last;
+            user.Email     = dto.Email;
+            user.Address1  = dto.Address;
+            user.Phone     = dto.Phone;
 
             await _context.SaveChangesAsync(cancellationToken);
             return true;
@@ -132,8 +137,7 @@ namespace BackendBiblioMate.Services.Users
             if (!validRoles.Contains(dto.Role))
                 return false;
 
-            var user = await _context.Users
-                .FindAsync(new object[] { id }, cancellationToken);
+            var user = await _context.Users.FindAsync(new object[] { id }, cancellationToken);
             if (user is null)
                 return false;
 
@@ -152,8 +156,7 @@ namespace BackendBiblioMate.Services.Users
             int id,
             CancellationToken cancellationToken = default)
         {
-            var user = await _context.Users
-                .FindAsync(new object[] { id }, cancellationToken);
+            var user = await _context.Users.FindAsync(new object[] { id }, cancellationToken);
             if (user is null) 
                 return false;
 
@@ -184,10 +187,26 @@ namespace BackendBiblioMate.Services.Users
         /// </summary>
         private static UserReadDto MapToDto(User u) => new()
         {
-            UserId = u.UserId,
-            Name   = u.Name,
-            Email  = u.Email,
-            Role   = u.Role
+            UserId           = u.UserId,
+            FirstName        = u.FirstName,
+            LastName         = u.LastName,
+            Email            = u.Email,
+            Role             = u.Role,
+            Address1         = u.Address1,
+            Address2         = u.Address2,
+            Phone            = u.Phone,
+            DateOfBirth      = u.DateOfBirth,
+            ProfileImagePath = u.ProfileImagePath,
+            FavoriteGenreIds = u.UserGenres.Select(g => g.GenreId).ToArray()
         };
+
+        private static void SplitName(string fullName, out string first, out string last)
+        {
+            fullName = (fullName ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(fullName)) { first = string.Empty; last = string.Empty; return; }
+            var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            first = parts.Length > 0 ? parts[0] : string.Empty;
+            last  = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : string.Empty;
+        }
     }
 }

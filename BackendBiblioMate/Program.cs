@@ -16,6 +16,7 @@ using BackendBiblioMate.Services.Notifications;
 using BackendBiblioMate.Services.Recommendations;
 using BackendBiblioMate.Services.Reports;
 using BackendBiblioMate.Services.Users;
+using BackendBiblioMate.Helpers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -29,24 +30,45 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
 using Prometheus;
+using AspNetCoreRateLimit;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 var builder = WebApplication.CreateBuilder(args);
 
-#region CORS Configuration
-var allowedOrigins = builder.Configuration
-    .GetSection("Cors:AllowedOrigins")
-    .Get<string[]>() 
-    ?? new[] { "http://localhost:4200" };
-
+// Configuration CORS améliorée
 builder.Services.AddCors(options =>
-    options.AddPolicy("Default",
-        policy => policy.WithOrigins(allowedOrigins)
-                        .AllowAnyHeader()
-                        .AllowAnyMethod()
-                        .AllowCredentials()));
-#endregion
+{
+    options.AddPolicy("Default", policy =>
+        policy
+            .WithOrigins(
+                "http://localhost:4200", 
+                "https://localhost:4200",
+                "http://localhost:5000",
+                "https://localhost:5001"
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials()
+    );
+    
+    // Politique pour le développement (plus permissive mais sans credentials)
+    options.AddPolicy("Development", policy =>
+        policy
+            .WithOrigins(
+                "http://localhost:4200", 
+                "https://localhost:4200",
+                "http://localhost:3000",
+                "http://localhost:5000",
+                "https://localhost:5001",
+                "https://localhost:7000",
+                "https://localhost:7001"
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials()
+    );
+});
 
-#region API Versioning
 builder.Services.AddApiVersioning(opts =>
 {
     opts.AssumeDefaultVersionWhenUnspecified = true;
@@ -63,32 +85,33 @@ builder.Services.AddVersionedApiExplorer(opts =>
     opts.GroupNameFormat = "'v'VVV";
     opts.SubstituteApiVersionInUrl = true;
 });
-#endregion
 
-#region Database Configuration
-// SQL Server via EF Core
-builder.Services.AddDbContext<BiblioMateDbContext>(opts =>
-    opts.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-#endregion
+builder.Services.AddMemoryCache();
+builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
+builder.Services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
+builder.Services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounterStore>();
+builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
+builder.Services.AddSingleton<IProcessingStrategy, AsyncKeyLockProcessingStrategy>();
 
-#region Controllers & JSON Options
+builder.Services.AddDbContext<BiblioMateDbContext>(o =>
+    o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 builder.Services
-    .AddControllers(opts =>
+    .AddControllers(o =>
     {
-        // Global authorization: require authenticated user by default
         var policy = new AuthorizationPolicyBuilder()
             .RequireAuthenticatedUser()
             .Build();
-        opts.Filters.Add(new AuthorizeFilter(policy));
+        o.Filters.Add(new AuthorizeFilter(policy));
     })
-    .AddJsonOptions(opts =>
+    .AddJsonOptions(o =>
     {
-        opts.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-        opts.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     })
-    .ConfigureApiBehaviorOptions(apiOpts =>
+    .ConfigureApiBehaviorOptions(opts =>
     {
-        apiOpts.InvalidModelStateResponseFactory = ctx =>
+        opts.InvalidModelStateResponseFactory = (ActionContext ctx) =>
         {
             var errors = ctx.ModelState
                 .Where(kv => kv.Value!.Errors.Count > 0)
@@ -101,46 +124,46 @@ builder.Services
             return result;
         };
     });
-#endregion
 
-#region Health Checks
 builder.Services
     .AddHealthChecks()
     .AddDbContextCheck<BiblioMateDbContext>(name: "sqlserver", tags: new[] { "db", "sql" })
-    .AddSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")!,
-        name: "sqlserver-raw", tags: new[] { "db", "sql" })
-    .AddMongoDb(builder.Configuration.GetConnectionString("MongoDb")!,
-        name: "mongodb", tags: new[] { "db", "mongo" });
-#endregion
+    .AddSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection")!,
+        name: "sqlserver-raw",
+        tags: new[] { "db", "sql" })
+    .AddMongoDb(
+        mongodbConnectionString: builder.Configuration.GetConnectionString("MongoDb")!,
+        name: "mongodb",
+        tags: new[] { "db", "mongo" });
 
-#region Authentication & JWT
-var jwtSection = builder.Configuration.GetSection("Jwt");
-var keyBytes   = Encoding.UTF8.GetBytes(jwtSection["Key"]!);
+var jwt = builder.Configuration.GetSection("Jwt");
+var key = Encoding.UTF8.GetBytes(jwt["Key"]!);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(opts =>
+    .AddJwtBearer(o =>
     {
-        opts.RequireHttpsMetadata = false;
-        opts.SaveToken = true;
-        opts.TokenValidationParameters = new TokenValidationParameters
+        o.RequireHttpsMetadata = false;
+        o.SaveToken = true;
+        o.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer           = true,
             ValidateAudience         = true,
             ValidateLifetime         = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer              = jwtSection["Issuer"],
-            ValidAudience            = jwtSection["Audience"],
-            IssuerSigningKey         = new SymmetricSecurityKey(keyBytes),
+            ValidIssuer              = jwt["Issuer"],
+            ValidAudience            = jwt["Audience"],
+            IssuerSigningKey         = new SymmetricSecurityKey(key),
             RoleClaimType            = ClaimTypes.Role
         };
-        opts.Events = new JwtBearerEvents
+        o.Events = new JwtBearerEvents
         {
             OnMessageReceived = ctx =>
             {
                 if (ctx.Request.Path.StartsWithSegments("/hubs/notifications") &&
-                    ctx.Request.Query.TryGetValue("access_token", out var token))
+                    ctx.Request.Query.TryGetValue("access_token", out var t))
                 {
-                    ctx.Token = token;
+                    ctx.Token = t;
                 }
                 return Task.CompletedTask;
             },
@@ -155,20 +178,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             }
         };
     });
-#endregion
 
-#region MongoDB Configuration
 builder.Services.Configure<MongoSettings>(
     builder.Configuration.GetSection("MongoDb"));
 builder.Services.AddSingleton<IMongoClient>(sp =>
 {
-    var settings = sp.GetRequiredService<IOptions<MongoSettings>>().Value;
-    return new MongoClient(settings.ConnectionString);
+    var s = sp.GetRequiredService<IOptions<MongoSettings>>().Value;
+    return new MongoClient(s.ConnectionString);
 });
-#endregion
 
-#region Application Services Registration
-// -- Core application services --
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IUserService, UserService>();
@@ -189,94 +207,128 @@ builder.Services.AddScoped<ISearchActivityLogService, SearchActivityLogService>(
 builder.Services.AddScoped<IShelfService, ShelfService>();
 builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IZoneService, ZoneService>();
-// -- Infrastructure & external --
+
+builder.Services.AddScoped<INotificationLogCollection, NotificationLogCollection>();
+builder.Services.AddScoped<IMongoLogService, MongoLogService>();
+builder.Services.AddScoped<NotificationService>();
+
 builder.Services.AddSingleton<EncryptionService>();
 builder.Services.AddHttpClient<IGoogleBooksService, GoogleBooksService>();
 builder.Services.AddScoped<IEmailService, SendGridEmailService>();
-builder.Services.AddScoped<IMongoLogService, MongoLogService>();
-// -- Local fixes for notification logging --
-builder.Services.AddScoped<INotificationLogCollection, NotificationLogCollection>();
-builder.Services.AddScoped<NotificationService>();
-// -- Hosted & Background Services --
+
 builder.Services.AddScoped<IReservationCleanupService, ReservationCleanupService>();
 builder.Services.AddScoped<LoanReminderService>();
 builder.Services.AddHostedService<LoanReminderBackgroundService>();
-#endregion
 
-#region SignalR, API Explorer & Swagger
 builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
-
-// Récupère le provider pour SwaggerGen
-var apiVersionProvider = builder.Services.BuildServiceProvider()
-    .GetRequiredService<IApiVersionDescriptionProvider>();
-
-builder.Services.AddSwaggerGen(c =>
-{
-    // Génère un document par version
-    foreach (var desc in apiVersionProvider.ApiVersionDescriptions)
+builder.Services.AddSwaggerGen();
+builder.Services
+    .AddOptions<SwaggerGenOptions>()
+    .Configure<IApiVersionDescriptionProvider>((options, provider) =>
     {
-        c.SwaggerDoc(desc.GroupName, new OpenApiInfo
+        foreach (var desc in provider.ApiVersionDescriptions)
         {
-            Title = $"BiblioMate API {desc.ApiVersion}",
-            Version = desc.GroupName,
-            Description = desc.IsDeprecated ? "Cette version est obsolète." : null
-        });
-    }
-
-    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-    c.IncludeXmlComments(xmlPath);
-    c.EnableAnnotations();
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description  = "JWT Authorization header using the Bearer scheme.",
-        Type         = SecuritySchemeType.Http,
-        Scheme       = "bearer",
-        BearerFormat = "JWT"
-    });
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme {
-                Reference = new OpenApiReference {
-                    Type = ReferenceType.SecurityScheme,
-                    Id   = "Bearer"
-                }
-            },
-            Array.Empty<string>()
+            options.SwaggerDoc(desc.GroupName, new OpenApiInfo { Title = $"BiblioMate API {desc.ApiVersion}", Version = desc.GroupName });
         }
+        options.DocInclusionPredicate((docName, apiDesc) =>
+        {
+            if (apiDesc.GroupName != docName) return false;
+            var path = apiDesc.RelativePath ?? "";
+            return path.StartsWith($"api/{docName}/", StringComparison.OrdinalIgnoreCase);
+        });
+        options.OperationFilter<SwaggerDefaultValues>();
+        var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+        var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+        options.IncludeXmlComments(xmlPath);
+        options.EnableAnnotations();
+        options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+        {
+            Description  = "JWT Authorization header using the Bearer scheme.",
+            Type         = SecuritySchemeType.Http,
+            Scheme       = "bearer",
+            BearerFormat = "JWT"
+        });
+        options.AddSecurityRequirement(new OpenApiSecurityRequirement
+        {
+            {
+                new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } },
+                Array.Empty<string>()
+            }
+        });
     });
-});
-#endregion
 
 var app = builder.Build();
 
-#region Middleware Pipeline
+var apiVersions = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        // Ajoute un endpoint UI par version
-        foreach (var desc in app.Services.GetRequiredService<IApiVersionDescriptionProvider>().ApiVersionDescriptions)
+        foreach (var desc in apiVersions.ApiVersionDescriptions)
         {
-            c.SwaggerEndpoint($"/swagger/{desc.GroupName}/swagger.json", desc.GroupName.ToUpperInvariant());
+            c.SwaggerEndpoint($"/swagger/{desc.GroupName}/swagger.json", $"BiblioMate API {desc.ApiVersion}");
         }
         c.RoutePrefix = "swagger";
     });
     app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 }
 
-app.UseMiddleware<ExceptionHandlingMiddleware>();
-app.UseHttpsRedirection();
-app.UseCors("Default");
-app.UseAuthentication();
-app.UseAuthorization();
+app.UseHsts();
 
-// ** Prometheus instrumentation **
+// Gestion des requêtes OPTIONS et CORS en premier
+app.Use(async (ctx, next) =>
+{
+    if (ctx.Request.Method == HttpMethods.Options)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status204NoContent;
+        return;
+    }
+    await next();
+});
+
+// CORS doit être placé très tôt dans le pipeline
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("Development");
+}
+else
+{
+    app.UseCors("Default");
+}
+
+// Headers de sécurité
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    ctx.Response.Headers["X-Frame-Options"] = "DENY";
+    ctx.Response.Headers["Referrer-Policy"] = "no-referrer";
+    // Commenté temporairement pour tester
+    // ctx.Response.Headers["Content-Security-Policy"] = "default-src 'self'";
+    await next();
+});
+
+// Middleware de débogage pour les requêtes (optionnel, à retirer en production)
+app.Use(async (ctx, next) =>
+{
+    Console.WriteLine($"Request: {ctx.Request.Method} {ctx.Request.Path}");
+    Console.WriteLine($"Origin: {ctx.Request.Headers.Origin}");
+    Console.WriteLine($"User-Agent: {ctx.Request.Headers.UserAgent}");
+    Console.WriteLine($"Referer: {ctx.Request.Headers.Referer}");
+    Console.WriteLine("---");
+    await next();
+});
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseIpRateLimiting();
 app.UseMetricServer();
 app.UseHttpMetrics();
+
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
@@ -298,17 +350,16 @@ app.MapHealthChecks("/health", new HealthCheckOptions
         var result = new
         {
             status = report.Status.ToString(),
-            checks = report.Entries.Select(entry => new {
-                name     = entry.Key,
-                status   = entry.Value.Status.ToString(),
-                error    = entry.Value.Exception?.Message,
-                duration = entry.Value.Duration.ToString()
+            checks = report.Entries.Select(e => new {
+                name     = e.Key,
+                status   = e.Value.Status.ToString(),
+                error    = e.Value.Exception?.Message,
+                duration = e.Value.Duration.ToString()
             })
         };
         await ctx.Response.WriteAsJsonAsync(result);
     }
 })
 .AllowAnonymous();
-#endregion
 
 app.Run();

@@ -33,6 +33,16 @@ namespace BackendBiblioMate.DTOs
         public string Isbn { get; init; } = string.Empty;
 
         /// <summary>
+        /// Gets the description or synopsis of the book.
+        /// </summary>
+        /// <remarks>
+        /// Maximum length 4000 characters.
+        /// </remarks>
+        /// <example>An epic tale of hobbits, dragons, and adventure.</example>
+        [MaxLength(4000, ErrorMessage = "Description cannot exceed 4000 characters.")]
+        public string? Description { get; init; }
+
+        /// <summary>
         /// Gets the publication date of the book.
         /// </summary>
         /// <example>1937-09-21</example>

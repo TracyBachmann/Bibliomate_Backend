@@ -14,7 +14,7 @@ namespace UnitTestsBiblioMate.Services.Reports
     /// </summary>
     public class ReportServiceTest
     {
-        private readonly ReportService      _service;
+        private readonly ReportService       _service;
         private readonly BiblioMateDbContext _db;
 
         public ReportServiceTest()
@@ -32,6 +32,7 @@ namespace UnitTestsBiblioMate.Services.Reports
             var options = new DbContextOptionsBuilder<BiblioMateDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
+
             _db      = new BiblioMateDbContext(options, encryptionService);
             _service = new ReportService(_db);
         }
@@ -43,8 +44,8 @@ namespace UnitTestsBiblioMate.Services.Reports
         public async Task GetAllAsync_ShouldReturnAllReports()
         {
             // Arrange: seed users and two reports
-            _db.Users.Add(new User { UserId = 1, Name = "User1" });
-            _db.Users.Add(new User { UserId = 2, Name = "User2" });
+            _db.Users.Add(new User { UserId = 1, FirstName = "User1", LastName = "" });
+            _db.Users.Add(new User { UserId = 2, FirstName = "User2", LastName = "" });
             _db.Reports.Add(new Report
             {
                 Title         = "R1",
@@ -77,7 +78,7 @@ namespace UnitTestsBiblioMate.Services.Reports
         public async Task GetByIdAsync_ShouldReturnReport_WhenExists()
         {
             // Arrange: seed a user and a report
-            _db.Users.Add(new User { UserId = 3, Name = "User3" });
+            _db.Users.Add(new User { UserId = 3, FirstName = "User3", LastName = "" });
             var report = new Report
             {
                 Title         = "Test",
@@ -118,7 +119,7 @@ namespace UnitTestsBiblioMate.Services.Reports
         {
             // Arrange: seed a user and loans in this and last month
             const int userId = 10;
-            _db.Users.Add(new User { UserId = userId, Name = "User10" });
+            _db.Users.Add(new User { UserId = userId, FirstName = "User10", LastName = "" });
 
             var now            = DateTime.UtcNow;
             var thisMonthStart = new DateTime(now.Year, now.Month, 1);
@@ -160,7 +161,7 @@ namespace UnitTestsBiblioMate.Services.Reports
         public async Task UpdateAsync_ShouldModifyReport_WhenExists()
         {
             // Arrange
-            _db.Users.Add(new User { UserId = 4, Name = "User4" });
+            _db.Users.Add(new User { UserId = 4, FirstName = "User4", LastName = "" });
             var report = new Report
             {
                 Title         = "Old",
@@ -216,7 +217,7 @@ namespace UnitTestsBiblioMate.Services.Reports
         public async Task DeleteAsync_ShouldRemoveReport_WhenExists()
         {
             // Arrange
-            _db.Users.Add(new User { UserId = 5, Name = "User5" });
+            _db.Users.Add(new User { UserId = 5, FirstName = "User5", LastName = "" });
             var report = new Report
             {
                 Title         = "Del",

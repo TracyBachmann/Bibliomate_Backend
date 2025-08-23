@@ -1,4 +1,5 @@
-﻿using AutoMapper;
+﻿using System.Dynamic;
+using AutoMapper;
 using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Interfaces;
@@ -9,7 +10,7 @@ using Swashbuckle.AspNetCore.Annotations;
 namespace BackendBiblioMate.Controllers
 {
     /// <summary>
-    /// Controller for managing loans.
+    /// Controller responsible for managing loans.
     /// Provides endpoints to create, return, retrieve, update, and delete loans.
     /// </summary>
     [ApiController]
@@ -22,31 +23,32 @@ namespace BackendBiblioMate.Controllers
         private readonly IMapper _mapper;
 
         /// <summary>
-        /// Initializes a new instance of <see cref="LoansController"/>.
+        /// Initializes a new instance of the <see cref="LoansController"/> class.
         /// </summary>
-        /// <param name="loanService">Injected business service for loans.</param>
-        /// <param name="mapper">Injected AutoMapper instance.</param>
+        /// <param name="loanService">The loan service to handle business logic.</param>
+        /// <param name="mapper">The AutoMapper instance for DTO conversions.</param>
         public LoansController(ILoanService loanService, IMapper mapper)
         {
             _loanService = loanService ?? throw new ArgumentNullException(nameof(loanService));
-            _mapper      = mapper      ?? throw new ArgumentNullException(nameof(mapper));
+            _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         }
 
         /// <summary>
         /// Creates a new loan.
         /// </summary>
-        /// <param name="dto">Data required to create the loan.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="dto">The loan creation data transfer object.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>
-        /// <c>200 OK</c> with { message, dueDate } on success;  
-        /// <c>400 BadRequest</c> with { error } on failure.
+        /// 200 OK with { message, dueDate } on success;
+        /// 400 BadRequest with { error } on failure.
         /// </returns>
-        [HttpPost, Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [HttpPost]
+        [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Creates a new loan (v1)",
             Description = "Creates a new loan. Requires Librarian or Admin role.",
-            Tags = ["Loans"]
+            Tags = new[] { "Loans" }
         )]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -54,32 +56,43 @@ namespace BackendBiblioMate.Controllers
             [FromBody] LoanCreateDto dto,
             CancellationToken cancellationToken = default)
         {
+            if (dto == null || !ModelState.IsValid)
+            {
+                dynamic errorResponse = new ExpandoObject();
+                errorResponse.error = "Invalid payload.";
+                return BadRequest(errorResponse);
+            }
+
             var result = await _loanService.CreateAsync(dto, cancellationToken);
             if (result.IsError)
-                return BadRequest(new { error = result.Error });
-
-            return Ok(new
             {
-                message = "Loan created successfully.",
-                dueDate = result.Value!.DueDate
-            });
+                dynamic errorResponse = new ExpandoObject();
+                errorResponse.error = result.Error;
+                return BadRequest(errorResponse);
+            }
+
+            dynamic successResponse = new ExpandoObject();
+            successResponse.message = "Loan created successfully.";
+            successResponse.dueDate = result.Value!.DueDate;
+            return Ok(successResponse);
         }
 
         /// <summary>
         /// Returns a book for an existing loan.
         /// </summary>
-        /// <param name="id">Identifier of the loan to return.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="id">The identifier of the loan to return.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>
-        /// <c>200 OK</c> with { message, reservationNotified, fine } on success;  
-        /// <c>400 BadRequest</c> with { error } on failure.
+        /// 200 OK with { message, reservationNotified, fine } on success;
+        /// 400 BadRequest with { error } on failure.
         /// </returns>
-        [HttpPut("{id}/return"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [HttpPut("{id}/return")]
+        [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Returns a book for an existing loan (v1)",
             Description = "Marks a loan as returned. Requires Librarian or Admin role.",
-            Tags = ["Loans"]
+            Tags = new[] { "Loans" }
         )]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -87,32 +100,43 @@ namespace BackendBiblioMate.Controllers
             [FromRoute] int id,
             CancellationToken cancellationToken = default)
         {
+            if (id <= 0)
+            {
+                dynamic errorResponse = new ExpandoObject();
+                errorResponse.error = "Invalid loan ID.";
+                return BadRequest(errorResponse);
+            }
+
             var result = await _loanService.ReturnAsync(id, cancellationToken);
             if (result.IsError)
-                return BadRequest(new { error = result.Error });
-
-            return Ok(new
             {
-                message = "Book returned successfully.",
-                reservationNotified = result.Value!.ReservationNotified,
-                fine = result.Value.Fine
-            });
+                dynamic errorResponse = new ExpandoObject();
+                errorResponse.error = result.Error;
+                return BadRequest(errorResponse);
+            }
+
+            dynamic successResponse = new ExpandoObject();
+            successResponse.message = "Book returned successfully.";
+            successResponse.reservationNotified = result.Value!.ReservationNotified;
+            successResponse.fine = result.Value.Fine;
+            return Ok(successResponse);
         }
 
         /// <summary>
-        /// Retrieves all loans in the system.
+        /// Retrieves all loans.
         /// </summary>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>
-        /// <c>200 OK</c> with a list of <see cref="LoanReadDto"/>;  
-        /// <c>400 BadRequest</c> with { error } on failure.
+        /// 200 OK with list of LoanReadDto on success;
+        /// 400 BadRequest with { error } on failure.
         /// </returns>
-        [HttpGet, Authorize]
+        [HttpGet]
+        [Authorize]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Retrieves all loans (v1)",
             Description = "Returns all loans. Requires authentication.",
-            Tags = ["Loans"]
+            Tags = new[] { "Loans" }
         )]
         [ProducesResponseType(typeof(IEnumerable<LoanReadDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -121,27 +145,32 @@ namespace BackendBiblioMate.Controllers
         {
             var result = await _loanService.GetAllAsync(cancellationToken);
             if (result.IsError)
-                return BadRequest(new { error = result.Error });
+            {
+                dynamic errorResponse = new ExpandoObject();
+                errorResponse.error = result.Error;
+                return BadRequest(errorResponse);
+            }
 
             var dtos = _mapper.Map<IEnumerable<LoanReadDto>>(result.Value);
             return Ok(dtos);
         }
 
         /// <summary>
-        /// Retrieves a specific loan by its identifier.
+        /// Retrieves a loan by its ID.
         /// </summary>
-        /// <param name="id">Identifier of the loan to retrieve.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="id">The identifier of the loan to retrieve.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>
-        /// <c>200 OK</c> with a <see cref="LoanReadDto"/>;  
-        /// <c>400 BadRequest</c> with { error } on failure.
+        /// 200 OK with LoanReadDto on success;
+        /// 400 BadRequest with { error } on failure.
         /// </returns>
-        [HttpGet("{id}"), Authorize]
+        [HttpGet("{id}")]
+        [Authorize]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Retrieves a loan by ID (v1)",
             Description = "Returns the loan with the specified ID. Requires authentication.",
-            Tags = ["Loans"]
+            Tags = new[] { "Loans" }
         )]
         [ProducesResponseType(typeof(LoanReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -149,30 +178,42 @@ namespace BackendBiblioMate.Controllers
             [FromRoute] int id,
             CancellationToken cancellationToken = default)
         {
+            if (id <= 0)
+            {
+                dynamic errorResponse = new ExpandoObject();
+                errorResponse.error = "Invalid loan ID.";
+                return BadRequest(errorResponse);
+            }
+
             var result = await _loanService.GetByIdAsync(id, cancellationToken);
             if (result.IsError)
-                return BadRequest(new { error = result.Error });
+            {
+                dynamic errorResponse = new ExpandoObject();
+                errorResponse.error = result.Error;
+                return BadRequest(errorResponse);
+            }
 
             var dto = _mapper.Map<LoanReadDto>(result.Value);
             return Ok(dto);
         }
 
         /// <summary>
-        /// Updates fields of an existing loan (e.g., due date).
+        /// Updates an existing loan.
         /// </summary>
-        /// <param name="id">Identifier of the loan to update.</param>
-        /// <param name="dto">Data for updating the loan.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="id">The identifier of the loan to update.</param>
+        /// <param name="dto">The loan update DTO.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>
-        /// <c>200 OK</c> with the updated <see cref="LoanReadDto"/>;  
-        /// <c>400 BadRequest</c> with { error } on failure.
+        /// 200 OK with updated LoanReadDto on success;
+        /// 400 BadRequest with { error } on failure.
         /// </returns>
-        [HttpPut("{id}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [HttpPut("{id}")]
+        [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Updates an existing loan (v1)",
-            Description = "Updates a loan's fields. Requires Librarian or Admin role.",
-            Tags = ["Loans"]
+            Description = "Updates a loan's properties. Requires Librarian or Admin role.",
+            Tags = new[] { "Loans" }
         )]
         [ProducesResponseType(typeof(LoanReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -181,9 +222,26 @@ namespace BackendBiblioMate.Controllers
             [FromBody] LoanUpdateDto dto,
             CancellationToken cancellationToken = default)
         {
+            if (id <= 0)
+            {
+                dynamic errorResponse = new ExpandoObject();
+                errorResponse.error = "Invalid loan ID.";
+                return BadRequest(errorResponse);
+            }
+            if (dto == null || !ModelState.IsValid)
+            {
+                dynamic errorResponse = new ExpandoObject();
+                errorResponse.error = "Invalid payload.";
+                return BadRequest(errorResponse);
+            }
+
             var result = await _loanService.UpdateAsync(id, dto, cancellationToken);
             if (result.IsError)
-                return BadRequest(new { error = result.Error });
+            {
+                dynamic errorResponse = new ExpandoObject();
+                errorResponse.error = result.Error;
+                return BadRequest(errorResponse);
+            }
 
             var updatedDto = _mapper.Map<LoanReadDto>(result.Value);
             return Ok(updatedDto);
@@ -192,18 +250,19 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Deletes an existing loan.
         /// </summary>
-        /// <param name="id">Identifier of the loan to delete.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="id">The identifier of the loan to delete.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>
-        /// <c>200 OK</c> with { message } on success;  
-        /// <c>400 BadRequest</c> with { error } on failure.
+        /// 200 OK with { message } on success;
+        /// 400 BadRequest with { error } on failure.
         /// </returns>
-        [HttpDelete("{id}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [HttpDelete("{id}")]
+        [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Deletes an existing loan (v1)",
             Description = "Deletes the loan with the specified ID. Requires Librarian or Admin role.",
-            Tags = ["Loans"]
+            Tags = new[] { "Loans" }
         )]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
@@ -211,11 +270,24 @@ namespace BackendBiblioMate.Controllers
             [FromRoute] int id,
             CancellationToken cancellationToken = default)
         {
+            if (id <= 0)
+            {
+                dynamic errorResponse = new ExpandoObject();
+                errorResponse.error = "Invalid loan ID.";
+                return BadRequest(errorResponse);
+            }
+
             var result = await _loanService.DeleteAsync(id, cancellationToken);
             if (result.IsError)
-                return BadRequest(new { error = result.Error });
+            {
+                dynamic errorResponse = new ExpandoObject();
+                errorResponse.error = result.Error;
+                return BadRequest(errorResponse);
+            }
 
-            return Ok(new { message = "Loan deleted successfully." });
+            dynamic successResponse = new ExpandoObject();
+            successResponse.message = "Loan deleted successfully.";
+            return Ok(successResponse);
         }
     }
 }

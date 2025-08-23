@@ -290,9 +290,10 @@ namespace BackendBiblioMate.Services.Loans
         {
             ReservationId   = r.ReservationId,
             UserId          = r.UserId,
-            UserName        = r.User.Name,
+            // Combine first/last name; Trim() avoids trailing space if one part is empty.
+            UserName        = r.User != null ? $"{r.User.FirstName} {r.User.LastName}".Trim() : string.Empty,
             BookId          = r.BookId,
-            BookTitle       = r.Book.Title,
+            BookTitle       = r.Book?.Title ?? string.Empty,
             ReservationDate = r.ReservationDate,
             Status          = r.Status
         };

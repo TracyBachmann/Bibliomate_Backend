@@ -25,6 +25,12 @@
         public string Isbn { get; init; } = string.Empty;
 
         /// <summary>
+        /// Gets the description or synopsis of the book.
+        /// </summary>
+        /// <example>An epic tale of hobbits, dragons, and adventure.</example>
+        public string? Description { get; init; }
+
+        /// <summary>
         /// Gets the year the book was published.
         /// </summary>
         /// <example>1937</example>

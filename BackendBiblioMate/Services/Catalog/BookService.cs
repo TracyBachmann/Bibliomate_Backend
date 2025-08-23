@@ -63,9 +63,13 @@ namespace BackendBiblioMate.Services.Catalog
 
             query = (sortBy, ascending) switch
             {
+                ("BookId", true)           => query.OrderBy(d => d.BookId),
+                ("BookId", false)          => query.OrderByDescending(d => d.BookId),
+
                 ("PublicationYear", true)  => query.OrderBy(d => d.PublicationYear),
                 ("PublicationYear", false) => query.OrderByDescending(d => d.PublicationYear),
-                ("Title", false)           => query.OrderByDescending(d => d.Title),
+
+                ("Title",     false)       => query.OrderByDescending(d => d.Title),
                 _                          => query.OrderBy(d => d.Title)
             };
 
@@ -73,7 +77,9 @@ namespace BackendBiblioMate.Services.Catalog
                 .ToPagedResultAsync(pageNumber, pageSize, cancellationToken)
                 .ConfigureAwait(false);
 
-            var eTagSource = string.Join(";", page.Items.Select(i => $"{i.BookId}-{i.Title}"));
+            // Incorporate Description into ETag source to catch description changes
+            var eTagSource = string.Join(";", page.Items.Select(i =>
+                $"{i.BookId}-{i.Title}-{(i.Description ?? string.Empty)}"));
             var hash       = MD5.HashData(Encoding.UTF8.GetBytes(eTagSource));
             var eTag       = $"\"{Convert.ToBase64String(hash)}\"";
 
@@ -122,6 +128,7 @@ namespace BackendBiblioMate.Services.Catalog
             {
                 Title           = dto.Title,
                 Isbn            = dto.Isbn,
+                Description     = dto.Description,
                 PublicationDate = dto.PublicationDate,
                 AuthorId        = dto.AuthorId,
                 GenreId         = dto.GenreId,
@@ -176,6 +183,7 @@ namespace BackendBiblioMate.Services.Catalog
 
             book.Title           = dto.Title;
             book.Isbn            = dto.Isbn;
+            book.Description     = dto.Description;
             book.PublicationDate = dto.PublicationDate;
             book.AuthorId        = dto.AuthorId;
             book.GenreId         = dto.GenreId;
@@ -260,6 +268,8 @@ namespace BackendBiblioMate.Services.Catalog
                 query = query.Where(b => b.Stock != null && b.Stock.IsAvailable == dto.IsAvailable.Value);
             if (dto.TagIds.Any())
                 query = query.Where(b => b.BookTags.Any(bt => dto.TagIds.Contains(bt.TagId)));
+            if (!string.IsNullOrWhiteSpace(dto.Description))
+                query = query.Where(b => b.Description != null && b.Description.Contains(dto.Description));
 
             var list = await query
                 .Select(BookToDtoExpression)
@@ -277,11 +287,12 @@ namespace BackendBiblioMate.Services.Catalog
             BookId          = book.BookId,
             Title           = book.Title,
             Isbn            = book.Isbn,
+            Description     = book.Description,
             PublicationYear = book.PublicationDate.Year,
             AuthorName      = book.Author.Name,
             GenreName       = book.Genre.Name,
             EditorName      = book.Editor.Name,
-            IsAvailable = book.Stock != null && book.Stock.IsAvailable,            
+            IsAvailable     = book.Stock != null && book.Stock.IsAvailable,
             CoverUrl        = book.CoverUrl,
             Tags            = book.BookTags.Select(bt => bt.Tag.Name).ToList()
         };

@@ -55,6 +55,7 @@ namespace UnitTestsBiblioMate.Services.Users
         {
             _output.WriteLine("=== CreateAsync: START ===");
 
+            // NB: UserCreateDto reste inchangé côté backend (Name/Address)
             var dto = new UserCreateDto
             {
                 Name     = "Jean Dupont",
@@ -85,8 +86,8 @@ namespace UnitTestsBiblioMate.Services.Users
         {
             _output.WriteLine("=== GetAllAsync: START ===");
 
-            _db.Users.Add(new User { Name = "User A", Email = "a@example.com", Password = "hashed", Role = UserRoles.User });
-            _db.Users.Add(new User { Name = "User B", Email = "b@example.com", Password = "hashed", Role = UserRoles.Admin });
+            _db.Users.Add(MakeUser("User", "A", "a@example.com", UserRoles.User));
+            _db.Users.Add(MakeUser("User", "B", "b@example.com", UserRoles.Admin));
             await _db.SaveChangesAsync();
 
             var users = (await _service.GetAllAsync()).ToList();
@@ -106,13 +107,7 @@ namespace UnitTestsBiblioMate.Services.Users
         {
             _output.WriteLine("=== GetByIdAsync (exists): START ===");
 
-            var user = new User
-            {
-                Name     = "Specific User",
-                Email    = "specific@example.com",
-                Password = "hashed",
-                Role     = UserRoles.Librarian
-            };
+            var user = MakeUser("Specific", "User", "specific@example.com", UserRoles.Librarian);
             _db.Users.Add(user);
             await _db.SaveChangesAsync();
 
@@ -121,7 +116,7 @@ namespace UnitTestsBiblioMate.Services.Users
             _output.WriteLine($"Found User: {result?.Email}");
 
             Assert.NotNull(result);
-            Assert.Equal(user.Email, result.Email);
+            Assert.Equal(user.Email, result!.Email);
 
             _output.WriteLine("=== GetByIdAsync (exists): END ===");
         }
@@ -151,21 +146,15 @@ namespace UnitTestsBiblioMate.Services.Users
         {
             _output.WriteLine("=== UpdateAsync (success): START ===");
 
-            var user = new User
-            {
-                Name     = "Old Name",
-                Email    = "old@example.com",
-                Password = "hashed",
-                Role     = UserRoles.User
-            };
+            var user = MakeUser("Old", "Name", "old@example.com", UserRoles.User);
             _db.Users.Add(user);
             await _db.SaveChangesAsync();
 
             var dto = new UserUpdateDto
             {
-                Name    = "Updated Name",
+                Name    = "Updated Name",                // UserService split -> FirstName=Updated, LastName=Name
                 Email   = "updated@example.com",
-                Address = "123 rue de la Liberté",
+                Address = "123 rue de la Liberté",       // -> Address1
                 Phone   = "0708091011"
             };
 
@@ -176,10 +165,11 @@ namespace UnitTestsBiblioMate.Services.Users
             var updated = await _db.Users.FindAsync(user.UserId);
 
             Assert.True(success);
-            Assert.Equal(dto.Name, updated?.Name);
-            Assert.Equal(dto.Email, updated?.Email);
-            Assert.Equal(dto.Address, updated?.Address);
-            Assert.Equal(dto.Phone, updated?.Phone);
+            Assert.Equal("Updated", updated!.FirstName);
+            Assert.Equal("Name", updated.LastName);
+            Assert.Equal(dto.Email, updated.Email);
+            Assert.Equal(dto.Address, updated.Address1);
+            Assert.Equal(dto.Phone, updated.Phone);
 
             _output.WriteLine("=== UpdateAsync (success): END ===");
         }
@@ -217,13 +207,7 @@ namespace UnitTestsBiblioMate.Services.Users
         {
             _output.WriteLine("=== DeleteAsync (success): START ===");
 
-            var user = new User
-            {
-                Name     = "ToDelete",
-                Email    = "delete@example.com",
-                Password = "hashed",
-                Role     = UserRoles.User
-            };
+            var user = MakeUser("To", "Delete", "delete@example.com", UserRoles.User);
             _db.Users.Add(user);
             await _db.SaveChangesAsync();
 
@@ -253,5 +237,21 @@ namespace UnitTestsBiblioMate.Services.Users
 
             _output.WriteLine("=== DeleteAsync (fail): END ===");
         }
+
+        // -------------------- helpers --------------------
+
+        private static User MakeUser(string first, string last, string email, string role) => new User
+        {
+            FirstName = first,
+            LastName  = last,
+            Email     = email,
+            Password  = "hashed",
+            Address1  = "123 St",
+            Phone     = "0612345678",
+            Role      = role,
+            IsEmailConfirmed = true,
+            IsApproved       = true,
+            SecurityStamp    = Guid.NewGuid().ToString()
+        };
     }
 }

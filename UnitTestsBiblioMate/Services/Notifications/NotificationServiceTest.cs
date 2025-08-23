@@ -2,6 +2,7 @@ using BackendBiblioMate.Data;
 using BackendBiblioMate.Hubs;
 using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Models;
+using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Services.Notifications;
 using BackendBiblioMate.Services.Infrastructure.Security;
 using Microsoft.AspNetCore.SignalR;
@@ -45,7 +46,9 @@ namespace UnitTestsBiblioMate.Services.Notifications
             var hubContext  = Substitute.For<IHubContext<NotificationHub>>();
             var clients     = Substitute.For<IHubClients>();
             _clientProxy    = Substitute.For<IClientProxy>();
-            clients.User("1").Returns(_clientProxy);
+
+            // Return the same proxy for any user id to avoid tight coupling on "1"
+            clients.User(Arg.Any<string>()).Returns(_clientProxy);
             hubContext.Clients.Returns(clients);
 
             // Mock email service
@@ -62,8 +65,21 @@ namespace UnitTestsBiblioMate.Services.Notifications
         [Fact]
         public async Task NotifyUser_UserExists_SendsHubAndEmail()
         {
-            // Arrange: create a user with ID=1
-            _db.Users.Add(new User { UserId = 1, Email = "test@example.com", Name = "Test" });
+            // Arrange: create a user; we set UserId=1 to match the typical test flow
+            _db.Users.Add(new User
+            {
+                UserId          = 1,
+                FirstName       = "Test",
+                LastName        = "User",
+                Email           = "test@example.com",
+                Password        = "hashed",
+                Address1        = "1 Test Street",
+                Phone           = "0600000000",
+                Role            = UserRoles.User,
+                IsEmailConfirmed = true,
+                IsApproved       = true,
+                SecurityStamp    = Guid.NewGuid().ToString()
+            });
             await _db.SaveChangesAsync();
 
             const string message = "Hello, world!";
