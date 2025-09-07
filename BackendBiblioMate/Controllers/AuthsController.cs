@@ -217,5 +217,26 @@ namespace BackendBiblioMate.Controllers
             var result = await _authService.ApproveUserAsync(id, cancellationToken);
             return result.Result;
         }
+        
+        /// <summary>
+        /// Resends the email confirmation link to the given email.
+        /// </summary>
+        [AllowAnonymous]
+        [HttpPost("resend-confirmation")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Resends the confirmation email (v1)",
+            Description = "Sends again the email confirmation link if the account exists and is not confirmed.",
+            Tags = ["Auths"]
+        )]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> ResendConfirmation(
+            [FromBody] ResendEmailConfirmationDto dto,
+            CancellationToken cancellationToken)
+        {
+            var result = await _authService.ResendConfirmationAsync(dto.Email, cancellationToken);
+            return result.Result;
+        }
+
     }
 }

@@ -21,3 +21,12 @@ obj/
 # OS
 .DS_Store
 Thumbs.db
+
+# Fichiers d'environnement / secrets (tous dossiers)
+.env
+*.env
+**/.env
+**/*.env
+
+# Garde un modèle vide à partager
+!.env.example

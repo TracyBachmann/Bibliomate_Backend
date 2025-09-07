@@ -1,300 +1,333 @@
-﻿using System.Linq.Expressions;
-using System.Security.Cryptography;
-using System.Text;
+﻿// BackendBiblioMate/Services/Catalog/BookService.cs
+using System.Linq.Expressions;
 using BackendBiblioMate.Data;
 using BackendBiblioMate.DTOs;
+using BackendBiblioMate.Helpers;
 using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Models;
-using BackendBiblioMate.Helpers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace BackendBiblioMate.Services.Catalog
 {
-    /// <summary>
-    /// Implements <see cref="IBookService"/> by coordinating EF Core,
-    /// projection to DTO, pagination, sorting, ETag generation, and search‐activity logging.
-    /// </summary>
     public class BookService : IBookService
     {
-        private readonly BiblioMateDbContext       _db;
-        private readonly ISearchActivityLogService _searchLog;
+        private readonly BiblioMateDbContext _db;
+        private readonly ISearchActivityLogService? _searchLog;
 
-        /// <summary>
-        /// Initializes a new instance of <see cref="BookService"/>.
-        /// </summary>
-        /// <param name="db">EF Core database context.</param>
-        /// <param name="searchLog">Service for logging search activities.</param>
         public BookService(
-            BiblioMateDbContext       db,
-            ISearchActivityLogService searchLog)
+            BiblioMateDbContext db,
+            ISearchActivityLogService? searchLog)
         {
-            _db        = db;
-            _searchLog = searchLog;
+            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _searchLog = searchLog; // peut être null si non configuré
         }
 
+        #region Projection unique -> DTO
+
         /// <summary>
-        /// Retrieves a paged list of books, sorted and with an ETag for caching.
+        /// Projection unique réutilisée partout (liste/détail/recherche).
+        /// Localisation : Zone/Shelf/ShelfLevel.
+        /// Disponibilité : Quantity - prêts actifs (ReturnDate == null) > 0.
+        /// IMPORTANT : on compte une clé non nulle (LoanId) pour éviter le faux "1" dû aux LEFT JOIN.
         /// </summary>
-        /// <param name="pageNumber">Number of the page to retrieve (1-based).</param>
-        /// <param name="pageSize">Size of each page.</param>
-        /// <param name="sortBy">Field to sort by (e.g. "Title", "PublicationYear").</param>
-        /// <param name="ascending">True for ascending order; false for descending.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// A tuple containing:
-        /// <list type="bullet">
-        ///   <item><see cref="PagedResult{BookReadDto}"/> with the page of items.</item>
-        ///   <item>ETag string based on the page content.</item>
-        ///   <item><see cref="IActionResult"/> <c>NotModified</c> if the client cache is fresh; otherwise null.</item>
-        /// </list>
-        /// </returns>
-        public async Task<(PagedResult<BookReadDto> Page, string ETag, IActionResult? NotModified)>
-            GetPagedAsync(
-                int pageNumber,
-                int pageSize,
-                string sortBy,
-                bool ascending,
-                CancellationToken cancellationToken = default)
+        private Expression<Func<Book, BookReadDto>> ReadProjection => b => new BookReadDto
         {
-            var query = _db.Books
-                .AsNoTracking()
-                .Select(BookToDtoExpression);
+            BookId = b.BookId,
+            Title = b.Title,
+            Isbn = b.Isbn,
+            PublicationYear = b.PublicationDate.Year,
+            AuthorName = b.Author.Name,
+            GenreName = b.Genre.Name,
+            EditorName = b.Editor.Name,
 
-            query = (sortBy, ascending) switch
+            // Dispo calculée côté SQL : (stock - prêts actifs) > 0
+            // ► Stock: 1ère quantité trouvée ou 0 si pas de stock
+            // ► Prêts actifs: COUNT(LoanId) avec filtre ReturnDate IS NULL (COUNT ignore les NULL)
+            IsAvailable =
+                (
+                    (_db.Stocks
+                        .Where(s => s.BookId == b.BookId)
+                        .Select(s => (int?)s.Quantity)
+                        .FirstOrDefault() ?? 0)
+                    -
+                    _db.Loans
+                        .Where(l => l.BookId == b.BookId && l.ReturnDate == null)
+                        .Select(l => (int?)l.LoanId)
+                        .Count()
+                ) > 0,
+
+            CoverUrl = b.CoverUrl,
+            Description = b.Description,
+
+            // Localisation aplatie
+            Floor = b.ShelfLevel.Shelf.Zone.FloorNumber,
+            Aisle = b.ShelfLevel.Shelf.Zone.AisleCode,
+            Rayon = b.ShelfLevel.Shelf.Name,
+            Shelf = b.ShelfLevel.LevelNumber,
+
+            // Tags
+            Tags = b.BookTags.Select(bt => bt.Tag.Name).ToList()
+        };
+
+        #endregion
+
+        #region Lecture
+
+        public async Task<(PagedResult<BookReadDto> Page, string? ETag, IActionResult? NotModified)>
+            GetPagedAsync(int pageNumber, int pageSize, string sortBy, bool ascending, CancellationToken ct = default)
+        {
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var baseQuery = _db.Books.AsNoTracking();
+
+            // Tri
+            IOrderedQueryable<Book> ordered = (sortBy ?? "Title").ToLowerInvariant() switch
             {
-                ("BookId", true)           => query.OrderBy(d => d.BookId),
-                ("BookId", false)          => query.OrderByDescending(d => d.BookId),
-
-                ("PublicationYear", true)  => query.OrderBy(d => d.PublicationYear),
-                ("PublicationYear", false) => query.OrderByDescending(d => d.PublicationYear),
-
-                ("Title",     false)       => query.OrderByDescending(d => d.Title),
-                _                          => query.OrderBy(d => d.Title)
+                "bookid" or "id" => ascending ? baseQuery.OrderBy(b => b.BookId) : baseQuery.OrderByDescending(b => b.BookId),
+                "title" => ascending ? baseQuery.OrderBy(b => b.Title) : baseQuery.OrderByDescending(b => b.Title),
+                "isbn" => ascending ? baseQuery.OrderBy(b => b.Isbn) : baseQuery.OrderByDescending(b => b.Isbn),
+                "publicationdate" or "publicationyear" => ascending ? baseQuery.OrderBy(b => b.PublicationDate) : baseQuery.OrderByDescending(b => b.PublicationDate),
+                _ => ascending ? baseQuery.OrderBy(b => b.Title) : baseQuery.OrderByDescending(b => b.Title)
             };
 
-            var page = await query
-                .ToPagedResultAsync(pageNumber, pageSize, cancellationToken)
-                .ConfigureAwait(false);
+            var totalCount = await baseQuery.CountAsync(ct);
 
-            // Incorporate Description into ETag source to catch description changes
-            var eTagSource = string.Join(";", page.Items.Select(i =>
-                $"{i.BookId}-{i.Title}-{(i.Description ?? string.Empty)}"));
-            var hash       = MD5.HashData(Encoding.UTF8.GetBytes(eTagSource));
-            var eTag       = $"\"{Convert.ToBase64String(hash)}\"";
+            var items = await ordered
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(ReadProjection)
+                .ToListAsync(ct);
 
-            return (page, eTag, null);
+            var page = PagedResult<BookReadDto>.Create(items, pageNumber, pageSize, totalCount);
+
+            return (page, null, null); // pas d'ETag dans cette version
         }
 
-        /// <summary>
-        /// Retrieves a single book by its identifier.
-        /// </summary>
-        /// <param name="id">Identifier of the book to retrieve.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// The <see cref="BookReadDto"/> if found; otherwise <c>null</c>.
-        /// </returns>
-        public async Task<BookReadDto?> GetByIdAsync(
-            int id,
-            CancellationToken cancellationToken = default)
-        {
-            var book = await _db.Books
+        public async Task<BookReadDto?> GetByIdAsync(int id, CancellationToken ct = default) =>
+            await _db.Books
                 .AsNoTracking()
-                .Include(b => b.Genre)
-                .Include(b => b.Author)
-                .Include(b => b.Editor)
-                .Include(b => b.ShelfLevel)
-                .Include(b => b.BookTags).ThenInclude(bt => bt.Tag)
-                .Include(b => b.Stock)
-                .FirstOrDefaultAsync(b => b.BookId == id, cancellationToken)
-                .ConfigureAwait(false);
+                .Where(b => b.BookId == id)
+                .Select(ReadProjection)
+                .SingleOrDefaultAsync(ct);
 
-            return book == null
-                ? null
-                : BookToDtoExpression.Compile().Invoke(book);
-        }
-
-        /// <summary>
-        /// Creates a new book in the data store.
-        /// </summary>
-        /// <param name="dto">Data transfer object containing book creation data.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>The created <see cref="BookReadDto"/>.</returns>
-        public async Task<BookReadDto> CreateAsync(
-            BookCreateDto dto,
-            CancellationToken cancellationToken = default)
-        {
-            var book = new Book
-            {
-                Title           = dto.Title,
-                Isbn            = dto.Isbn,
-                Description     = dto.Description,
-                PublicationDate = dto.PublicationDate,
-                AuthorId        = dto.AuthorId,
-                GenreId         = dto.GenreId,
-                EditorId        = dto.EditorId,
-                ShelfLevelId    = dto.ShelfLevelId,
-                CoverUrl        = dto.CoverUrl,
-                BookTags        = (dto.TagIds ?? new List<int>())
-                    .Select(tagId => new BookTag { TagId = tagId })
-                    .ToList()
-            };
-
-            _db.Books.Add(book);
-            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-            await _db.Entry(book).Reference(b => b.Author).LoadAsync(cancellationToken).ConfigureAwait(false);
-            await _db.Entry(book).Reference(b => b.Genre).LoadAsync(cancellationToken).ConfigureAwait(false);
-            await _db.Entry(book).Reference(b => b.Editor).LoadAsync(cancellationToken).ConfigureAwait(false);
-            await _db.Entry(book).Reference(b => b.ShelfLevel).LoadAsync(cancellationToken).ConfigureAwait(false);
-            await _db.Entry(book)
-                     .Collection(b => b.BookTags)
-                     .Query()
-                     .Include(bt => bt.Tag)
-                     .LoadAsync(cancellationToken)
-                     .ConfigureAwait(false);
-            await _db.Entry(book).Reference(b => b.Stock).LoadAsync(cancellationToken).ConfigureAwait(false);
-
-            return BookToDtoExpression.Compile().Invoke(book);
-        }
-
-        /// <summary>
-        /// Updates an existing book in the data store.
-        /// </summary>
-        /// <param name="id">Identifier of the book to update.</param>
-        /// <param name="dto">Data transfer object containing updated book data.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns><c>true</c> if the update was successful; <c>false</c> if not found or ID mismatch.</returns>
-        public async Task<bool> UpdateAsync(
-            int id,
-            BookUpdateDto dto,
-            CancellationToken cancellationToken = default)
-        {
-            if (id != dto.BookId)
-                return false;
-
-            var book = await _db.Books
-                .Include(b => b.BookTags)
-                .FirstOrDefaultAsync(b => b.BookId == id, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (book == null)
-                return false;
-
-            book.Title           = dto.Title;
-            book.Isbn            = dto.Isbn;
-            book.Description     = dto.Description;
-            book.PublicationDate = dto.PublicationDate;
-            book.AuthorId        = dto.AuthorId;
-            book.GenreId         = dto.GenreId;
-            book.EditorId        = dto.EditorId;
-            book.ShelfLevelId    = dto.ShelfLevelId;
-
-            _db.BookTags.RemoveRange(book.BookTags);
-            if (dto.TagIds?.Any() == true)
-            {
-                var newTags = dto.TagIds.Select(tagId => new BookTag { BookId = id, TagId = tagId });
-                await _db.BookTags.AddRangeAsync(newTags, cancellationToken).ConfigureAwait(false);
-            }
-
-            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            return true;
-        }
-
-        /// <summary>
-        /// Deletes a book from the data store.
-        /// </summary>
-        /// <param name="id">Identifier of the book to delete.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns><c>true</c> if the deletion was successful; <c>false</c> if not found.</returns>
-        public async Task<bool> DeleteAsync(
-            int id,
-            CancellationToken cancellationToken = default)
-        {
-            var book = await _db.Books.FindAsync(new object[] { id }, cancellationToken).ConfigureAwait(false);
-            if (book == null)
-                return false;
-
-            _db.Books.Remove(book);
-            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            return true;
-        }
-
-        /// <summary>
-        /// Searches books by various criteria and logs the activity.
-        /// </summary>
-        /// <param name="dto">Search criteria.</param>
-        /// <param name="userId">Optional user identifier for logging.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>An <see cref="IEnumerable{BookReadDto}"/> of matching books.</returns>
         public async Task<IEnumerable<BookReadDto>> SearchAsync(
             BookSearchDto dto,
             int? userId,
-            CancellationToken cancellationToken = default)
+            CancellationToken ct = default)
         {
-            await _searchLog.LogAsync(
-                new Models.Mongo.SearchActivityLogDocument
-                {
-                    UserId    = userId,
-                    QueryText = dto.ToString()!
-                },
-                cancellationToken).ConfigureAwait(false);
-
-            var query = _db.Books
-                .AsNoTracking()
-                .Include(b => b.Genre)
-                .Include(b => b.Author)
-                .Include(b => b.Editor)
-                .Include(b => b.ShelfLevel)
-                .Include(b => b.BookTags).ThenInclude(bt => bt.Tag)
-                .Include(b => b.Stock)
-                .AsQueryable();
+            var q = _db.Books.AsNoTracking().AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(dto.Title))
-                query = query.Where(b => b.Title.Contains(dto.Title));
+            {
+                var t = dto.Title.Trim();
+                q = q.Where(b => EF.Functions.Like(b.Title, $"%{t}%"));
+            }
+
             if (!string.IsNullOrWhiteSpace(dto.Author))
-                query = query.Where(b => b.Author.Name.Contains(dto.Author));
+            {
+                var a = dto.Author.Trim();
+                q = q.Where(b => EF.Functions.Like(b.Author.Name, $"%{a}%"));
+            }
+
             if (!string.IsNullOrWhiteSpace(dto.Genre))
-                query = query.Where(b => b.Genre.Name.Contains(dto.Genre));
+            {
+                var g = dto.Genre.Trim();
+                q = q.Where(b => EF.Functions.Like(b.Genre.Name, $"%{g}%"));
+            }
+
             if (!string.IsNullOrWhiteSpace(dto.Publisher))
-                query = query.Where(b => b.Editor.Name.Contains(dto.Publisher));
+            {
+                var p = dto.Publisher.Trim();
+                q = q.Where(b => EF.Functions.Like(b.Editor.Name, $"%{p}%"));
+            }
+
             if (!string.IsNullOrWhiteSpace(dto.Isbn))
-                query = query.Where(b => b.Isbn.Contains(dto.Isbn));
-            if (dto.YearMin.HasValue)
-                query = query.Where(b => b.PublicationDate >= new DateTime(dto.YearMin.Value, 1, 1));
-            if (dto.YearMax.HasValue)
-                query = query.Where(b => b.PublicationDate <= new DateTime(dto.YearMax.Value, 12, 31));
+            {
+                var i = dto.Isbn.Trim();
+                q = q.Where(b => b.Isbn == i);
+            }
+
+            if (dto.YearMin.HasValue) q = q.Where(b => b.PublicationDate.Year >= dto.YearMin.Value);
+            if (dto.YearMax.HasValue) q = q.Where(b => b.PublicationDate.Year <= dto.YearMax.Value);
+
+            // ► Filtre "disponible / indisponible" avec comptage robuste (COUNT(LoanId))
             if (dto.IsAvailable.HasValue)
-                query = query.Where(b => b.Stock != null && b.Stock.IsAvailable == dto.IsAvailable.Value);
-            if (dto.TagIds.Any())
-                query = query.Where(b => b.BookTags.Any(bt => dto.TagIds.Contains(bt.TagId)));
+            {
+                if (dto.IsAvailable.Value)
+                {
+                    q = q.Where(b =>
+                        (
+                            (_db.Stocks
+                                .Where(s => s.BookId == b.BookId)
+                                .Select(s => (int?)s.Quantity)
+                                .FirstOrDefault() ?? 0)
+                            -
+                            _db.Loans
+                                .Where(l => l.BookId == b.BookId && l.ReturnDate == null)
+                                .Select(l => (int?)l.LoanId)
+                                .Count()
+                        ) > 0);
+                }
+                else
+                {
+                    q = q.Where(b =>
+                        (
+                            (_db.Stocks
+                                .Where(s => s.BookId == b.BookId)
+                                .Select(s => (int?)s.Quantity)
+                                .FirstOrDefault() ?? 0)
+                            -
+                            _db.Loans
+                                .Where(l => l.BookId == b.BookId && l.ReturnDate == null)
+                                .Select(l => (int?)l.LoanId)
+                                .Count()
+                        ) <= 0);
+                }
+            }
+
+            if (dto.TagIds is { Count: > 0 })
+            {
+                var ids = dto.TagIds.Distinct().ToArray();
+                q = q.Where(b => b.BookTags.Any(bt => ids.Contains(bt.TagId)));
+            }
+
+            if (dto.TagNames is { Count: > 0 })
+            {
+                var names = dto.TagNames
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Select(s => s.Trim())
+                    .ToArray();
+
+                if (names.Length > 0)
+                    q = q.Where(b => b.BookTags.Any(bt => names.Contains(bt.Tag.Name)));
+            }
+
             if (!string.IsNullOrWhiteSpace(dto.Description))
-                query = query.Where(b => b.Description != null && b.Description.Contains(dto.Description));
+            {
+                var d = dto.Description.Trim();
+                q = q.Where(b => b.Description != null && EF.Functions.Like(b.Description, $"%{d}%"));
+            }
 
-            var list = await query
-                .Select(BookToDtoExpression)
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(dto.Exclude))
+            {
+                var ex = dto.Exclude.Trim();
+                q = q.Where(b =>
+                    (b.Description == null || !EF.Functions.Like(b.Description, $"%{ex}%")) &&
+                    !EF.Functions.Like(b.Title, $"%{ex}%"));
+            }
 
-            return list;
+            var results = await q.Select(ReadProjection).ToListAsync(ct);
+
+            // 🔸 Logging optionnel désactivé (signature inconnue dans ton projet)
+            // if (userId.HasValue && _searchLog != null)
+            // {
+            //     try { await _searchLog.LogAsync(userId.Value, dto, results.Count, ct); }
+            //     catch { /* non bloquant */ }
+            // }
+
+            return results;
         }
 
-        /// <summary>
-        /// Expression to project <see cref="Book"/> into <see cref="BookReadDto"/>.
-        /// </summary>
-        private static readonly Expression<Func<Book,BookReadDto>> BookToDtoExpression = book => new BookReadDto
+        public async Task<IReadOnlyList<string>> GetAllGenresAsync(CancellationToken ct = default) =>
+            await _db.Genres.AsNoTracking()
+                .OrderBy(g => g.Name)
+                .Select(g => g.Name)
+                .ToListAsync(ct);
+
+        #endregion
+
+        #region CRUD
+
+        public async Task<BookReadDto> CreateAsync(BookCreateDto dto, CancellationToken ct = default)
         {
-            BookId          = book.BookId,
-            Title           = book.Title,
-            Isbn            = book.Isbn,
-            Description     = book.Description,
-            PublicationYear = book.PublicationDate.Year,
-            AuthorName      = book.Author.Name,
-            GenreName       = book.Genre.Name,
-            EditorName      = book.Editor.Name,
-            IsAvailable     = book.Stock != null && book.Stock.IsAvailable,
-            CoverUrl        = book.CoverUrl,
-            Tags            = book.BookTags.Select(bt => bt.Tag.Name).ToList()
-        };
+            var book = new Book
+            {
+                Title = dto.Title,
+                Isbn = dto.Isbn,
+                Description = dto.Description,
+                PublicationDate = dto.PublicationDate,
+                AuthorId = dto.AuthorId,
+                GenreId = dto.GenreId,
+                EditorId = dto.EditorId,
+                ShelfLevelId = dto.ShelfLevelId,
+                CoverUrl = dto.CoverUrl
+            };
+
+            _db.Books.Add(book);
+            await _db.SaveChangesAsync(ct);
+
+            // Stock initial si absent → 0
+            var stock = await _db.Stocks.FirstOrDefaultAsync(s => s.BookId == book.BookId, ct);
+            if (stock == null)
+            {
+                _db.Stocks.Add(new Stock { BookId = book.BookId, Quantity = 0 });
+                await _db.SaveChangesAsync(ct);
+            }
+
+            // Tags
+            if (dto.TagIds is { Count: > 0 })
+            {
+                foreach (var tagId in dto.TagIds.Distinct())
+                    _db.BookTags.Add(new BookTag { BookId = book.BookId, TagId = tagId });
+
+                await _db.SaveChangesAsync(ct);
+            }
+
+            // Retourne le DTO projeté
+            return await _db.Books.AsNoTracking()
+                .Where(b => b.BookId == book.BookId)
+                .Select(ReadProjection)
+                .SingleAsync(ct);
+        }
+
+        public async Task<bool> UpdateAsync(int id, BookUpdateDto dto, CancellationToken ct = default)
+        {
+            var b = await _db.Books.FirstOrDefaultAsync(x => x.BookId == id, ct);
+            if (b == null) return false;
+
+            b.Title = dto.Title;
+            b.Isbn = dto.Isbn;
+            b.Description = dto.Description;
+            b.PublicationDate = dto.PublicationDate;
+            b.AuthorId = dto.AuthorId;
+            b.GenreId = dto.GenreId;
+            b.EditorId = dto.EditorId;
+            b.ShelfLevelId = dto.ShelfLevelId;
+            b.CoverUrl = dto.CoverUrl;
+
+            // Tags (remplace)
+            if (dto.TagIds != null)
+            {
+                var current = _db.BookTags.Where(bt => bt.BookId == id);
+                _db.BookTags.RemoveRange(current);
+
+                foreach (var tagId in dto.TagIds.Distinct())
+                    _db.BookTags.Add(new BookTag { BookId = id, TagId = tagId });
+            }
+
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+
+        public async Task<bool> DeleteAsync(int id, CancellationToken ct = default)
+        {
+            var b = await _db.Books.FirstOrDefaultAsync(x => x.BookId == id, ct);
+            if (b == null) return false;
+
+            // dépendances simples
+            var tags = _db.BookTags.Where(bt => bt.BookId == id);
+            _db.BookTags.RemoveRange(tags);
+
+            var stock = await _db.Stocks.FirstOrDefaultAsync(s => s.BookId == id, ct);
+            if (stock != null) _db.Stocks.Remove(stock);
+
+            _db.Books.Remove(b);
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+
+        #endregion
     }
 }

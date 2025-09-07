@@ -247,52 +247,31 @@
             <c>403 Forbidden</c> if the caller is not an administrator.
             </returns>
         </member>
-        <member name="T:BackendBiblioMate.Controllers.BooksController">
+        <member name="M:BackendBiblioMate.Controllers.AuthsController.ResendConfirmation(BackendBiblioMate.DTOs.ResendEmailConfirmationDto,System.Threading.CancellationToken)">
             <summary>
-            Controller for managing books.
-            Provides CRUD operations, paged listing with ETag support,
-            and filtered search with activity logging.
-            </summary>
-        </member>
-        <member name="M:BackendBiblioMate.Controllers.BooksController.#ctor(BackendBiblioMate.Interfaces.IBookService)">
-            <summary>
-            Initializes a new instance of <see cref="T:BackendBiblioMate.Controllers.BooksController"/>.
+            Resends the email confirmation link to the given email.
             </summary>
         </member>
         <member name="M:BackendBiblioMate.Controllers.BooksController.GetBooks(System.Int32,System.Int32,System.String,System.Boolean,System.Threading.CancellationToken)">
-            <summary>
-            Retrieves a paged, sorted list of books with detailed information,
-            using projection for performance and ETag support for caching.
-            </summary>
+            <summary>Retrieves a paged, sorted list of books (ETag enabled).</summary>
         </member>
         <member name="M:BackendBiblioMate.Controllers.BooksController.GetBook(System.Int32,System.Threading.CancellationToken)">
-            <summary>
-            Retrieves a single book by its identifier.
-            </summary>
+            <summary>Retrieves a single book by its identifier.</summary>
         </member>
         <member name="M:BackendBiblioMate.Controllers.BooksController.CreateBook(BackendBiblioMate.DTOs.BookCreateDto,System.Threading.CancellationToken)">
-            <summary>
-            Creates a new book record.
-            Only accessible to Librarians and Admins.
-            </summary>
+            <summary>Creates a new book (Librarian/Admin).</summary>
         </member>
         <member name="M:BackendBiblioMate.Controllers.BooksController.UpdateBook(System.Int32,BackendBiblioMate.DTOs.BookUpdateDto,System.Threading.CancellationToken)">
-            <summary>
-            Updates an existing book.
-            Only accessible to Librarians and Admins.
-            </summary>
+            <summary>Updates an existing book (Librarian/Admin).</summary>
         </member>
         <member name="M:BackendBiblioMate.Controllers.BooksController.DeleteBook(System.Int32,System.Threading.CancellationToken)">
-            <summary>
-            Permanently deletes a book by its identifier.
-            Only accessible to Librarians and Admins.
-            </summary>
+            <summary>Deletes a book by ID (Librarian/Admin).</summary>
         </member>
         <member name="M:BackendBiblioMate.Controllers.BooksController.SearchBooks(BackendBiblioMate.DTOs.BookSearchDto,System.Threading.CancellationToken)">
-            <summary>
-            Searches books using multiple optional criteria.
-            Accessible without authentication.
-            </summary>
+            <summary>Searches books with multiple optional criteria.</summary>
+        </member>
+        <member name="M:BackendBiblioMate.Controllers.BooksController.GetGenres(System.Threading.CancellationToken)">
+            <summary>Returns all genre names.</summary>
         </member>
         <member name="T:BackendBiblioMate.Controllers.EditorsController">
             <summary>
@@ -1348,160 +1327,11 @@
             </remarks>
             <example>[4, 7, 12]</example>
         </member>
-        <member name="T:BackendBiblioMate.DTOs.BookReadDto">
-            <summary>
-            DTO returned when retrieving detailed book information.
-            Contains all relevant fields for display purposes.
-            </summary>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookReadDto.BookId">
-            <summary>
-            Gets the unique identifier of the book.
-            </summary>
-            <example>42</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookReadDto.Title">
-            <summary>
-            Gets the title of the book.
-            </summary>
-            <example>The Hobbit</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookReadDto.Isbn">
-            <summary>
-            Gets the International Standard Book Number (ISBN).
-            </summary>
-            <example>9780261103344</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookReadDto.Description">
-            <summary>
-            Gets the description or synopsis of the book.
-            </summary>
-            <example>An epic tale of hobbits, dragons, and adventure.</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookReadDto.PublicationYear">
-            <summary>
-            Gets the year the book was published.
-            </summary>
-            <example>1937</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookReadDto.AuthorName">
-            <summary>
-            Gets the full name of the author.
-            </summary>
-            <example>J.R.R. Tolkien</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookReadDto.GenreName">
-            <summary>
-            Gets the name of the book’s genre.
-            </summary>
-            <example>Fantasy</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookReadDto.EditorName">
-            <summary>
-            Gets the name of the editor/publisher.
-            </summary>
-            <example>HarperCollins</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookReadDto.IsAvailable">
-            <summary>
-            Gets a value indicating whether the book is currently available for loan.
-            </summary>
-            <example>true</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookReadDto.CoverUrl">
-            <summary>
-            Gets the URL of the book’s cover image.
-            </summary>
-            <example>https://example.com/covers/the-hobbit.jpg</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookReadDto.Tags">
-            <summary>
-            Gets the list of tag names associated with the book.
-            </summary>
-            <remarks>
-            Each entry represents a descriptive label (e.g., “Classic”, “Adventure”).
-            </remarks>
-            <example>["Classic", "Adventure"]</example>
-        </member>
         <member name="T:BackendBiblioMate.DTOs.BookSearchDto">
             <summary>
             DTO used for advanced filtering when searching for books.
-            Contains optional criteria to narrow down search results.
+            All fields optional.
             </summary>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookSearchDto.Title">
-            <summary>
-            Gets the partial or full title to search for.
-            </summary>
-            <example>Hobbit</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookSearchDto.Author">
-            <summary>
-            Gets the partial or full author name to filter by.
-            </summary>
-            <example>Tolkien</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookSearchDto.Publisher">
-            <summary>
-            Gets the partial or full publisher name to filter by.
-            </summary>
-            <example>HarperCollins</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookSearchDto.Genre">
-            <summary>
-            Gets the genre name to filter by.
-            </summary>
-            <example>Fantasy</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookSearchDto.Isbn">
-            <summary>
-            Gets the ISBN to filter by (10 to 13 characters).
-            </summary>
-            <remarks>
-            Use this to find an exact or partial match of the book’s ISBN.
-            </remarks>
-            <example>9780261103344</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookSearchDto.YearMin">
-            <summary>
-            Gets the minimum publication year to filter by.
-            </summary>
-            <remarks>
-            Inclusive lower bound (0–2100).
-            </remarks>
-            <example>1900</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookSearchDto.YearMax">
-            <summary>
-            Gets the maximum publication year to filter by.
-            </summary>
-            <remarks>
-            Inclusive upper bound (0–2100).
-            </remarks>
-            <example>2000</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookSearchDto.IsAvailable">
-            <summary>
-            Gets the availability status to filter by.
-            </summary>
-            <example>true</example>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookSearchDto.TagIds">
-            <summary>
-            Gets the list of tag identifiers to filter by.
-            </summary>
-            <remarks>
-            If specified, the list must contain at least one element.
-            </remarks>
-        </member>
-        <member name="P:BackendBiblioMate.DTOs.BookSearchDto.Description">
-            <summary>
-            Gets the partial or full description text to filter by.
-            </summary>
-            <remarks>
-            Allows searching within the description.
-            </remarks>
-            <example>epic tale</example>
         </member>
         <member name="T:BackendBiblioMate.DTOs.BookUpdateDto">
             <summary>
@@ -5577,84 +5407,12 @@
             <param name="author">The author entity to map.</param>
             <returns>A new <see cref="T:BackendBiblioMate.DTOs.AuthorReadDto"/> instance.</returns>
         </member>
-        <member name="T:BackendBiblioMate.Services.Catalog.BookService">
+        <member name="P:BackendBiblioMate.Services.Catalog.BookService.ReadProjection">
             <summary>
-            Implements <see cref="T:BackendBiblioMate.Interfaces.IBookService"/> by coordinating EF Core,
-            projection to DTO, pagination, sorting, ETag generation, and search‐activity logging.
-            </summary>
-        </member>
-        <member name="M:BackendBiblioMate.Services.Catalog.BookService.#ctor(BackendBiblioMate.Data.BiblioMateDbContext,BackendBiblioMate.Interfaces.ISearchActivityLogService)">
-            <summary>
-            Initializes a new instance of <see cref="T:BackendBiblioMate.Services.Catalog.BookService"/>.
-            </summary>
-            <param name="db">EF Core database context.</param>
-            <param name="searchLog">Service for logging search activities.</param>
-        </member>
-        <member name="M:BackendBiblioMate.Services.Catalog.BookService.GetPagedAsync(System.Int32,System.Int32,System.String,System.Boolean,System.Threading.CancellationToken)">
-            <summary>
-            Retrieves a paged list of books, sorted and with an ETag for caching.
-            </summary>
-            <param name="pageNumber">Number of the page to retrieve (1-based).</param>
-            <param name="pageSize">Size of each page.</param>
-            <param name="sortBy">Field to sort by (e.g. "Title", "PublicationYear").</param>
-            <param name="ascending">True for ascending order; false for descending.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            A tuple containing:
-            <list type="bullet">
-              <item><see cref="T:BackendBiblioMate.Helpers.PagedResult`1"/> with the page of items.</item>
-              <item>ETag string based on the page content.</item>
-              <item><see cref="T:Microsoft.AspNetCore.Mvc.IActionResult"/> <c>NotModified</c> if the client cache is fresh; otherwise null.</item>
-            </list>
-            </returns>
-        </member>
-        <member name="M:BackendBiblioMate.Services.Catalog.BookService.GetByIdAsync(System.Int32,System.Threading.CancellationToken)">
-            <summary>
-            Retrieves a single book by its identifier.
-            </summary>
-            <param name="id">Identifier of the book to retrieve.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>
-            The <see cref="T:BackendBiblioMate.DTOs.BookReadDto"/> if found; otherwise <c>null</c>.
-            </returns>
-        </member>
-        <member name="M:BackendBiblioMate.Services.Catalog.BookService.CreateAsync(BackendBiblioMate.DTOs.BookCreateDto,System.Threading.CancellationToken)">
-            <summary>
-            Creates a new book in the data store.
-            </summary>
-            <param name="dto">Data transfer object containing book creation data.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>The created <see cref="T:BackendBiblioMate.DTOs.BookReadDto"/>.</returns>
-        </member>
-        <member name="M:BackendBiblioMate.Services.Catalog.BookService.UpdateAsync(System.Int32,BackendBiblioMate.DTOs.BookUpdateDto,System.Threading.CancellationToken)">
-            <summary>
-            Updates an existing book in the data store.
-            </summary>
-            <param name="id">Identifier of the book to update.</param>
-            <param name="dto">Data transfer object containing updated book data.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns><c>true</c> if the update was successful; <c>false</c> if not found or ID mismatch.</returns>
-        </member>
-        <member name="M:BackendBiblioMate.Services.Catalog.BookService.DeleteAsync(System.Int32,System.Threading.CancellationToken)">
-            <summary>
-            Deletes a book from the data store.
-            </summary>
-            <param name="id">Identifier of the book to delete.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns><c>true</c> if the deletion was successful; <c>false</c> if not found.</returns>
-        </member>
-        <member name="M:BackendBiblioMate.Services.Catalog.BookService.SearchAsync(BackendBiblioMate.DTOs.BookSearchDto,System.Nullable{System.Int32},System.Threading.CancellationToken)">
-            <summary>
-            Searches books by various criteria and logs the activity.
-            </summary>
-            <param name="dto">Search criteria.</param>
-            <param name="userId">Optional user identifier for logging.</param>
-            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-            <returns>An <see cref="T:System.Collections.Generic.IEnumerable`1"/> of matching books.</returns>
-        </member>
-        <member name="F:BackendBiblioMate.Services.Catalog.BookService.BookToDtoExpression">
-            <summary>
-            Expression to project <see cref="T:BackendBiblioMate.Models.Book"/> into <see cref="T:BackendBiblioMate.DTOs.BookReadDto"/>.
+            Projection unique réutilisée partout (liste/détail/recherche).
+            Localisation : Zone/Shelf/ShelfLevel.
+            Disponibilité : Quantity - prêts actifs (ReturnDate == null) > 0.
+            IMPORTANT : on compte une clé non nulle (LoanId) pour éviter le faux "1" dû aux LEFT JOIN.
             </summary>
         </member>
         <member name="T:BackendBiblioMate.Services.Catalog.EditorService">
@@ -6692,30 +6450,15 @@
             authentication, email confirmation, password reset, and approval.
             </summary>
         </member>
-        <member name="M:BackendBiblioMate.Services.Users.AuthService.#ctor(BackendBiblioMate.Data.BiblioMateDbContext,Microsoft.Extensions.Configuration.IConfiguration,BackendBiblioMate.Interfaces.IEmailService)">
-            <summary>
-            Initializes a new instance of <see cref="T:BackendBiblioMate.Services.Users.AuthService"/>.
-            </summary>
-            <param name="db">Database context for user data.</param>
-            <param name="config">Application configuration for URLs and JWT settings.</param>
-            <param name="emailService">Service for sending email messages.</param>
-            <exception cref="T:System.ArgumentNullException">Thrown if any dependency is null.</exception>
-        </member>
         <member name="M:BackendBiblioMate.Services.Users.AuthService.RegisterAsync(BackendBiblioMate.DTOs.RegisterDto,System.Threading.CancellationToken)">
             <summary>
             Registers a new user, sends an email confirmation link.
             </summary>
-            <param name="dto">Registration data.</param>
-            <param name="cancellationToken">Token to monitor cancellation.</param>
-            <returns>Tuple of (success flag, <see cref="T:Microsoft.AspNetCore.Mvc.IActionResult"/>).</returns>
         </member>
         <member name="M:BackendBiblioMate.Services.Users.AuthService.LoginAsync(BackendBiblioMate.DTOs.LoginDto,System.Threading.CancellationToken)">
             <summary>
             Authenticates a user and returns a JWT token if successful.
             </summary>
-            <param name="dto">Login credentials.</param>
-            <param name="cancellationToken">Token to monitor cancellation.</param>
-            <returns>Tuple of (success flag, <see cref="T:Microsoft.AspNetCore.Mvc.IActionResult"/> containing token or error).</returns>
         </member>
         <member name="M:BackendBiblioMate.Services.Users.AuthService.ConfirmEmailAsync(System.String,System.Threading.CancellationToken)">
             <summary>Confirms a user's email using the provided token.</summary>
@@ -6728,11 +6471,6 @@
         </member>
         <member name="M:BackendBiblioMate.Services.Users.AuthService.ApproveUserAsync(System.Int32,System.Threading.CancellationToken)">
             <summary>Approves a pending user account.</summary>
-        </member>
-        <member name="M:BackendBiblioMate.Services.Users.AuthService.GenerateJwtToken(BackendBiblioMate.Models.User)">
-            <summary>
-            Generates a JWT token for the authenticated user.
-            </summary>
         </member>
         <member name="T:BackendBiblioMate.Services.Users.HistoryService">
             <summary>

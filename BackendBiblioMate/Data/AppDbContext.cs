@@ -104,7 +104,19 @@ namespace BackendBiblioMate.Data
                       .WithMany(t => t.BookTags)
                       .HasForeignKey(bt => bt.TagId);
             });
+            
+            // Book ↔ Stock : 1–1 (Stock porte la FK BookId)
+            modelBuilder.Entity<Book>()
+                .HasOne(b => b.Stock)
+                .WithOne(s => s.Book)
+                .HasForeignKey<Stock>(s => s.BookId)
+                .OnDelete(DeleteBehavior.Cascade);
 
+            // Un seul Stock par Book
+            modelBuilder.Entity<Stock>()
+                .HasIndex(s => s.BookId)
+                .IsUnique();
+            
             // 5) Restrict delete for Book → Author/Editor/Genre
             modelBuilder.Entity<Book>(entity =>
             {

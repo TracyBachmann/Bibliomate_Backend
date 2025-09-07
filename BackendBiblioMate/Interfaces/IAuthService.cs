@@ -128,5 +128,10 @@ namespace BackendBiblioMate.Interfaces
         Task<(bool Success, IActionResult Result)> ApproveUserAsync(
             int userId,
             CancellationToken cancellationToken = default);
+        
+        Task<(bool Success, IActionResult Result)> ResendConfirmationAsync(
+            string email,
+            CancellationToken cancellationToken = default);
+
     }
 }

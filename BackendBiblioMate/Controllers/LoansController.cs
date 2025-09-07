@@ -1,4 +1,5 @@
 ﻿using System.Dynamic;
+using System.Security.Claims;
 using AutoMapper;
 using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Models.Enums;
@@ -43,7 +44,7 @@ namespace BackendBiblioMate.Controllers
         /// 400 BadRequest with { error } on failure.
         /// </returns>
         [HttpPost]
-        [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [Authorize]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Creates a new loan (v1)",
@@ -57,24 +58,37 @@ namespace BackendBiblioMate.Controllers
             CancellationToken cancellationToken = default)
         {
             if (dto == null || !ModelState.IsValid)
-            {
-                dynamic errorResponse = new ExpandoObject();
-                errorResponse.error = "Invalid payload.";
-                return BadRequest(errorResponse);
-            }
+                return BadRequest(new { error = "Invalid payload." });
 
-            var result = await _loanService.CreateAsync(dto, cancellationToken);
+            // Qui emprunte ?
+            var isStaff = User.IsInRole(UserRoles.Librarian) || User.IsInRole(UserRoles.Admin);
+            int? userIdFromToken = TryGetUserIdFromClaims(User);
+
+            if (!isStaff && userIdFromToken is null)
+                return BadRequest(new { error = "Authenticated user id not found in token." });
+
+            var effectiveUserId = isStaff && dto.UserId > 0
+                ? dto.UserId                       // staff : peut prêter pour quelqu’un d’autre
+                : userIdFromToken!.Value;          // user standard : pour lui-même
+
+            var result = await _loanService.CreateAsync(
+                new LoanCreateDto { UserId = effectiveUserId, BookId = dto.BookId },
+                cancellationToken);
+
             if (result.IsError)
-            {
-                dynamic errorResponse = new ExpandoObject();
-                errorResponse.error = result.Error;
-                return BadRequest(errorResponse);
-            }
+                return BadRequest(new { error = result.Error });
 
-            dynamic successResponse = new ExpandoObject();
-            successResponse.message = "Loan created successfully.";
-            successResponse.dueDate = result.Value!.DueDate;
-            return Ok(successResponse);
+            return Ok(new { message = "Loan created successfully.", dueDate = result.Value!.DueDate });
+        }
+
+        private static int? TryGetUserIdFromClaims(ClaimsPrincipal user)
+        {
+            var claim = user.FindFirst(ClaimTypes.NameIdentifier)
+                        ?? user.FindFirst("nameid")
+                        ?? user.FindFirst("sub")
+                        ?? user.FindFirst("uid");
+
+            return int.TryParse(claim?.Value, out var id) ? id : null;
         }
 
         /// <summary>

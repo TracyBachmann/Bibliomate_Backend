@@ -2,6 +2,7 @@
   serverSQL:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: sqlservercda
+    restart: unless-stopped
     environment:
       - ACCEPT_EULA=Y
       - SA_PASSWORD=Test1234!
@@ -9,6 +10,11 @@
       - "1450:1433"
     volumes:
       - sqlDB_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/1433'"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
   mongo:
     image: mongo:7
@@ -25,16 +31,28 @@
 
   backend:
     build:
-      context: ./backend
+      context: ./BackendBiblioMate
       dockerfile: Dockerfile
     container_name: backend
+    restart: unless-stopped
     ports:
       - "5000:5000"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5000
-      - MongoDb__ConnectionString=mongodb://admin:password@mongo:27017
+      - ConnectionStrings__DefaultConnection=Server=serverSQL,1433;Database=BiblioMateDb;User Id=sa;Password=Test1234!;TrustServerCertificate=True;Encrypt=False;
+      - MongoDb__ConnectionString=mongodb://admin:password@mongo:27017/?authSource=admin
       - MongoDb__DatabaseName=BiblioMateLogs
+      - SendGrid__ApiKey=${SendGrid__ApiKey}
+      - SendGrid__FromEmail=${SendGrid__FromEmail}
+      - SendGrid__FromName=${SendGrid__FromName}
+      - SendGrid__Sandbox=false
+      - Smtp__Host=${Smtp__Host}
+      - Smtp__Port=${Smtp__Port}
+      - Smtp__Username=${Smtp__Username}
+      - Smtp__Password=${Smtp__Password}
+      - Smtp__FromEmail=${Smtp__FromEmail}
+      - Smtp__FromName=${Smtp__FromName}
     depends_on:
       - serverSQL
       - mongo

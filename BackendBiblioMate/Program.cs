@@ -6,7 +6,6 @@ using BackendBiblioMate.Data;
 using BackendBiblioMate.Hubs;
 using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Middlewares;
-using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Services.Catalog;
 using BackendBiblioMate.Services.Infrastructure.External;
 using BackendBiblioMate.Services.Infrastructure.Logging;
@@ -31,17 +30,29 @@ using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
 using Prometheus;
 using AspNetCoreRateLimit;
-using Swashbuckle.AspNetCore.SwaggerGen;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configuration CORS améliorée
+// -------- Connexions (SQL & Mongo) --------
+string? GetSqlConnectionString()
+{
+    return builder.Configuration.GetConnectionString("Default")
+        ?? builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? builder.Configuration["ConnectionStrings:Default"]
+        ?? builder.Configuration["ConnectionStrings:DefaultConnection"];
+}
+string? GetMongoConnectionString()
+{
+    return builder.Configuration.GetConnectionString("MongoDb")
+        ?? builder.Configuration["MongoDb:ConnectionString"];
+}
+
+// -------- CORS --------
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Default", policy =>
-        policy
-            .WithOrigins(
-                "http://localhost:4200", 
+        policy.WithOrigins(
+                "http://localhost:4200",
                 "https://localhost:4200",
                 "http://localhost:5000",
                 "https://localhost:5001"
@@ -50,12 +61,9 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod()
             .AllowCredentials()
     );
-    
-    // Politique pour le développement (plus permissive mais sans credentials)
     options.AddPolicy("Development", policy =>
-        policy
-            .WithOrigins(
-                "http://localhost:4200", 
+        policy.WithOrigins(
+                "http://localhost:4200",
                 "https://localhost:4200",
                 "http://localhost:3000",
                 "http://localhost:5000",
@@ -69,6 +77,7 @@ builder.Services.AddCors(options =>
     );
 });
 
+// -------- Versioning --------
 builder.Services.AddApiVersioning(opts =>
 {
     opts.AssumeDefaultVersionWhenUnspecified = true;
@@ -86,6 +95,7 @@ builder.Services.AddVersionedApiExplorer(opts =>
     opts.SubstituteApiVersionInUrl = true;
 });
 
+// -------- Rate limiting --------
 builder.Services.AddMemoryCache();
 builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
 builder.Services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
@@ -93,9 +103,13 @@ builder.Services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounte
 builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 builder.Services.AddSingleton<IProcessingStrategy, AsyncKeyLockProcessingStrategy>();
 
-builder.Services.AddDbContext<BiblioMateDbContext>(o =>
-    o.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+// -------- EF Core (SQL Server) --------
+var sqlConnString = GetSqlConnectionString();
+if (string.IsNullOrWhiteSpace(sqlConnString))
+    throw new InvalidOperationException("Aucune chaîne de connexion SQL trouvée (ConnectionStrings:Default ou DefaultConnection).");
+builder.Services.AddDbContext<BiblioMateDbContext>(o => o.UseSqlServer(sqlConnString));
 
+// -------- Controllers --------
 builder.Services
     .AddControllers(o =>
     {
@@ -107,6 +121,7 @@ builder.Services
     .AddJsonOptions(o =>
     {
         o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        o.JsonSerializerOptions.DictionaryKeyPolicy  = System.Text.Json.JsonNamingPolicy.CamelCase;
         o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     })
     .ConfigureApiBehaviorOptions(opts =>
@@ -125,21 +140,20 @@ builder.Services
         };
     });
 
-builder.Services
-    .AddHealthChecks()
-    .AddDbContextCheck<BiblioMateDbContext>(name: "sqlserver", tags: new[] { "db", "sql" })
-    .AddSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection")!,
-        name: "sqlserver-raw",
-        tags: new[] { "db", "sql" })
-    .AddMongoDb(
-        mongodbConnectionString: builder.Configuration.GetConnectionString("MongoDb")!,
-        name: "mongodb",
-        tags: new[] { "db", "mongo" });
+// -------- HealthChecks --------
+var healthChecks = builder.Services.AddHealthChecks()
+    .AddDbContextCheck<BiblioMateDbContext>(name: "sqlserver-dbcontext", tags: new[] { "db", "sql" })
+    .AddSqlServer(sqlConnString, name: "sqlserver-raw", tags: new[] { "db", "sql" });
 
+var mongoConnString = GetMongoConnectionString();
+if (!string.IsNullOrWhiteSpace(mongoConnString))
+{
+    healthChecks.AddMongoDb(mongoConnString, name: "mongodb", tags: new[] { "db", "mongo" });
+}
+
+// -------- Auth / JWT --------
 var jwt = builder.Configuration.GetSection("Jwt");
-var key = Encoding.UTF8.GetBytes(jwt["Key"]!);
-
+var key = Encoding.UTF8.GetBytes(jwt["Key"] ?? throw new InvalidOperationException("Jwt:Key manquant."));
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
     {
@@ -179,14 +193,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.Configure<MongoSettings>(
-    builder.Configuration.GetSection("MongoDb"));
+// -------- Mongo settings + client --------
+builder.Services.Configure<MongoSettings>(builder.Configuration.GetSection("MongoDb"));
 builder.Services.AddSingleton<IMongoClient>(sp =>
 {
     var s = sp.GetRequiredService<IOptions<MongoSettings>>().Value;
+    if (string.IsNullOrWhiteSpace(s.ConnectionString))
+        return new MongoClient("mongodb://unused-host:27017");
     return new MongoClient(s.ConnectionString);
 });
 
+// -------- DI métier --------
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IUserService, UserService>();
@@ -214,33 +231,41 @@ builder.Services.AddScoped<NotificationService>();
 
 builder.Services.AddSingleton<EncryptionService>();
 builder.Services.AddHttpClient<IGoogleBooksService, GoogleBooksService>();
-builder.Services.AddScoped<IEmailService, SendGridEmailService>();
+
+// Email
+var smtpHost = builder.Configuration["Smtp:Host"];
+if (!string.IsNullOrWhiteSpace(smtpHost))
+    builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+else
+    builder.Services.AddScoped<IEmailService, SendGridEmailService>();
 
 builder.Services.AddScoped<IReservationCleanupService, ReservationCleanupService>();
 builder.Services.AddScoped<LoanReminderService>();
 builder.Services.AddHostedService<LoanReminderBackgroundService>();
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services
-    .AddOptions<SwaggerGenOptions>()
+    .AddOptions<Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenOptions>()
     .Configure<IApiVersionDescriptionProvider>((options, provider) =>
     {
         foreach (var desc in provider.ApiVersionDescriptions)
-        {
             options.SwaggerDoc(desc.GroupName, new OpenApiInfo { Title = $"BiblioMate API {desc.ApiVersion}", Version = desc.GroupName });
-        }
+
         options.DocInclusionPredicate((docName, apiDesc) =>
         {
             if (apiDesc.GroupName != docName) return false;
             var path = apiDesc.RelativePath ?? "";
             return path.StartsWith($"api/{docName}/", StringComparison.OrdinalIgnoreCase);
         });
+
         options.OperationFilter<SwaggerDefaultValues>();
         var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
         var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-        options.IncludeXmlComments(xmlPath);
+        if (File.Exists(xmlPath))
+            options.IncludeXmlComments(xmlPath);
         options.EnableAnnotations();
         options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
         {
@@ -251,97 +276,70 @@ builder.Services
         });
         options.AddSecurityRequirement(new OpenApiSecurityRequirement
         {
-            {
-                new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } },
-                Array.Empty<string>()
-            }
+            { new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }, Array.Empty<string>() }
         });
     });
 
 var app = builder.Build();
 
+// -------- Swagger / UI --------
 var apiVersions = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
-
 if (app.Environment.IsDevelopment())
 {
+    app.UseDeveloperExceptionPage();
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         foreach (var desc in apiVersions.ApiVersionDescriptions)
-        {
             c.SwaggerEndpoint($"/swagger/{desc.GroupName}/swagger.json", $"BiblioMate API {desc.ApiVersion}");
-        }
         c.RoutePrefix = "swagger";
     });
     app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 }
 
-app.UseHsts();
-
-// Gestion des requêtes OPTIONS et CORS en premier
-app.Use(async (ctx, next) =>
+// -------- Sécurité HTTP --------
+if (!app.Environment.IsDevelopment())
 {
-    if (ctx.Request.Method == HttpMethods.Options)
-    {
-        ctx.Response.StatusCode = StatusCodes.Status204NoContent;
-        return;
-    }
-    await next();
-});
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
 
-// CORS doit être placé très tôt dans le pipeline
 if (app.Environment.IsDevelopment())
-{
     app.UseCors("Development");
-}
 else
-{
     app.UseCors("Default");
-}
 
-// Headers de sécurité
+// En-têtes sécurité
 app.Use(async (ctx, next) =>
 {
     ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
     ctx.Response.Headers["X-Frame-Options"] = "DENY";
     ctx.Response.Headers["Referrer-Policy"] = "no-referrer";
-    // Commenté temporairement pour tester
-    // ctx.Response.Headers["Content-Security-Policy"] = "default-src 'self'";
     await next();
 });
 
-// Middleware de débogage pour les requêtes (optionnel, à retirer en production)
-app.Use(async (ctx, next) =>
-{
-    Console.WriteLine($"Request: {ctx.Request.Method} {ctx.Request.Path}");
-    Console.WriteLine($"Origin: {ctx.Request.Headers.Origin}");
-    Console.WriteLine($"User-Agent: {ctx.Request.Headers.UserAgent}");
-    Console.WriteLine($"Referer: {ctx.Request.Headers.Referer}");
-    Console.WriteLine("---");
-    await next();
-});
-
+// -------- Observabilité / erreurs --------
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseIpRateLimiting();
 app.UseMetricServer();
 app.UseHttpMetrics();
 
-app.UseHttpsRedirection();
+// -------- Auth --------
 app.UseAuthentication();
 app.UseAuthorization();
 
+// -------- Auto-migration EF au démarrage --------
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<BiblioMateDbContext>();
+    await db.Database.MigrateAsync();
+}
+
+// -------- Endpoints --------
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-app.MapGet("/api/notifications/logs/user/{userId}",
-    [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
-    async (int userId, INotificationLogService logService, CancellationToken ct) =>
-    {
-        var logs = await logService.GetByUserAsync(userId, ct);
-        return Results.Ok(logs);
-    })
-   .ExcludeFromDescription();
-
+// Health
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     ResponseWriter = async (ctx, report) =>
@@ -350,10 +348,11 @@ app.MapHealthChecks("/health", new HealthCheckOptions
         var result = new
         {
             status = report.Status.ToString(),
-            checks = report.Entries.Select(e => new {
-                name     = e.Key,
-                status   = e.Value.Status.ToString(),
-                error    = e.Value.Exception?.Message,
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                error = e.Value.Exception?.Message,
                 duration = e.Value.Duration.ToString()
             })
         };

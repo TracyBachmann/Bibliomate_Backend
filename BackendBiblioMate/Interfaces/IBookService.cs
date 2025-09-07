@@ -105,5 +105,9 @@ namespace BackendBiblioMate.Interfaces
             BookSearchDto dto,
             int? userId,
             CancellationToken cancellationToken = default);
+        
+        Task<IReadOnlyList<string>> GetAllGenresAsync(CancellationToken cancellationToken = default);
     }
+    
+    
 }

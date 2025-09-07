@@ -1,4 +1,5 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Security.Claims;
 using System.Text;
 using BackendBiblioMate.Data;
@@ -22,13 +23,6 @@ namespace BackendBiblioMate.Services.Users
         private readonly IConfiguration _config;
         private readonly IEmailService _emailService;
 
-        /// <summary>
-        /// Initializes a new instance of <see cref="AuthService"/>.
-        /// </summary>
-        /// <param name="db">Database context for user data.</param>
-        /// <param name="config">Application configuration for URLs and JWT settings.</param>
-        /// <param name="emailService">Service for sending email messages.</param>
-        /// <exception cref="ArgumentNullException">Thrown if any dependency is null.</exception>
         public AuthService(
             BiblioMateDbContext db,
             IConfiguration config,
@@ -42,9 +36,6 @@ namespace BackendBiblioMate.Services.Users
         /// <summary>
         /// Registers a new user, sends an email confirmation link.
         /// </summary>
-        /// <param name="dto">Registration data.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation.</param>
-        /// <returns>Tuple of (success flag, <see cref="IActionResult"/>).</returns>
         public async Task<(bool Success, IActionResult Result)> RegisterAsync(
             RegisterDto dto,
             CancellationToken cancellationToken = default)
@@ -55,7 +46,7 @@ namespace BackendBiblioMate.Services.Users
                     new ConflictObjectResult(new { error = "An account with that email already exists." }));
             }
 
-            // --- Helpers to read new/old properties safely ---
+            // --- helpers for DTO compat (old/new front) ---
             static string? GetStringProp(object obj, string prop)
                 => obj.GetType().GetProperty(prop)?.GetValue(obj) as string;
 
@@ -65,7 +56,6 @@ namespace BackendBiblioMate.Services.Users
             static IEnumerable<int>? GetIntEnumerableProp(object obj, string prop)
                 => obj.GetType().GetProperty(prop)?.GetValue(obj) as IEnumerable<int>;
 
-            // Name handling (new: FirstName/LastName, old: Name)
             var firstName = GetStringProp(dto, "FirstName");
             var lastName  = GetStringProp(dto, "LastName");
             if (firstName is null || lastName is null)
@@ -74,7 +64,6 @@ namespace BackendBiblioMate.Services.Users
                 SplitName(fullName, out firstName, out lastName);
             }
 
-            // Address handling (new: Address1/Address2, old: Address)
             var address1 = GetStringProp(dto, "Address1") ?? GetStringProp(dto, "Address") ?? string.Empty;
             var address2 = GetStringProp(dto, "Address2");
 
@@ -102,7 +91,7 @@ namespace BackendBiblioMate.Services.Users
             _db.Users.Add(user);
             await _db.SaveChangesAsync(cancellationToken);
 
-            // Initialize preferred genres if provided
+            // Preferred genres
             if (favoriteGenreIds is not null && favoriteGenreIds.Any())
             {
                 foreach (var genreId in favoriteGenreIds.Distinct())
@@ -116,12 +105,38 @@ namespace BackendBiblioMate.Services.Users
                 await _db.SaveChangesAsync(cancellationToken);
             }
 
-            var confirmUrl = $"{_config["Frontend:BaseUrl"]}/confirm-email?token={token}";
-            await _emailService.SendEmailAsync(
-                user.Email,
-                "Confirm your registration",
-                $"<p>Welcome {user.FirstName}!</p><p>Please confirm your email by clicking <a href=\"{confirmUrl}\">here</a>.</p>"
-            );
+            // ---- Confirmation email (FR + bouton) ----
+            var baseUrl = _config["Frontend:BaseUrl"] ?? "http://localhost:4200";
+            var confirmUrl = $"{baseUrl}/confirm-email?token={token}";
+
+            var subject = "Confirmez votre inscription – BiblioMate";
+            var first = WebUtility.HtmlEncode(user.FirstName ?? "");
+
+            var html = $@"
+<div style=""font-family:Segoe UI,Roboto,Arial,sans-serif;max-width:560px;margin:auto;background:#f7fbff;
+             border:1px solid #e6f0f7;border-radius:12px;padding:24px"">
+  <h2 style=""margin:0 0 12px;color:#04446b;font-weight:600"">Bienvenue sur BiblioMate 👋</h2>
+  <p style=""margin:0 0 16px;color:#0f2a3a"">Bonjour {first},</p>
+  <p style=""margin:0 0 16px;color:#0f2a3a"">
+    Merci de votre inscription. Pour activer votre compte, veuillez confirmer votre adresse e-mail :
+  </p>
+  <p style=""text-align:center;margin:24px 0"">
+    <a href=""{confirmUrl}"" style=""display:inline-block;background:#fbbc05;color:#000;text-decoration:none;
+          padding:12px 18px;border-radius:20px;border:2px solid #fbbc05"">
+      Confirmer mon e-mail
+    </a>
+  </p>
+  <p style=""margin:16px 0;color:#0f2a3a;font-size:14px"">
+    Après la confirmation, un·e bibliothécaire devra <b>approuver</b> votre compte avant la première connexion.
+  </p>
+  <hr style=""border:none;border-top:1px solid #e6f0f7;margin:20px 0""/>
+  <p style=""margin:0;color:#466176;font-size:12px"">
+    Si le bouton ne fonctionne pas, copiez/collez ce lien :<br/>
+    <a href=""{confirmUrl}"">{confirmUrl}</a>
+  </p>
+</div>";
+
+            await _emailService.SendEmailAsync(user.Email, subject, html);
 
             return (true, new OkObjectResult("Registration successful. Check your email."));
         }
@@ -129,9 +144,6 @@ namespace BackendBiblioMate.Services.Users
         /// <summary>
         /// Authenticates a user and returns a JWT token if successful.
         /// </summary>
-        /// <param name="dto">Login credentials.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation.</param>
-        /// <returns>Tuple of (success flag, <see cref="IActionResult"/> containing token or error).</returns>
         public async Task<(bool Success, IActionResult Result)> LoginAsync(
             LoginDto dto,
             CancellationToken cancellationToken = default)
@@ -142,6 +154,7 @@ namespace BackendBiblioMate.Services.Users
                 return (false, new UnauthorizedObjectResult(new { error = "Invalid email or password." }));
             }
 
+            // Keep these messages as-is (frontend matches on them)
             if (!user.IsEmailConfirmed)
             {
                 return (false, new UnauthorizedObjectResult(new { error = "Email not confirmed." }));
@@ -189,12 +202,32 @@ namespace BackendBiblioMate.Services.Users
                 user.PasswordResetTokenExpires = expires;
                 await _db.SaveChangesAsync(cancellationToken);
 
-                var resetUrl = $"{_config["Frontend:BaseUrl"]}/reset-password?token={token}";
-                await _emailService.SendEmailAsync(
-                    email,
-                    "Password Reset Request",
-                    $"<p>Please reset your password by clicking <a href=\"{resetUrl}\">here</a>.</p>"
-                );
+                var baseUrl = _config["Frontend:BaseUrl"] ?? "http://localhost:4200";
+                // align with Angular route: /reinitialiser-mot-de-passe
+                var resetUrl = $"{baseUrl}/reinitialiser-mot-de-passe?token={token}";
+
+                var subject = "Réinitialisation de votre mot de passe – BiblioMate";
+                var html = $@"
+<div style=""font-family:Segoe UI,Roboto,Arial,sans-serif;max-width:560px;margin:auto;background:#f7fbff;
+             border:1px solid #e6f0f7;border-radius:12px;padding:24px"">
+  <h2 style=""margin:0 0 12px;color:#04446b;font-weight:600"">Réinitialiser votre mot de passe</h2>
+  <p style=""margin:0 0 16px;color:#0f2a3a"">
+    Pour choisir un nouveau mot de passe, cliquez sur le bouton ci-dessous :
+  </p>
+  <p style=""text-align:center;margin:24px 0"">
+    <a href=""{resetUrl}"" style=""display:inline-block;background:#fbbc05;color:#000;text-decoration:none;
+          padding:12px 18px;border-radius:20px;border:2px solid #fbbc05"">
+      Choisir un nouveau mot de passe
+    </a>
+  </p>
+  <hr style=""border:none;border-top:1px solid #e6f0f7;margin:20px 0""/>
+  <p style=""margin:0;color:#466176;font-size:12px"">
+    Si le bouton ne fonctionne pas, copiez/collez ce lien :<br/>
+    <a href=""{resetUrl}"">{resetUrl}</a>
+  </p>
+</div>";
+
+                await _emailService.SendEmailAsync(email, subject, html);
             }
 
             // Always return OK to avoid revealing whether email exists
@@ -240,9 +273,8 @@ namespace BackendBiblioMate.Services.Users
             return (true, new OkObjectResult("User approved successfully."));
         }
 
-        /// <summary>
-        /// Generates a JWT token for the authenticated user.
-        /// </summary>
+        // ----- internals -----------------------------------------------------
+
         private string GenerateJwtToken(User user)
         {
             var claims = new[]
@@ -266,7 +298,6 @@ namespace BackendBiblioMate.Services.Users
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        // --- name splitter (fallback when only "Name" is present) ---
         private static void SplitName(string fullName, out string first, out string last)
         {
             fullName = (fullName ?? string.Empty).Trim();
@@ -278,5 +309,57 @@ namespace BackendBiblioMate.Services.Users
             first = parts.Length > 0 ? parts[0] : string.Empty;
             last  = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : string.Empty;
         }
+
+        public async Task<(bool Success, IActionResult Result)> ResendConfirmationAsync(
+    string email,
+    CancellationToken cancellationToken = default)
+{
+    if (string.IsNullOrWhiteSpace(email))
+        return (false, new OkObjectResult("If needed, a new confirmation email has been sent."));
+
+    var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+
+    // On ne révèle pas si le compte n'existe pas
+    if (user is null)
+        return (true, new OkObjectResult("If needed, a new confirmation email has been sent."));
+
+    // Déjà confirmé -> OK idempotent
+    if (user.IsEmailConfirmed)
+        return (true, new OkObjectResult("If needed, a new confirmation email has been sent."));
+
+    // (Ré)génère un token s'il n'existe plus
+    if (string.IsNullOrWhiteSpace(user.EmailConfirmationToken))
+    {
+        user.EmailConfirmationToken = Guid.NewGuid().ToString();
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    var baseUrl   = _config["Frontend:BaseUrl"] ?? "http://localhost:4200";
+    var confirmUrl = $"{baseUrl}/confirm-email?token={user.EmailConfirmationToken}";
+
+    // Version FR simple (tu peux peaufiner le HTML comme tu veux)
+    var subject = "BiblioMate – Confirmez votre adresse e-mail";
+    var html = $@"
+      <div style=""font-family:Segoe UI,Arial,sans-serif;font-size:15px;line-height:1.5;color:#0f172a"">
+        <p>Bonjour {(string.IsNullOrWhiteSpace(user.FirstName) ? "!" : user.FirstName + "!")}</p>
+        <p>Merci de votre inscription à <strong>BiblioMate</strong>. Pour activer votre compte, cliquez sur le bouton :</p>
+        <p style=""margin:24px 0"">
+          <a href=""{confirmUrl}"" 
+             style=""background:#04446B;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;display:inline-block"">
+            Confirmer mon e-mail
+          </a>
+        </p>
+        <p>Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur :</p>
+        <p><a href=""{confirmUrl}"">{confirmUrl}</a></p>
+        <hr style=""border:none;border-top:1px solid #e5e7eb;margin:24px 0""/>
+        <p style=""color:#64748b"">Après confirmation, votre compte devra être approuvé par un·e bibliothécaire.</p>
+      </div>";
+
+    await _emailService.SendEmailAsync(user.Email, subject, html);
+
+    return (true, new OkObjectResult("If needed, a new confirmation email has been sent."));
+
+}
+
     }
 }
