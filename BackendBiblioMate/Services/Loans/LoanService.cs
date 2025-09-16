@@ -13,78 +13,124 @@ namespace BackendBiblioMate.Services.Loans
     /// Service for managing book loans.
     /// </summary>
     public class LoanService : ILoanService
+{
+    private readonly BiblioMateDbContext _context;
+    private readonly IStockService _stockService;
+    private readonly INotificationService _notificationService;
+    private readonly IHistoryService _historyService;
+    private readonly IUserActivityLogService _activityLogService;
+    private readonly ILogger<LoanService> _logger; // 👈
+
+    public LoanService(
+        BiblioMateDbContext context,
+        IStockService stockService,
+        INotificationService notificationService,
+        IHistoryService historyService,
+        IUserActivityLogService activityLogService,
+        ILogger<LoanService> logger) // 👈
     {
-        private readonly BiblioMateDbContext _context;
-        private readonly IStockService _stockService;
-        private readonly INotificationService _notificationService;
-        private readonly IHistoryService _historyService;
-        private readonly IUserActivityLogService _activityLogService;
+        _context = context;
+        _stockService = stockService;
+        _notificationService = notificationService;
+        _historyService = historyService;
+        _activityLogService = activityLogService;
+        _logger = logger;
+    }
 
-        public LoanService(
-            BiblioMateDbContext context,
-            IStockService stockService,
-            INotificationService notificationService,
-            IHistoryService historyService,
-            IUserActivityLogService activityLogService)
+    public async Task<Result<LoanCreatedResult, string>> CreateAsync(
+    LoanCreateDto dto, CancellationToken cancellationToken = default)
+{
+    try
+    {
+        if (!dto.UserId.HasValue || dto.UserId.Value <= 0 || dto.BookId <= 0)
+            return Result<LoanCreatedResult, string>.Fail("Utilisateur ou livre invalide.");
+
+        _logger.LogInformation("LoanService.CreateAsync userId={UserId}, bookId={BookId}",
+                               dto.UserId, dto.BookId);
+
+        // --- Utilisateur ---
+        var user = await _context.Users.FindAsync(new object[] { dto.UserId.Value }, cancellationToken);
+        if (user is null)
+            return Result<LoanCreatedResult, string>.Fail("Utilisateur introuvable.");
+
+        // --- GARDE : même livre déjà emprunté par cet utilisateur ---
+        var alreadyForSameBook = await _context.Loans.AnyAsync(l =>
+            l.UserId == dto.UserId.Value &&
+            l.BookId == dto.BookId &&
+            l.ReturnDate == null, cancellationToken);
+
+        if (alreadyForSameBook)
+            return Result<LoanCreatedResult, string>.Fail("Vous avez déjà un emprunt en cours pour ce livre.");
+
+        // --- Politique : nombre max de prêts actifs ---
+        var activeCount = await _context.Loans
+            .CountAsync(l => l.UserId == dto.UserId.Value && l.ReturnDate == null, cancellationToken);
+
+        _logger.LogInformation("User active loans = {ActiveCount}", activeCount);
+
+        if (activeCount >= LoanPolicy.MaxActiveLoansPerUser)
+            return Result<LoanCreatedResult, string>.Fail(
+                $"Nombre maximal d’emprunts actifs atteint ({LoanPolicy.MaxActiveLoansPerUser}).");
+
+        // --- Stock / disponibilité ---
+        var stock = await _context.Stocks
+            .FirstOrDefaultAsync(s => s.BookId == dto.BookId, cancellationToken);
+
+        if (stock is null)
+            return Result<LoanCreatedResult, string>.Fail("Livre indisponible.");
+
+        var activeForBook = await _context.Loans
+            .CountAsync(l => l.BookId == dto.BookId && l.ReturnDate == null, cancellationToken);
+
+        var remaining = stock.Quantity - activeForBook;
+        _logger.LogInformation("Stock qty={Qty}, activeForBook={ActiveForBook}, remaining={Remaining}",
+                               stock.Quantity, activeForBook, remaining);
+
+        if (remaining <= 0)
+            return Result<LoanCreatedResult, string>.Fail("Livre indisponible.");
+
+        // --- Création ---
+        var now = DateTime.UtcNow;
+        var loan = new Loan
         {
-            _context             = context               ?? throw new ArgumentNullException(nameof(context));
-            _stockService        = stockService          ?? throw new ArgumentNullException(nameof(stockService));
-            _notificationService = notificationService   ?? throw new ArgumentNullException(nameof(notificationService));
-            _historyService      = historyService        ?? throw new ArgumentNullException(nameof(historyService));
-            _activityLogService  = activityLogService    ?? throw new ArgumentNullException(nameof(activityLogService));
-        }
+            UserId     = dto.UserId.Value,
+            BookId     = dto.BookId,
+            StockId    = stock.StockId,
+            LoanDate   = now,
+            DueDate    = now.AddDays(LoanPolicy.DefaultLoanDurationDays),
+            ReturnDate = null,
+            Fine       = 0m
+        };
 
-        public async Task<Result<LoanCreatedResult, string>> CreateAsync(
-            LoanCreateDto dto,
-            CancellationToken cancellationToken = default)
-        {
-            var user = await _context.Users.FindAsync(new object[]{ dto.UserId }, cancellationToken);
-            if (user is null)
-                return Result<LoanCreatedResult, string>.Fail("User not found.");
+        _context.Loans.Add(loan);
+        _stockService.Decrease(stock); // si ta logique "disponible" utilise Stock
 
-            var activeCount = await _context.Loans
-                .CountAsync(l => l.UserId == dto.UserId && l.ReturnDate == null, cancellationToken);
-            if (activeCount >= LoanPolicy.MaxActiveLoansPerUser)
-                return Result<LoanCreatedResult, string>.Fail(
-                    $"Maximum active loans ({LoanPolicy.MaxActiveLoansPerUser}) reached.");
+        await _context.SaveChangesAsync(cancellationToken);
 
-            var stock = await _context.Stocks
-                .FirstOrDefaultAsync(s => s.BookId == dto.BookId, cancellationToken);
-            if (stock is null || stock.Quantity <= 0)
-                return Result<LoanCreatedResult, string>.Fail("Book unavailable.");
+        // --- Logs ---
+        await _historyService.LogEventAsync(
+            dto.UserId.Value, "Loan", loanId: loan.LoanId, cancellationToken: cancellationToken);
 
-            var now = DateTime.UtcNow;
-            var loan = new Loan
+        await _activityLogService.LogAsync(
+            new UserActivityLogDocument
             {
-                UserId   = dto.UserId,
-                BookId   = dto.BookId,
-                StockId  = stock.StockId,
-                LoanDate = now,
-                DueDate  = now.AddDays(LoanPolicy.DefaultLoanDurationDays)
-            };
+                UserId  = dto.UserId.Value,
+                Action  = "CreateLoan",
+                Details = $"LoanId={loan.LoanId}, BookId={dto.BookId}"
+            },
+            cancellationToken);
 
-            _context.Loans.Add(loan);
-            _stockService.Decrease(stock);
-            await _context.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Loan created. loanId={LoanId}, dueDate={DueDate}", loan.LoanId, loan.DueDate);
 
-            await _historyService.LogEventAsync(
-                dto.UserId,
-                eventType: "Loan",
-                loanId:    loan.LoanId,
-                cancellationToken: cancellationToken);
+        return Result<LoanCreatedResult, string>.Ok(new LoanCreatedResult { DueDate = loan.DueDate });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "LoanService.CreateAsync crash userId={UserId}, bookId={BookId}", dto.UserId, dto.BookId);
+        return Result<LoanCreatedResult, string>.Fail("Erreur interne. Veuillez réessayer plus tard.");
+    }
+}
 
-            await _activityLogService.LogAsync(
-                new UserActivityLogDocument
-                {
-                    UserId  = dto.UserId,
-                    Action  = "CreateLoan",
-                    Details = $"LoanId={loan.LoanId}, BookId={dto.BookId}"
-                },
-                cancellationToken);
-
-            return Result<LoanCreatedResult, string>.Ok(
-                new LoanCreatedResult { DueDate = loan.DueDate });
-        }
 
         /// <summary>
         /// Marks a loan as returned and calculates any fine for late return.

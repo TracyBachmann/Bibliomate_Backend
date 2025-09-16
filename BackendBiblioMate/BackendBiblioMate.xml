@@ -433,84 +433,24 @@
             <c>403 Forbidden</c> if the current user is neither the owner nor has Librarian/Admin role.
             </returns>
         </member>
-        <member name="T:BackendBiblioMate.Controllers.LoansController">
-            <summary>
-            Controller responsible for managing loans.
-            Provides endpoints to create, return, retrieve, update, and delete loans.
-            </summary>
-        </member>
-        <member name="M:BackendBiblioMate.Controllers.LoansController.#ctor(BackendBiblioMate.Interfaces.ILoanService,AutoMapper.IMapper)">
-            <summary>
-            Initializes a new instance of the <see cref="T:BackendBiblioMate.Controllers.LoansController"/> class.
-            </summary>
-            <param name="loanService">The loan service to handle business logic.</param>
-            <param name="mapper">The AutoMapper instance for DTO conversions.</param>
-        </member>
         <member name="M:BackendBiblioMate.Controllers.LoansController.CreateLoan(BackendBiblioMate.DTOs.LoanCreateDto,System.Threading.CancellationToken)">
-            <summary>
-            Creates a new loan.
-            </summary>
-            <param name="dto">The loan creation data transfer object.</param>
-            <param name="cancellationToken">Cancellation token.</param>
-            <returns>
-            200 OK with { message, dueDate } on success;
-            400 BadRequest with { error } on failure.
-            </returns>
+            <summary>Crée un prêt.</summary>
         </member>
+        <!-- Badly formed XML comment ignored for member "M:BackendBiblioMate.Controllers.LoansController.DebugBook(System.Int32,System.Threading.CancellationToken)" -->
         <member name="M:BackendBiblioMate.Controllers.LoansController.ReturnLoan(System.Int32,System.Threading.CancellationToken)">
-            <summary>
-            Returns a book for an existing loan.
-            </summary>
-            <param name="id">The identifier of the loan to return.</param>
-            <param name="cancellationToken">Cancellation token.</param>
-            <returns>
-            200 OK with { message, reservationNotified, fine } on success;
-            400 BadRequest with { error } on failure.
-            </returns>
+            <summary>Marque un prêt comme rendu.</summary>
         </member>
         <member name="M:BackendBiblioMate.Controllers.LoansController.GetAll(System.Threading.CancellationToken)">
-            <summary>
-            Retrieves all loans.
-            </summary>
-            <param name="cancellationToken">Cancellation token.</param>
-            <returns>
-            200 OK with list of LoanReadDto on success;
-            400 BadRequest with { error } on failure.
-            </returns>
+            <summary>Liste tous les prêts.</summary>
         </member>
         <member name="M:BackendBiblioMate.Controllers.LoansController.GetById(System.Int32,System.Threading.CancellationToken)">
-            <summary>
-            Retrieves a loan by its ID.
-            </summary>
-            <param name="id">The identifier of the loan to retrieve.</param>
-            <param name="cancellationToken">Cancellation token.</param>
-            <returns>
-            200 OK with LoanReadDto on success;
-            400 BadRequest with { error } on failure.
-            </returns>
+            <summary>Récupère un prêt par ID.</summary>
         </member>
         <member name="M:BackendBiblioMate.Controllers.LoansController.UpdateLoan(System.Int32,BackendBiblioMate.DTOs.LoanUpdateDto,System.Threading.CancellationToken)">
-            <summary>
-            Updates an existing loan.
-            </summary>
-            <param name="id">The identifier of the loan to update.</param>
-            <param name="dto">The loan update DTO.</param>
-            <param name="cancellationToken">Cancellation token.</param>
-            <returns>
-            200 OK with updated LoanReadDto on success;
-            400 BadRequest with { error } on failure.
-            </returns>
+            <summary>Met à jour un prêt.</summary>
         </member>
         <member name="M:BackendBiblioMate.Controllers.LoansController.DeleteLoan(System.Int32,System.Threading.CancellationToken)">
-            <summary>
-            Deletes an existing loan.
-            </summary>
-            <param name="id">The identifier of the loan to delete.</param>
-            <param name="cancellationToken">Cancellation token.</param>
-            <returns>
-            200 OK with { message } on success;
-            400 BadRequest with { error } on failure.
-            </returns>
+            <summary>Supprime un prêt.</summary>
         </member>
         <member name="T:BackendBiblioMate.Controllers.NotificationsController">
             <summary>
@@ -1553,22 +1493,16 @@
             <example>78</example>
         </member>
         <member name="T:BackendBiblioMate.DTOs.LoanCreateDto">
-            <summary>
-            DTO used to request the creation of a new loan.
-            Contains the identifiers of the user and book involved.
-            </summary>
+            <summary>Payload pour créer un prêt.</summary>
         </member>
         <member name="P:BackendBiblioMate.DTOs.LoanCreateDto.UserId">
             <summary>
-            Gets the identifier of the user who is borrowing the book.
+            Identifiant de l’utilisateur emprunteur. Optionnel : si non fourni,
+            on le déduit du token (utilisateur standard). Requis seulement pour le staff.
             </summary>
-            <example>7</example>
         </member>
         <member name="P:BackendBiblioMate.DTOs.LoanCreateDto.BookId">
-            <summary>
-            Gets the identifier of the book to be borrowed.
-            </summary>
-            <example>42</example>
+            <summary>Identifiant du livre à emprunter.</summary>
         </member>
         <member name="T:BackendBiblioMate.DTOs.LoanReadDto">
             <summary>

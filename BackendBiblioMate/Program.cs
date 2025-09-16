@@ -168,8 +168,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer              = jwt["Issuer"],
             ValidAudience            = jwt["Audience"],
             IssuerSigningKey         = new SymmetricSecurityKey(key),
-            RoleClaimType            = ClaimTypes.Role
+
+            // ✅ important pour que Role/Name soient bien « mappés »
+            RoleClaimType            = ClaimTypes.Role,
+            NameClaimType            = ClaimTypes.Name
         };
+
+        // ✅ garde les noms de claims tels quels (given_name, family_name…)
+        o.MapInboundClaims = false;
+
         o.Events = new JwtBearerEvents
         {
             OnMessageReceived = ctx =>
