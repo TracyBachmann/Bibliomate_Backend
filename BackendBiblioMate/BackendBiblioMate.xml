@@ -452,6 +452,11 @@
         <member name="M:BackendBiblioMate.Controllers.LoansController.DeleteLoan(System.Int32,System.Threading.CancellationToken)">
             <summary>Supprime un prêt.</summary>
         </member>
+        <member name="M:BackendBiblioMate.Controllers.LoansController.HasActiveForMe(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Indique si l'utilisateur courant a déjà un prêt actif pour ce livre.
+            </summary>
+        </member>
         <member name="T:BackendBiblioMate.Controllers.NotificationsController">
             <summary>
             Controller for managing user notifications.

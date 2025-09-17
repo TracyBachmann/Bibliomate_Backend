@@ -48,12 +48,11 @@ namespace BackendBiblioMate.Services.Loans
         _logger.LogInformation("LoanService.CreateAsync userId={UserId}, bookId={BookId}",
                                dto.UserId, dto.BookId);
 
-        // --- Utilisateur ---
         var user = await _context.Users.FindAsync(new object[] { dto.UserId.Value }, cancellationToken);
         if (user is null)
             return Result<LoanCreatedResult, string>.Fail("Utilisateur introuvable.");
 
-        // --- GARDE : même livre déjà emprunté par cet utilisateur ---
+        // GARDE : déjà un emprunt actif pour ce même livre
         var alreadyForSameBook = await _context.Loans.AnyAsync(l =>
             l.UserId == dto.UserId.Value &&
             l.BookId == dto.BookId &&
@@ -62,17 +61,15 @@ namespace BackendBiblioMate.Services.Loans
         if (alreadyForSameBook)
             return Result<LoanCreatedResult, string>.Fail("Vous avez déjà un emprunt en cours pour ce livre.");
 
-        // --- Politique : nombre max de prêts actifs ---
+        // Politique : max prêts actifs
         var activeCount = await _context.Loans
             .CountAsync(l => l.UserId == dto.UserId.Value && l.ReturnDate == null, cancellationToken);
-
-        _logger.LogInformation("User active loans = {ActiveCount}", activeCount);
 
         if (activeCount >= LoanPolicy.MaxActiveLoansPerUser)
             return Result<LoanCreatedResult, string>.Fail(
                 $"Nombre maximal d’emprunts actifs atteint ({LoanPolicy.MaxActiveLoansPerUser}).");
 
-        // --- Stock / disponibilité ---
+        // Disponibilité / stock
         var stock = await _context.Stocks
             .FirstOrDefaultAsync(s => s.BookId == dto.BookId, cancellationToken);
 
@@ -83,13 +80,10 @@ namespace BackendBiblioMate.Services.Loans
             .CountAsync(l => l.BookId == dto.BookId && l.ReturnDate == null, cancellationToken);
 
         var remaining = stock.Quantity - activeForBook;
-        _logger.LogInformation("Stock qty={Qty}, activeForBook={ActiveForBook}, remaining={Remaining}",
-                               stock.Quantity, activeForBook, remaining);
-
         if (remaining <= 0)
             return Result<LoanCreatedResult, string>.Fail("Livre indisponible.");
 
-        // --- Création ---
+        // Création
         var now = DateTime.UtcNow;
         var loan = new Loan
         {
@@ -103,24 +97,19 @@ namespace BackendBiblioMate.Services.Loans
         };
 
         _context.Loans.Add(loan);
-        _stockService.Decrease(stock); // si ta logique "disponible" utilise Stock
+        _stockService.Decrease(stock);
 
         await _context.SaveChangesAsync(cancellationToken);
 
-        // --- Logs ---
         await _historyService.LogEventAsync(
-            dto.UserId.Value, "Loan", loanId: loan.LoanId, cancellationToken: cancellationToken);
-
-        await _activityLogService.LogAsync(
-            new UserActivityLogDocument
-            {
-                UserId  = dto.UserId.Value,
-                Action  = "CreateLoan",
-                Details = $"LoanId={loan.LoanId}, BookId={dto.BookId}"
-            },
-            cancellationToken);
-
-        _logger.LogInformation("Loan created. loanId={LoanId}, dueDate={DueDate}", loan.LoanId, loan.DueDate);
+            userId: dto.UserId.Value,
+            eventType: "Loan",
+            loanId: loan.LoanId,
+            cancellationToken: cancellationToken);
+        await _activityLogService.LogAsync(new UserActivityLogDocument
+        {
+            UserId = dto.UserId.Value, Action = "CreateLoan", Details = $"LoanId={loan.LoanId}, BookId={dto.BookId}"
+        }, cancellationToken);
 
         return Result<LoanCreatedResult, string>.Ok(new LoanCreatedResult { DueDate = loan.DueDate });
     }
@@ -130,6 +119,7 @@ namespace BackendBiblioMate.Services.Loans
         return Result<LoanCreatedResult, string>.Fail("Erreur interne. Veuillez réessayer plus tard.");
     }
 }
+
 
 
         /// <summary>
