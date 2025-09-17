@@ -101,6 +101,7 @@ namespace BackendBiblioMate.Controllers
             int? userId = null;
             if (User.Identity?.IsAuthenticated == true)
                 userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
             var results = await _service.SearchAsync(dto, userId, cancellationToken);
             return Ok(results);
         }

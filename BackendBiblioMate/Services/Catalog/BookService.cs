@@ -1,5 +1,4 @@
-﻿// BackendBiblioMate/Services/Catalog/BookService.cs
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using BackendBiblioMate.Data;
 using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Helpers;
@@ -29,7 +28,7 @@ namespace BackendBiblioMate.Services.Catalog
         /// Projection unique réutilisée partout (liste/détail/recherche).
         /// Localisation : Zone/Shelf/ShelfLevel.
         /// Disponibilité : Quantity - prêts actifs (ReturnDate == null) > 0.
-        /// IMPORTANT : on compte une clé non nulle (LoanId) pour éviter le faux "1" dû aux LEFT JOIN.
+        /// IMPORTANT : on compte une clé non nulle (LoanId) pour éviter les faux "1" dus aux LEFT JOIN.
         /// </summary>
         private Expression<Func<Book, BookReadDto>> ReadProjection => b => new BookReadDto
         {
@@ -41,9 +40,7 @@ namespace BackendBiblioMate.Services.Catalog
             GenreName = b.Genre.Name,
             EditorName = b.Editor.Name,
 
-            // Dispo calculée côté SQL : (stock - prêts actifs) > 0
-            // ► Stock: 1ère quantité trouvée ou 0 si pas de stock
-            // ► Prêts actifs: COUNT(LoanId) avec filtre ReturnDate IS NULL (COUNT ignore les NULL)
+            // (stock - prêts actifs) > 0
             IsAvailable =
                 (
                     (_db.Stocks
@@ -53,14 +50,14 @@ namespace BackendBiblioMate.Services.Catalog
                     -
                     _db.Loans
                         .Where(l => l.BookId == b.BookId && l.ReturnDate == null)
-                        .Select(l => (int?)l.LoanId)
+                        .Select(l => (int?)l.LoanId) // COUNT(LoanId) -> ignore NULL
                         .Count()
                 ) > 0,
 
             CoverUrl = b.CoverUrl,
             Description = b.Description,
 
-            // Localisation aplatie
+            // Localisation aplatie (si tu as des nulls, on pourra la rendre null-safe)
             Floor = b.ShelfLevel.Shelf.Zone.FloorNumber,
             Aisle = b.ShelfLevel.Shelf.Zone.AisleCode,
             Rayon = b.ShelfLevel.Shelf.Name,
@@ -102,7 +99,7 @@ namespace BackendBiblioMate.Services.Catalog
 
             var page = PagedResult<BookReadDto>.Create(items, pageNumber, pageSize, totalCount);
 
-            return (page, null, null); // pas d'ETag dans cette version
+            return (page, null, null); // ETag non géré ici
         }
 
         public async Task<BookReadDto?> GetByIdAsync(int id, CancellationToken ct = default) =>
@@ -152,37 +149,27 @@ namespace BackendBiblioMate.Services.Catalog
             if (dto.YearMin.HasValue) q = q.Where(b => b.PublicationDate.Year >= dto.YearMin.Value);
             if (dto.YearMax.HasValue) q = q.Where(b => b.PublicationDate.Year <= dto.YearMax.Value);
 
-            // ► Filtre "disponible / indisponible" avec comptage robuste (COUNT(LoanId))
+            // Filtre disponible/indisponible (même formule que dans la projection)
             if (dto.IsAvailable.HasValue)
             {
                 if (dto.IsAvailable.Value)
                 {
                     q = q.Where(b =>
                         (
-                            (_db.Stocks
-                                .Where(s => s.BookId == b.BookId)
-                                .Select(s => (int?)s.Quantity)
-                                .FirstOrDefault() ?? 0)
-                            -
-                            _db.Loans
-                                .Where(l => l.BookId == b.BookId && l.ReturnDate == null)
-                                .Select(l => (int?)l.LoanId)
-                                .Count()
+                            (_db.Stocks.Where(s => s.BookId == b.BookId)
+                                .Select(s => (int?)s.Quantity).FirstOrDefault() ?? 0)
+                          - (_db.Loans.Where(l => l.BookId == b.BookId && l.ReturnDate == null)
+                                .Select(l => (int?)l.LoanId).Count())
                         ) > 0);
                 }
                 else
                 {
                     q = q.Where(b =>
                         (
-                            (_db.Stocks
-                                .Where(s => s.BookId == b.BookId)
-                                .Select(s => (int?)s.Quantity)
-                                .FirstOrDefault() ?? 0)
-                            -
-                            _db.Loans
-                                .Where(l => l.BookId == b.BookId && l.ReturnDate == null)
-                                .Select(l => (int?)l.LoanId)
-                                .Count()
+                            (_db.Stocks.Where(s => s.BookId == b.BookId)
+                                .Select(s => (int?)s.Quantity).FirstOrDefault() ?? 0)
+                          - (_db.Loans.Where(l => l.BookId == b.BookId && l.ReturnDate == null)
+                                .Select(l => (int?)l.LoanId).Count())
                         ) <= 0);
                 }
             }
@@ -220,7 +207,7 @@ namespace BackendBiblioMate.Services.Catalog
 
             var results = await q.Select(ReadProjection).ToListAsync(ct);
 
-            // 🔸 Logging optionnel désactivé (signature inconnue dans ton projet)
+            // Logging optionnel (laisse commenté si le service n’est pas branché)
             // if (userId.HasValue && _searchLog != null)
             // {
             //     try { await _searchLog.LogAsync(userId.Value, dto, results.Count, ct); }
@@ -275,7 +262,7 @@ namespace BackendBiblioMate.Services.Catalog
                 await _db.SaveChangesAsync(ct);
             }
 
-            // Retourne le DTO projeté
+            // Retourne le DTO projeté (avec dispo calculée)
             return await _db.Books.AsNoTracking()
                 .Where(b => b.BookId == book.BookId)
                 .Select(ReadProjection)
@@ -331,3 +318,4 @@ namespace BackendBiblioMate.Services.Catalog
         #endregion
     }
 }
+
