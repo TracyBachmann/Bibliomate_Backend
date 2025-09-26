@@ -10,6 +10,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace BackendBiblioMate.Services.Catalog
 {
+    /// <summary>
+    /// Provides services for managing books, including CRUD operations,
+    /// searching, paging, and availability management.
+    /// </summary>
     public class BookService : IBookService
     {
         private readonly BiblioMateDbContext _db;
@@ -17,6 +21,14 @@ namespace BackendBiblioMate.Services.Catalog
         private readonly ILocationService? _location;
         private readonly IStockService? _stockSvc;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BookService"/> class.
+        /// </summary>
+        /// <param name="db">The EF Core database context.</param>
+        /// <param name="searchLog">Optional service for logging search activity.</param>
+        /// <param name="location">Optional service for handling book locations.</param>
+        /// <param name="stockSvc">Optional service for stock management.</param>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="db"/> is null.</exception>
         public BookService(
             BiblioMateDbContext db,
             ISearchActivityLogService? searchLog,
@@ -29,8 +41,12 @@ namespace BackendBiblioMate.Services.Catalog
             _stockSvc = stockSvc;
         }
 
-        #region Projection unique -> DTO
+        #region Projection
 
+        /// <summary>
+        /// Defines the mapping from <see cref="Book"/> entities to <see cref="BookReadDto"/>.
+        /// Includes availability, stock, tags, and flattened location details.
+        /// </summary>
         private Expression<Func<Book, BookReadDto>> ReadProjection => b => new BookReadDto
         {
             BookId = b.BookId,
@@ -41,7 +57,7 @@ namespace BackendBiblioMate.Services.Catalog
             GenreName = b.Genre.Name,
             EditorName = b.Editor.Name,
 
-            // (stock - prêts actifs) > 0
+            // Availability check: stock - active loans
             IsAvailable =
                 (
                     (_db.Stocks
@@ -55,7 +71,7 @@ namespace BackendBiblioMate.Services.Catalog
                         .Count()
                 ) > 0,
 
-            // 🔥 Nouveau champ exposé
+            // Total stock quantity
             StockQuantity = _db.Stocks
                 .Where(s => s.BookId == b.BookId)
                 .Select(s => (int?)s.Quantity)
@@ -64,7 +80,7 @@ namespace BackendBiblioMate.Services.Catalog
             CoverUrl = b.CoverUrl,
             Description = b.Description,
 
-            // Localisation aplatie
+            // Flattened location
             Floor = b.ShelfLevel.Shelf.Zone.FloorNumber,
             Aisle = b.ShelfLevel.Shelf.Zone.AisleCode,
             Rayon = b.ShelfLevel.Shelf.Name,
@@ -76,13 +92,16 @@ namespace BackendBiblioMate.Services.Catalog
 
         #endregion
 
-        #region Lecture (inchangé)
+        #region Read Operations
 
+        /// <summary>
+        /// Retrieves a paginated list of books with sorting support.
+        /// </summary>
         public async Task<(PagedResult<BookReadDto> Page, string? ETag, IActionResult? NotModified)>
             GetPagedAsync(int pageNumber, int pageSize, string sortBy, bool ascending, CancellationToken ct = default)
         {
             pageNumber = Math.Max(1, pageNumber);
-            pageSize   = Math.Clamp(pageSize, 1, 100);
+            pageSize = Math.Clamp(pageSize, 1, 100);
 
             var baseQuery = _db.Books.AsNoTracking();
 
@@ -107,6 +126,9 @@ namespace BackendBiblioMate.Services.Catalog
             return (page, null, null);
         }
 
+        /// <summary>
+        /// Retrieves a single book by its identifier.
+        /// </summary>
         public async Task<BookReadDto?> GetByIdAsync(int id, CancellationToken ct = default) =>
             await _db.Books
                 .AsNoTracking()
@@ -114,6 +136,9 @@ namespace BackendBiblioMate.Services.Catalog
                 .Select(ReadProjection)
                 .SingleOrDefaultAsync(ct);
 
+        /// <summary>
+        /// Searches for books based on a set of criteria (title, author, genre, etc.).
+        /// </summary>
         public async Task<IEnumerable<BookReadDto>> SearchAsync(
             BookSearchDto dto,
             int? userId,
@@ -121,6 +146,7 @@ namespace BackendBiblioMate.Services.Catalog
         {
             var q = _db.Books.AsNoTracking().AsQueryable();
 
+            // Filters applied dynamically
             if (!string.IsNullOrWhiteSpace(dto.Title))
             {
                 var t = dto.Title.Trim();
@@ -210,10 +236,12 @@ namespace BackendBiblioMate.Services.Catalog
             }
 
             var results = await q.Select(ReadProjection).ToListAsync(ct);
-
             return results;
         }
 
+        /// <summary>
+        /// Retrieves the list of all genres in alphabetical order.
+        /// </summary>
         public async Task<IReadOnlyList<string>> GetAllGenresAsync(CancellationToken ct = default) =>
             await _db.Genres.AsNoTracking()
                 .OrderBy(g => g.Name)
@@ -224,6 +252,9 @@ namespace BackendBiblioMate.Services.Catalog
 
         #region CRUD
 
+        /// <summary>
+        /// Creates a new book, its stock entry, and associated tags.
+        /// </summary>
         public async Task<BookReadDto> CreateAsync(BookCreateDto dto, CancellationToken ct = default)
         {
             int shelfLevelId;
@@ -259,6 +290,7 @@ namespace BackendBiblioMate.Services.Catalog
             _db.Books.Add(book);
             await _db.SaveChangesAsync(ct);
 
+            // Tags
             if (dto.TagIds is { Count: > 0 })
             {
                 foreach (var tagId in dto.TagIds.Distinct())
@@ -267,6 +299,7 @@ namespace BackendBiblioMate.Services.Catalog
                 await _db.SaveChangesAsync(ct);
             }
 
+            // Stock
             var stock = await _db.Stocks.FirstOrDefaultAsync(s => s.BookId == book.BookId, ct);
             if (stock == null)
             {
@@ -288,6 +321,9 @@ namespace BackendBiblioMate.Services.Catalog
                 .SingleAsync(ct);
         }
 
+        /// <summary>
+        /// Updates an existing book and its related tags/stock.
+        /// </summary>
         public async Task<bool> UpdateAsync(int id, BookUpdateDto dto, CancellationToken ct = default)
         {
             var b = await _db.Books.FirstOrDefaultAsync(x => x.BookId == id, ct);
@@ -303,6 +339,7 @@ namespace BackendBiblioMate.Services.Catalog
             b.ShelfLevelId = dto.ShelfLevelId;
             b.CoverUrl = dto.CoverUrl;
 
+            // Tags
             if (dto.TagIds != null)
             {
                 var current = _db.BookTags.Where(bt => bt.BookId == id);
@@ -312,6 +349,7 @@ namespace BackendBiblioMate.Services.Catalog
                     _db.BookTags.Add(new BookTag { BookId = id, TagId = tagId });
             }
             
+            // Stock
             if (dto.StockQuantity.HasValue)
             {
                 var stock = await _db.Stocks.FirstOrDefaultAsync(s => s.BookId == id, ct);
@@ -327,6 +365,9 @@ namespace BackendBiblioMate.Services.Catalog
             return true;
         }
 
+        /// <summary>
+        /// Deletes a book, its tags, and its stock record.
+        /// </summary>
         public async Task<bool> DeleteAsync(int id, CancellationToken ct = default)
         {
             var b = await _db.Books.FirstOrDefaultAsync(x => x.BookId == id, ct);

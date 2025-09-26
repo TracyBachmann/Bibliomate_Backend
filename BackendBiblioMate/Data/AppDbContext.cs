@@ -64,11 +64,13 @@ namespace BackendBiblioMate.Data
 
         /// <summary>
         /// Configures the EF Core model:
-        /// - Unique constraints & indexes
-        /// - Relationships (1–1, 1–n, n–n)
-        /// - Composite keys
-        /// - Decimal precision
-        /// - Encryption for sensitive fields
+        /// <list type="bullet">
+        ///   <item><description>Unique constraints & indexes</description></item>
+        ///   <item><description>Relationships (1-1, 1-n, n-n)</description></item>
+        ///   <item><description>Composite keys</description></item>
+        ///   <item><description>Decimal precision</description></item>
+        ///   <item><description>Encryption for sensitive fields</description></item>
+        /// </list>
         /// </summary>
         /// <param name="modelBuilder">The <see cref="ModelBuilder"/> used to configure entities.</param>
         protected override void OnModelCreating(ModelBuilder modelBuilder)
