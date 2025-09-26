@@ -4,25 +4,22 @@ using Microsoft.AspNetCore.Mvc;
 namespace BackendBiblioMate.Interfaces
 {
     /// <summary>
-    /// Provides user-related operations such as registration, authentication,
-    /// email confirmation, password reset, and administrative approval.
+    /// Defines authentication and user account management operations.
+    /// Includes registration, login, email confirmation, password reset,
+    /// user approval, and related workflows.
     /// </summary>
     public interface IAuthService
     {
         /// <summary>
-        /// Registers a new user.
+        /// Registers a new user in the system.
         /// </summary>
         /// <param name="dto">Registration data transfer object containing user details.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// A <see cref="Task{TResult}"/> that, when completed, yields a tuple:
+        /// A task producing a tuple:
         /// <list type="bullet">
-        ///   <item>
-        ///     <description><c>Success</c>: <c>true</c> if registration succeeded; <c>false</c> otherwise.</description>
-        ///   </item>
-        ///   <item>
-        ///     <description><see cref="IActionResult"/>: The HTTP response to return (e.g. <c>BadRequest</c>, <c>Created</c>).</description>
-        ///   </item>
+        ///   <item><description><c>Success</c>: <c>true</c> if registration succeeded; otherwise <c>false</c>.</description></item>
+        ///   <item><description><see cref="IActionResult"/>: The HTTP response (e.g. <c>BadRequest</c>, <c>Created</c>).</description></item>
         /// </list>
         /// </returns>
         Task<(bool Success, IActionResult Result)> RegisterAsync(
@@ -30,19 +27,15 @@ namespace BackendBiblioMate.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Authenticates a user and issues a token.
+        /// Authenticates a user with credentials and issues a JWT or equivalent token.
         /// </summary>
-        /// <param name="dto">Login data transfer object with credentials.</param>
+        /// <param name="dto">Login data transfer object with email/username and password.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// A <see cref="Task{TResult}"/> yielding:
+        /// A task producing a tuple:
         /// <list type="bullet">
-        ///   <item>
-        ///     <description><c>Success</c>: <c>true</c> if credentials are valid; <c>false</c> otherwise.</description>
-        ///   </item>
-        ///   <item>
-        ///     <description><see cref="IActionResult"/>: The HTTP response (e.g. <c>Unauthorized</c>, <c>Ok</c> with token).</description>
-        ///   </item>
+        ///   <item><description><c>Success</c>: <c>true</c> if credentials are valid; otherwise <c>false</c>.</description></item>
+        ///   <item><description><see cref="IActionResult"/>: The HTTP response (e.g. <c>Unauthorized</c>, <c>Ok</c> with token).</description></item>
         /// </list>
         /// </returns>
         Task<(bool Success, IActionResult Result)> LoginAsync(
@@ -50,19 +43,15 @@ namespace BackendBiblioMate.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Confirms a user’s email address using a token.
+        /// Confirms a user’s email address using a confirmation token.
         /// </summary>
-        /// <param name="token">The email confirmation token.</param>
+        /// <param name="token">The unique email confirmation token.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// A <see cref="Task{TResult}"/> yielding:
+        /// A task producing a tuple:
         /// <list type="bullet">
-        ///   <item>
-        ///     <description><c>Success</c>: <c>true</c> if email was confirmed; <c>false</c> otherwise.</description>
-        ///   </item>
-        ///   <item>
-        ///     <description><see cref="IActionResult"/>: The HTTP response (e.g. <c>BadRequest</c>, <c>Ok</c>).</description>
-        ///   </item>
+        ///   <item><description><c>Success</c>: <c>true</c> if email confirmation succeeded; otherwise <c>false</c>.</description></item>
+        ///   <item><description><see cref="IActionResult"/>: The HTTP response (e.g. <c>BadRequest</c>, <c>Ok</c>).</description></item>
         /// </list>
         /// </returns>
         Task<(bool Success, IActionResult Result)> ConfirmEmailAsync(
@@ -70,19 +59,15 @@ namespace BackendBiblioMate.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Initiates a password reset by sending a reset link to the user’s email.
+        /// Initiates a password reset process by sending a reset link to the given email.
         /// </summary>
-        /// <param name="email">The user’s email address.</param>
+        /// <param name="email">The user’s registered email address.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// A <see cref="Task{TResult}"/> yielding:
+        /// A task producing a tuple:
         /// <list type="bullet">
-        ///   <item>
-        ///     <description><c>Success</c>: <c>true</c> if the reset email was sent; <c>false</c> otherwise.</description>
-        ///   </item>
-        ///   <item>
-        ///     <description><see cref="IActionResult"/>: The HTTP response (e.g. <c>NotFound</c>, <c>Ok</c>).</description>
-        ///   </item>
+        ///   <item><description><c>Success</c>: <c>true</c> if the reset email was sent; otherwise <c>false</c>.</description></item>
+        ///   <item><description><see cref="IActionResult"/>: The HTTP response (e.g. <c>NotFound</c>, <c>Ok</c>).</description></item>
         /// </list>
         /// </returns>
         Task<(bool Success, IActionResult Result)> RequestPasswordResetAsync(
@@ -90,19 +75,15 @@ namespace BackendBiblioMate.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Resets the user’s password using the provided token and new password.
+        /// Resets the user’s password using a reset token and new password.
         /// </summary>
-        /// <param name="dto">Data transfer object containing the reset token and new password.</param>
+        /// <param name="dto">Data transfer object containing the token and the new password.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// A <see cref="Task{TResult}"/> yielding:
+        /// A task producing a tuple:
         /// <list type="bullet">
-        ///   <item>
-        ///     <description><c>Success</c>: <c>true</c> if the password was reset; <c>false</c> otherwise.</description>
-        ///   </item>
-        ///   <item>
-        ///     <description><see cref="IActionResult"/>: The HTTP response (e.g. <c>BadRequest</c>, <c>Ok</c>).</description>
-        ///   </item>
+        ///   <item><description><c>Success</c>: <c>true</c> if the password reset succeeded; otherwise <c>false</c>.</description></item>
+        ///   <item><description><see cref="IActionResult"/>: The HTTP response (e.g. <c>BadRequest</c>, <c>Ok</c>).</description></item>
         /// </list>
         /// </returns>
         Task<(bool Success, IActionResult Result)> ResetPasswordAsync(
@@ -110,28 +91,35 @@ namespace BackendBiblioMate.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Approves a newly registered user, granting them access.
+        /// Approves a newly registered user, enabling their account for login.
         /// </summary>
-        /// <param name="userId">Identifier of the user to approve.</param>
+        /// <param name="userId">The identifier of the user to approve.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// A <see cref="Task{TResult}"/> yielding:
+        /// A task producing a tuple:
         /// <list type="bullet">
-        ///   <item>
-        ///     <description><c>Success</c>: <c>true</c> if the user was approved; <c>false</c> if not found.</description>
-        ///   </item>
-        ///   <item>
-        ///     <description><see cref="IActionResult"/>: The HTTP response (e.g. <c>NotFound</c>, <c>NoContent</c>).</description>
-        ///   </item>
+        ///   <item><description><c>Success</c>: <c>true</c> if the user was approved; otherwise <c>false</c>.</description></item>
+        ///   <item><description><see cref="IActionResult"/>: The HTTP response (e.g. <c>NotFound</c>, <c>NoContent</c>).</description></item>
         /// </list>
         /// </returns>
         Task<(bool Success, IActionResult Result)> ApproveUserAsync(
             int userId,
             CancellationToken cancellationToken = default);
-        
+
+        /// <summary>
+        /// Resends an email confirmation message to the specified address.
+        /// </summary>
+        /// <param name="email">The user’s email address.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <returns>
+        /// A task producing a tuple:
+        /// <list type="bullet">
+        ///   <item><description><c>Success</c>: <c>true</c> if the confirmation email was resent; otherwise <c>false</c>.</description></item>
+        ///   <item><description><see cref="IActionResult"/>: The HTTP response (e.g. <c>NotFound</c>, <c>Ok</c>).</description></item>
+        /// </list>
+        /// </returns>
         Task<(bool Success, IActionResult Result)> ResendConfirmationAsync(
             string email,
             CancellationToken cancellationToken = default);
-
     }
 }

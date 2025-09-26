@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BackendBiblioMate.Services.Catalog
 {
     /// <summary>
-    /// Provides CRUD operations for ShelfLevel entities using EF Core.
+    /// Provides CRUD operations for <see cref="Models.ShelfLevel"/> entities using EF Core.
     /// </summary>
     public class ShelfLevelService : IShelfLevelService
     {
@@ -22,16 +22,7 @@ namespace BackendBiblioMate.Services.Catalog
             _context = context;
         }
 
-        /// <summary>
-        /// Retrieves all shelf levels, optionally filtered by shelf ID, with pagination.
-        /// </summary>
-        /// <param name="shelfId">Optional shelf ID to filter by.</param>
-        /// <param name="page">Page number (1-based).</param>
-        /// <param name="pageSize">Number of items per page.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// An <see cref="IEnumerable{ShelfLevelReadDto}"/> containing the paginated results.
-        /// </returns>
+        /// <inheritdoc/>
         public async Task<IEnumerable<ShelfLevelReadDto>> GetAllAsync(
             int? shelfId,
             int page,
@@ -54,14 +45,7 @@ namespace BackendBiblioMate.Services.Catalog
                 .ToListAsync(cancellationToken);
         }
 
-        /// <summary>
-        /// Retrieves a single shelf level by its identifier.
-        /// </summary>
-        /// <param name="id">Identifier of the shelf level to retrieve.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// The <see cref="ShelfLevelReadDto"/> if found; otherwise <c>null</c>.
-        /// </returns>
+        /// <inheritdoc/>
         public async Task<ShelfLevelReadDto?> GetByIdAsync(
             int id,
             CancellationToken cancellationToken = default)
@@ -74,12 +58,7 @@ namespace BackendBiblioMate.Services.Catalog
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
-        /// <summary>
-        /// Creates a new shelf level in the data store.
-        /// </summary>
-        /// <param name="dto">Data transfer object containing shelf level creation data.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>The created <see cref="ShelfLevelReadDto"/>.</returns>
+        /// <inheritdoc/>
         public async Task<ShelfLevelReadDto> CreateAsync(
             ShelfLevelCreateDto dto,
             CancellationToken cancellationToken = default)
@@ -112,14 +91,7 @@ namespace BackendBiblioMate.Services.Catalog
             };
         }
 
-        /// <summary>
-        /// Updates an existing shelf level in the data store.
-        /// </summary>
-        /// <param name="dto">Data transfer object containing updated shelf level data.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>true</c> if the update was successful; <c>false</c> if the shelf level was not found.
-        /// </returns>
+        /// <inheritdoc/>
         public async Task<bool> UpdateAsync(
             ShelfLevelUpdateDto dto,
             CancellationToken cancellationToken = default)
@@ -140,19 +112,12 @@ namespace BackendBiblioMate.Services.Catalog
             return true;
         }
 
-        /// <summary>
-        /// Deletes a shelf level from the data store.
-        /// </summary>
-        /// <param name="id">Identifier of the shelf level to delete.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>true</c> if the deletion was successful; <c>false</c> if the shelf level was not found.
-        /// </returns>
+        /// <inheritdoc/>
         public async Task<bool> DeleteAsync(
             int id,
             CancellationToken cancellationToken = default)
         {
-            var sl = await _context.ShelfLevels.FindAsync(new object[] { id }, cancellationToken);
+            var sl = await _context.ShelfLevels.FindAsync([id], cancellationToken);
             if (sl == null)
                 return false;
 
@@ -162,7 +127,8 @@ namespace BackendBiblioMate.Services.Catalog
         }
 
         /// <summary>
-        /// Expression to project <see cref="Models.ShelfLevel"/> into <see cref="ShelfLevelReadDto"/>.
+        /// Projection expression mapping <see cref="Models.ShelfLevel"/> to <see cref="ShelfLevelReadDto"/>.
+        /// Used to keep EF queries translatable.
         /// </summary>
         private static readonly Expression<Func<Models.ShelfLevel, ShelfLevelReadDto>> MapToReadDto = sl => new ShelfLevelReadDto
         {

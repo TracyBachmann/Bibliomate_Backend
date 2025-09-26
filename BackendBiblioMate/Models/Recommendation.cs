@@ -10,8 +10,9 @@ namespace BackendBiblioMate.Models
     public class Recommendation
     {
         /// <summary>
-        /// Gets the primary key of the recommendation record.
+        /// Gets or sets the unique identifier of the recommendation.
         /// </summary>
+        /// <example>1</example>
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int RecommendationId { get; init; }
@@ -19,6 +20,7 @@ namespace BackendBiblioMate.Models
         /// <summary>
         /// Gets or sets the identifier of the user for whom the recommendation is made.
         /// </summary>
+        /// <example>7</example>
         [Required(ErrorMessage = "UserId is required.")]
         [Range(1, int.MaxValue, ErrorMessage = "UserId must be a positive integer.")]
         public int UserId { get; init; }
@@ -26,20 +28,21 @@ namespace BackendBiblioMate.Models
         /// <summary>
         /// Gets or sets the identifier of the recommended book.
         /// </summary>
-        [Required(ErrorMessage = "RecommendationBookId is required.")]
-        [Range(1, int.MaxValue, ErrorMessage = "RecommendationBookId must be a positive integer.")]
-        public int RecommendationBookId { get; init; }
+        /// <example>42</example>
+        [Required(ErrorMessage = "BookId is required.")]
+        [Range(1, int.MaxValue, ErrorMessage = "BookId must be a positive integer.")]
+        public int BookId { get; init; }
 
         /// <summary>
-        /// Navigation property for the user receiving the recommendation.
+        /// Gets or sets the navigation property for the user receiving the recommendation.
         /// </summary>
         [ForeignKey(nameof(UserId))]
         public User User { get; init; } = null!;
 
         /// <summary>
-        /// Navigation property for the book being recommended.
+        /// Gets or sets the navigation property for the recommended book.
         /// </summary>
-        [ForeignKey(nameof(RecommendationBookId))]
-        public Book RecommendationBook { get; init; } = null!;
+        [ForeignKey(nameof(BookId))]
+        public Book Book { get; init; } = null!;
     }
 }

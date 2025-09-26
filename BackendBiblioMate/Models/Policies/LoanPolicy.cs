@@ -20,5 +20,10 @@
         /// Gets the fee amount charged per day for each overdue loan.
         /// </summary>
         public const decimal LateFeePerDay = 0.5m;
+
+        /// <summary>
+        /// Gets the maximum number of times a loan can be extended.
+        /// </summary>
+        public const int MaxExtensionsPerLoan = 1;
     }
 }

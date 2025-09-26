@@ -14,8 +14,9 @@ using Microsoft.IdentityModel.Tokens;
 namespace BackendBiblioMate.Services.Users
 {
     /// <summary>
-    /// Implements <see cref="IAuthService"/> to handle user registration,
-    /// authentication, email confirmation, password reset, and approval.
+    /// Default implementation of <see cref="IAuthService"/>.
+    /// Handles user registration, authentication, email confirmation,
+    /// password reset, and administrator approval.
     /// </summary>
     public class AuthService : IAuthService
     {
@@ -23,6 +24,12 @@ namespace BackendBiblioMate.Services.Users
         private readonly IConfiguration _config;
         private readonly IEmailService _emailService;
 
+        /// <summary>
+        /// Initializes a new instance of <see cref="AuthService"/>.
+        /// </summary>
+        /// <param name="db">EF Core database context for user management.</param>
+        /// <param name="config">Application configuration containing JWT and frontend settings.</param>
+        /// <param name="emailService">Service for sending confirmation and reset emails.</param>
         public AuthService(
             BiblioMateDbContext db,
             IConfiguration config,
@@ -34,8 +41,17 @@ namespace BackendBiblioMate.Services.Users
         }
 
         /// <summary>
-        /// Registers a new user, sends an email confirmation link.
+        /// Registers a new user, saves it to the database, and sends a confirmation email.
         /// </summary>
+        /// <param name="dto">Registration data provided by the frontend.</param>
+        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
+        /// <returns>
+        /// A tuple containing a success flag and an <see cref="IActionResult"/> response:
+        /// <list type="bullet">
+        /// <item><description>409 Conflict if email already exists.</description></item>
+        /// <item><description>200 OK with a confirmation message otherwise.</description></item>
+        /// </list>
+        /// </returns>
         public async Task<(bool Success, IActionResult Result)> RegisterAsync(
             RegisterDto dto,
             CancellationToken cancellationToken = default)
@@ -46,7 +62,7 @@ namespace BackendBiblioMate.Services.Users
                     new ConflictObjectResult(new { error = "An account with that email already exists." }));
             }
 
-            // --- helpers for DTO compat (old/new front) ---
+            // --- helpers for DTO compatibility (support old/new frontend models) ---
             static string? GetStringProp(object obj, string prop)
                 => obj.GetType().GetProperty(prop)?.GetValue(obj) as string;
 
@@ -74,8 +90,8 @@ namespace BackendBiblioMate.Services.Users
             var token = Guid.NewGuid().ToString();
             var user = new User
             {
-                FirstName              = firstName ?? string.Empty,
-                LastName               = lastName ?? string.Empty,
+                FirstName              = firstName,
+                LastName               = lastName,
                 Email                  = dto.Email,
                 Password               = BCrypt.Net.BCrypt.HashPassword(dto.Password),
                 Address1               = address1,
@@ -105,12 +121,12 @@ namespace BackendBiblioMate.Services.Users
                 await _db.SaveChangesAsync(cancellationToken);
             }
 
-            // ---- Confirmation email (FR + bouton) ----
-            var baseUrl = _config["Frontend:BaseUrl"] ?? "http://localhost:4200";
+            // ---- Confirmation email ----
+            var baseUrl   = _config["Frontend:BaseUrl"] ?? "http://localhost:4200";
             var confirmUrl = $"{baseUrl}/confirm-email?token={token}";
 
             var subject = "Confirmez votre inscription – BiblioMate";
-            var first = WebUtility.HtmlEncode(user.FirstName ?? "");
+            var first   = WebUtility.HtmlEncode(user.FirstName ?? "");
 
             var html = $@"
 <div style=""font-family:Segoe UI,Roboto,Arial,sans-serif;max-width:560px;margin:auto;background:#f7fbff;
@@ -142,7 +158,7 @@ namespace BackendBiblioMate.Services.Users
         }
 
         /// <summary>
-        /// Authenticates a user and returns a JWT token if successful.
+        /// Authenticates a user against stored credentials and returns a signed JWT.
         /// </summary>
         public async Task<(bool Success, IActionResult Result)> LoginAsync(
             LoginDto dto,
@@ -154,7 +170,6 @@ namespace BackendBiblioMate.Services.Users
                 return (false, new UnauthorizedObjectResult(new { error = "Invalid email or password." }));
             }
 
-            // Keep these messages as-is (frontend matches on them)
             if (!user.IsEmailConfirmed)
             {
                 return (false, new UnauthorizedObjectResult(new { error = "Email not confirmed." }));
@@ -169,7 +184,9 @@ namespace BackendBiblioMate.Services.Users
             return (true, new OkObjectResult(new { token = jwt }));
         }
 
-        /// <summary>Confirms a user's email using the provided token.</summary>
+        /// <summary>
+        /// Confirms a user's email address using a unique token sent at registration.
+        /// </summary>
         public async Task<(bool Success, IActionResult Result)> ConfirmEmailAsync(
             string token,
             CancellationToken cancellationToken = default)
@@ -187,23 +204,24 @@ namespace BackendBiblioMate.Services.Users
             return (true, new OkObjectResult("Email confirmed successfully."));
         }
 
-        /// <summary>Generates and emails a password reset token if the email exists.</summary>
+        /// <summary>
+        /// Requests a password reset. Generates a reset token, stores it, and sends an email if the account exists.
+        /// </summary>
         public async Task<(bool Success, IActionResult Result)> RequestPasswordResetAsync(
             string email,
             CancellationToken cancellationToken = default)
         {
-            var token = Guid.NewGuid().ToString();
+            var token   = Guid.NewGuid().ToString();
             var expires = DateTime.UtcNow.AddHours(1);
 
             var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
             if (user != null)
             {
-                user.PasswordResetToken = token;
+                user.PasswordResetToken        = token;
                 user.PasswordResetTokenExpires = expires;
                 await _db.SaveChangesAsync(cancellationToken);
 
-                var baseUrl = _config["Frontend:BaseUrl"] ?? "http://localhost:4200";
-                // align with Angular route: /reinitialiser-mot-de-passe
+                var baseUrl  = _config["Frontend:BaseUrl"] ?? "http://localhost:4200";
                 var resetUrl = $"{baseUrl}/reinitialiser-mot-de-passe?token={token}";
 
                 var subject = "Réinitialisation de votre mot de passe – BiblioMate";
@@ -230,11 +248,12 @@ namespace BackendBiblioMate.Services.Users
                 await _emailService.SendEmailAsync(email, subject, html);
             }
 
-            // Always return OK to avoid revealing whether email exists
             return (true, new OkObjectResult("If that email is registered, you’ll receive a reset link."));
         }
 
-        /// <summary>Resets a user's password using a valid reset token.</summary>
+        /// <summary>
+        /// Resets a user’s password using a valid reset token.
+        /// </summary>
         public async Task<(bool Success, IActionResult Result)> ResetPasswordAsync(
             ResetPasswordDto dto,
             CancellationToken cancellationToken = default)
@@ -249,16 +268,18 @@ namespace BackendBiblioMate.Services.Users
                 return (false, new BadRequestObjectResult("Invalid or expired token."));
             }
 
-            user.Password = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
-            user.PasswordResetToken = null;
+            user.Password               = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            user.PasswordResetToken     = null;
             user.PasswordResetTokenExpires = null;
-            user.SecurityStamp = Guid.NewGuid().ToString();
+            user.SecurityStamp          = Guid.NewGuid().ToString();
             await _db.SaveChangesAsync(cancellationToken);
 
             return (true, new OkObjectResult("Password reset successful."));
         }
 
-        /// <summary>Approves a pending user account.</summary>
+        /// <summary>
+        /// Marks a user as approved by an administrator.
+        /// </summary>
         public async Task<(bool Success, IActionResult Result)> ApproveUserAsync(
             int userId,
             CancellationToken cancellationToken = default)
@@ -273,77 +294,36 @@ namespace BackendBiblioMate.Services.Users
             return (true, new OkObjectResult("User approved successfully."));
         }
 
-        // ----- internals -----------------------------------------------------
-
-        private string GenerateJwtToken(User user)
-        {
-            var claims = new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role, user.Role),
-                new Claim("stamp", user.SecurityStamp),
-
-                new Claim(ClaimTypes.GivenName, user.FirstName ?? string.Empty),
-                new Claim(ClaimTypes.Surname, user.LastName ?? string.Empty),
-                new Claim("name", $"{user.FirstName} {user.LastName}".Trim())
-            };
-
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var token = new JwtSecurityToken(
-                issuer: _config["Jwt:Issuer"],
-                audience: _config["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.UtcNow.AddHours(1),
-                signingCredentials: creds);
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
-        }
-
-        private static void SplitName(string fullName, out string first, out string last)
-        {
-            fullName = (fullName ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(fullName))
-            {
-                first = string.Empty; last = string.Empty; return;
-            }
-            var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            first = parts.Length > 0 ? parts[0] : string.Empty;
-            last  = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : string.Empty;
-        }
-
+        /// <summary>
+        /// Resends the confirmation email if needed.
+        /// Does not disclose whether the user exists for security reasons.
+        /// </summary>
         public async Task<(bool Success, IActionResult Result)> ResendConfirmationAsync(
-    string email,
-    CancellationToken cancellationToken = default)
-{
-    if (string.IsNullOrWhiteSpace(email))
-        return (false, new OkObjectResult("If needed, a new confirmation email has been sent."));
+            string email,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return (false, new OkObjectResult("If needed, a new confirmation email has been sent."));
 
-    var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
 
-    // On ne révèle pas si le compte n'existe pas
-    if (user is null)
-        return (true, new OkObjectResult("If needed, a new confirmation email has been sent."));
+            if (user is null)
+                return (true, new OkObjectResult("If needed, a new confirmation email has been sent."));
 
-    // Déjà confirmé -> OK idempotent
-    if (user.IsEmailConfirmed)
-        return (true, new OkObjectResult("If needed, a new confirmation email has been sent."));
+            if (user.IsEmailConfirmed)
+                return (true, new OkObjectResult("If needed, a new confirmation email has been sent."));
 
-    // (Ré)génère un token s'il n'existe plus
-    if (string.IsNullOrWhiteSpace(user.EmailConfirmationToken))
-    {
-        user.EmailConfirmationToken = Guid.NewGuid().ToString();
-        await _db.SaveChangesAsync(cancellationToken);
-    }
+            if (string.IsNullOrWhiteSpace(user.EmailConfirmationToken))
+            {
+                user.EmailConfirmationToken = Guid.NewGuid().ToString();
+                await _db.SaveChangesAsync(cancellationToken);
+            }
 
-    var baseUrl   = _config["Frontend:BaseUrl"] ?? "http://localhost:4200";
-    var confirmUrl = $"{baseUrl}/confirm-email?token={user.EmailConfirmationToken}";
+            var baseUrl    = _config["Frontend:BaseUrl"] ?? "http://localhost:4200";
+            var confirmUrl = $"{baseUrl}/confirm-email?token={user.EmailConfirmationToken}";
 
-    // Version FR simple (tu peux peaufiner le HTML comme tu veux)
-    var subject = "BiblioMate – Confirmez votre adresse e-mail";
-    var html = $@"
+            var subject = "BiblioMate – Confirmez votre adresse e-mail";
+            var html = $@"
       <div style=""font-family:Segoe UI,Arial,sans-serif;font-size:15px;line-height:1.5;color:#0f172a"">
         <p>Bonjour {(string.IsNullOrWhiteSpace(user.FirstName) ? "!" : user.FirstName + "!")}</p>
         <p>Merci de votre inscription à <strong>BiblioMate</strong>. Pour activer votre compte, cliquez sur le bouton :</p>
@@ -359,11 +339,59 @@ namespace BackendBiblioMate.Services.Users
         <p style=""color:#64748b"">Après confirmation, votre compte devra être approuvé par un·e bibliothécaire.</p>
       </div>";
 
-    await _emailService.SendEmailAsync(user.Email, subject, html);
+            await _emailService.SendEmailAsync(user.Email, subject, html);
 
-    return (true, new OkObjectResult("If needed, a new confirmation email has been sent."));
+            return (true, new OkObjectResult("If needed, a new confirmation email has been sent."));
+        }
 
-}
+        // ---------------- Helpers ----------------
 
+        /// <summary>
+        /// Generates a signed JWT token for an authenticated user.
+        /// Includes claims for identity, email, role, and security stamp.
+        /// </summary>
+        private string GenerateJwtToken(User user)
+        {
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+                new Claim(ClaimTypes.Email, user.Email),
+                new Claim(ClaimTypes.Role, user.Role),
+                new Claim("stamp", user.SecurityStamp),
+                new Claim(ClaimTypes.GivenName, user.FirstName),
+                new Claim(ClaimTypes.Surname, user.LastName),
+                new Claim("name", $"{user.FirstName} {user.LastName}".Trim())
+            };
+
+            var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: _config["Jwt:Issuer"],
+                audience: _config["Jwt:Audience"],
+                claims: claims,
+                expires: DateTime.UtcNow.AddHours(1),
+                signingCredentials: creds);
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        /// <summary>
+        /// Splits a full name into first and last name parts.
+        /// </summary>
+        private static void SplitName(string fullName, out string first, out string last)
+        {
+            fullName = (fullName ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(fullName))
+            {
+                first = string.Empty;
+                last  = string.Empty;
+                return;
+            }
+
+            var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            first = parts.Length > 0 ? parts[0] : string.Empty;
+            last  = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : string.Empty;
+        }
     }
 }

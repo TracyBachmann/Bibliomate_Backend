@@ -13,7 +13,8 @@ namespace BackendBiblioMate.Controllers
     /// Provides endpoints to retrieve personalized book suggestions.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [Route("api/[controller]")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [ApiVersion("1.0")]
     [Produces("application/json")]
     public class RecommendationsController : ControllerBase
@@ -26,7 +27,7 @@ namespace BackendBiblioMate.Controllers
         /// <param name="service">Service providing recommendation logic.</param>
         public RecommendationsController(IRecommendationService service)
         {
-            _service = service;
+            _service = service ?? throw new ArgumentNullException(nameof(service));
         }
 
         /// <summary>
@@ -35,8 +36,11 @@ namespace BackendBiblioMate.Controllers
         /// <param name="userId">Identifier of the user to get recommendations for.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>200 OK</c> with a list of <see cref="RecommendationReadDto"/>;
-        /// <c>403 Forbidden</c> if a non-admin attempts to access another user's recommendations.
+        /// <list type="bullet">
+        /// <item><description><c>200 OK</c> with a list of <see cref="RecommendationReadDto"/>.</description></item>
+        /// <item><description><c>403 Forbidden</c> if a non-admin attempts to access another user's recommendations.</description></item>
+        /// <item><description><c>401 Unauthorized</c> if the request does not contain valid authentication.</description></item>
+        /// </list>
         /// </returns>
         [HttpGet("user/{userId}")]
         [MapToApiVersion("1.0")]
@@ -48,14 +52,21 @@ namespace BackendBiblioMate.Controllers
         )]
         [ProducesResponseType(typeof(List<RecommendationReadDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<List<RecommendationReadDto>>> GetRecommendations(
             [FromRoute] int userId,
             CancellationToken cancellationToken = default)
         {
-            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var userRole = User.FindFirstValue(ClaimTypes.Role)!;
+            var currentUserIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var currentUserRole = User.FindFirstValue(ClaimTypes.Role);
 
-            if (userRole != UserRoles.Admin && currentUserId != userId)
+            if (string.IsNullOrEmpty(currentUserIdClaim) || string.IsNullOrEmpty(currentUserRole))
+                return Unauthorized();
+
+            var currentUserId = int.Parse(currentUserIdClaim);
+
+            // Only allow if same user or Admin role
+            if (currentUserRole != UserRoles.Admin && currentUserId != userId)
                 return Forbid();
 
             var recommendations = await _service.GetRecommendationsForUserAsync(userId, cancellationToken);

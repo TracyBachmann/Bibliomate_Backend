@@ -211,6 +211,9 @@ namespace BackendBiblioMate.Migrations
                     b.Property<DateTime>("DueDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("ExtensionsCount")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("Fine")
                         .HasColumnType("decimal(10,2)");
 

@@ -8,11 +8,12 @@ using Swashbuckle.AspNetCore.Annotations;
 namespace BackendBiblioMate.Controllers
 {
     /// <summary>
-    /// Controller for managing editors (publishers).
-    /// Provides CRUD endpoints for <see cref="EditorReadDto"/>.
+    /// API controller for managing editors (publishers).
+    /// Provides CRUD operations and utility endpoints for editor resources.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [Route("api/[controller]")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [ApiVersion("1.0")]
     [Produces("application/json")]
     public class EditorsController : ControllerBase
@@ -20,9 +21,9 @@ namespace BackendBiblioMate.Controllers
         private readonly IEditorService _service;
 
         /// <summary>
-        /// Initializes a new instance of <see cref="EditorsController"/>.
+        /// Initializes a new instance of the <see cref="EditorsController"/> class.
         /// </summary>
-        /// <param name="service">Service encapsulating editor logic.</param>
+        /// <param name="service">The service used to encapsulate business logic for editors.</param>
         public EditorsController(IEditorService service)
         {
             _service = service;
@@ -32,14 +33,12 @@ namespace BackendBiblioMate.Controllers
         /// Retrieves all editors.
         /// </summary>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>200 OK</c> with list of <see cref="EditorReadDto"/>.
-        /// </returns>
+        /// <returns><c>200 OK</c> with a list of editors.</returns>
         [HttpGet, AllowAnonymous]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Retrieves all editors (v1)",
-            Description = "Returns the list of all editors.",
+            Description = "Returns the complete list of editors.",
             Tags = ["Editors"]
         )]
         [ProducesResponseType(typeof(IEnumerable<EditorReadDto>), StatusCodes.Status200OK)]
@@ -51,19 +50,19 @@ namespace BackendBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Retrieves an editor by its identifier.
+        /// Retrieves a single editor by its unique identifier.
         /// </summary>
-        /// <param name="id">Editor identifier.</param>
+        /// <param name="id">The editor identifier.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>200 OK</c> with <see cref="EditorReadDto"/>,  
-        /// <c>404 NotFound</c> if not found.
+        /// <c>200 OK</c> with the editor,  
+        /// <c>404 Not Found</c> if the editor does not exist.
         /// </returns>
         [HttpGet("{id}"), AllowAnonymous]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Retrieves an editor by ID (v1)",
-            Description = "Returns the editor with the specified ID.",
+            Description = "Fetches a single editor by its unique identifier.",
             Tags = ["Editors"]
         )]
         [ProducesResponseType(typeof(EditorReadDto), StatusCodes.Status200OK)]
@@ -75,23 +74,24 @@ namespace BackendBiblioMate.Controllers
             var (dto, error) = await _service.GetByIdAsync(id, cancellationToken);
             if (error != null)
                 return error;
+
             return Ok(dto);
         }
 
         /// <summary>
-        /// Creates a new editor.
+        /// Creates a new editor. Requires Admin or Librarian role.
         /// </summary>
-        /// <param name="dto">Data to create editor.</param>
+        /// <param name="dto">The data required to create the editor.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>201 Created</c> with location header,  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
+        /// <c>201 Created</c> with the created editor,  
+        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access is denied.
         /// </returns>
         [HttpPost, Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Creates a new editor (v1)",
-            Description = "Creates a new editor entry. Requires Admin or Librarian role.",
+            Description = "Creates and persists a new editor entry. Requires Admin or Librarian role.",
             Tags = ["Editors"]
         )]
         [ProducesResponseType(typeof(EditorReadDto), StatusCodes.Status201Created)]
@@ -101,26 +101,26 @@ namespace BackendBiblioMate.Controllers
             [FromBody] EditorCreateDto dto,
             CancellationToken cancellationToken)
         {
-            var (createdDto, result) = await _service.CreateAsync(dto, cancellationToken);
+            var (_, result) = await _service.CreateAsync(dto, cancellationToken);
             return result;
         }
 
         /// <summary>
-        /// Updates an existing editor.
+        /// Updates an existing editor. Requires Admin or Librarian role.
         /// </summary>
-        /// <param name="id">Editor identifier.</param>
-        /// <param name="dto">New editor data.</param>
+        /// <param name="id">The editor identifier.</param>
+        /// <param name="dto">The updated editor data.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>404 NotFound</c> if not found;  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
+        /// <c>204 No Content</c> if update was successful,  
+        /// <c>404 Not Found</c> if the editor does not exist,  
+        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access is denied.
         /// </returns>
         [HttpPut("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Updates an existing editor (v1)",
-            Description = "Updates editor details by ID. Requires Admin or Librarian role.",
+            Description = "Updates an editor by its unique identifier. Requires Admin or Librarian role.",
             Tags = ["Editors"]
         )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -134,24 +134,25 @@ namespace BackendBiblioMate.Controllers
         {
             if (!await _service.UpdateAsync(id, dto, cancellationToken))
                 return NotFound();
+
             return NoContent();
         }
 
         /// <summary>
-        /// Deletes an editor.
+        /// Deletes an editor by its unique identifier. Requires Admin or Librarian role.
         /// </summary>
-        /// <param name="id">Editor identifier.</param>
+        /// <param name="id">The editor identifier.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>404 NotFound</c> if not found;  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
+        /// <c>204 No Content</c> if deletion was successful,  
+        /// <c>404 Not Found</c> if the editor does not exist,  
+        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access is denied.
         /// </returns>
         [HttpDelete("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Deletes an editor (v1)",
-            Description = "Deletes the editor with the specified ID. Requires Admin or Librarian role.",
+            Description = "Deletes an editor by its unique identifier. Requires Admin or Librarian role.",
             Tags = ["Editors"]
         )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -164,7 +165,60 @@ namespace BackendBiblioMate.Controllers
         {
             if (!await _service.DeleteAsync(id, cancellationToken))
                 return NotFound();
+
             return NoContent();
+        }
+        
+        /// <summary>
+        /// Searches editors by a query string.
+        /// </summary>
+        /// <param name="search">Optional search term to filter editors by name.</param>
+        /// <param name="take">Maximum number of results to return. Defaults to 20.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <returns><c>200 OK</c> with a filtered list of editors.</returns>
+        [HttpGet("search"), AllowAnonymous]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Search editors (v1)",
+            Description = "Returns a list of editors matching the provided query string.",
+            Tags = ["Editors"]
+        )]
+        [ProducesResponseType(typeof(IEnumerable<EditorReadDto>), StatusCodes.Status200OK)]
+        public async Task<ActionResult<IEnumerable<EditorReadDto>>> SearchEditors(
+            [FromQuery] string? search,
+            [FromQuery] int take = 20,
+            CancellationToken cancellationToken = default)
+        {
+            var items = await _service.SearchAsync(search, take, cancellationToken);
+            return Ok(items);
+        }
+
+        /// <summary>
+        /// Ensures an editor exists by name. If not, creates a new one. Requires Admin or Librarian role.
+        /// </summary>
+        /// <param name="dto">The data used to check or create the editor.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <returns>
+        /// <c>200 OK</c> with the existing editor,  
+        /// <c>201 Created</c> with the new editor if it was created.
+        /// </returns>
+        [HttpPost("ensure"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Ensure editor exists (v1)",
+            Description = "Checks if an editor exists by name, or creates it if missing.",
+            Tags = ["Editors"]
+        )]
+        [ProducesResponseType(typeof(EditorReadDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(EditorReadDto), StatusCodes.Status200OK)]
+        public async Task<ActionResult<EditorReadDto>> EnsureEditor(
+            [FromBody] EditorCreateDto dto,
+            CancellationToken cancellationToken)
+        {
+            var (read, created) = await _service.EnsureAsync(dto.Name, cancellationToken);
+            return created
+                ? CreatedAtAction(nameof(GetEditor), new { id = read.EditorId }, read)
+                : Ok(read);
         }
     }
 }

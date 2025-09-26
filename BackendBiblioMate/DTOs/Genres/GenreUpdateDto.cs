@@ -3,21 +3,21 @@ using System.ComponentModel.DataAnnotations;
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to update an existing genre.
-    /// Contains the minimal information that can be modified for a genre.
+    /// Data Transfer Object used to update an existing genre.
+    /// Contains the editable information for a genre record.
     /// </summary>
     public class GenreUpdateDto
     {
         /// <summary>
-        /// Gets the new name of the genre.
+        /// Gets or sets the new name of the genre.
         /// </summary>
         /// <remarks>
-        /// Must be between 2 and 100 characters.
+        /// Must be between 2 and 50 characters.
         /// </remarks>
-        /// <example>Science Fiction</example>
+        /// <example>Fantasy</example>
         [Required(ErrorMessage = "Genre name is required.")]
         [MinLength(2, ErrorMessage = "Genre name must be at least 2 characters long.")]
-        [MaxLength(100, ErrorMessage = "Genre name cannot exceed 100 characters.")]
+        [MaxLength(50, ErrorMessage = "Genre name cannot exceed 50 characters.")]
         public string Name { get; init; } = string.Empty;
     }
 }

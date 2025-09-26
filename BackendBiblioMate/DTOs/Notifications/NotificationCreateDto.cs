@@ -3,13 +3,13 @@ using System.ComponentModel.DataAnnotations;
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to request the creation of a new notification.
-    /// Contains details needed to send a notification to a user.
+    /// Data Transfer Object used to request the creation of a new notification.
+    /// Contains the details needed to send a notification to a user.
     /// </summary>
     public class NotificationCreateDto
     {
         /// <summary>
-        /// Gets the identifier of the user who will receive the notification.
+        /// Gets or sets the identifier of the user who will receive the notification.
         /// </summary>
         /// <example>7</example>
         [Required(ErrorMessage = "UserId is required.")]
@@ -17,10 +17,10 @@ namespace BackendBiblioMate.DTOs
         public int UserId { get; init; }
 
         /// <summary>
-        /// Gets the title of the notification.
+        /// Gets or sets the title of the notification.
         /// </summary>
         /// <remarks>
-        /// Maximum length of 200 characters.
+        /// Must contain between 1 and 200 characters.
         /// </remarks>
         /// <example>Overdue Book Reminder</example>
         [Required(ErrorMessage = "Title is required.")]
@@ -29,10 +29,10 @@ namespace BackendBiblioMate.DTOs
         public string Title { get; init; } = string.Empty;
 
         /// <summary>
-        /// Gets the body message of the notification.
+        /// Gets or sets the body message of the notification.
         /// </summary>
         /// <remarks>
-        /// Maximum length of 1000 characters.
+        /// Must contain between 1 and 1000 characters.
         /// </remarks>
         /// <example>Your loan for “The Hobbit” is overdue by 3 days.</example>
         [Required(ErrorMessage = "Message is required.")]

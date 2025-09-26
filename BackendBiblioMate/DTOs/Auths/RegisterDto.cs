@@ -3,13 +3,13 @@
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to register a new user.
-    /// Contains all fields required by the multi-step signup form.
+    /// Data Transfer Object used to register a new user.
+    /// Contains all fields required by the signup form.
     /// </summary>
     public class RegisterDto
     {
         /// <summary>
-        /// Gets the user's given name.
+        /// Gets or sets the user's given name.
         /// </summary>
         /// <remarks>
         /// Must be between 2 and 60 characters.
@@ -21,7 +21,7 @@ namespace BackendBiblioMate.DTOs
         public string FirstName { get; init; } = string.Empty;
 
         /// <summary>
-        /// Gets the user's family name.
+        /// Gets or sets the user's family name.
         /// </summary>
         /// <remarks>
         /// Must be between 2 and 60 characters.
@@ -33,7 +33,7 @@ namespace BackendBiblioMate.DTOs
         public string LastName { get; init; } = string.Empty;
 
         /// <summary>
-        /// Gets the email address of the user.
+        /// Gets or sets the email address of the user.
         /// </summary>
         /// <example>jane.doe@example.com</example>
         [Required(ErrorMessage = "Email is required.")]
@@ -42,7 +42,7 @@ namespace BackendBiblioMate.DTOs
         public string Email { get; init; } = string.Empty;
 
         /// <summary>
-        /// Gets the phone number of the user.
+        /// Gets or sets the phone number of the user.
         /// </summary>
         /// <example>+33 6 12 34 56 78</example>
         [Required(ErrorMessage = "Phone is required.")]
@@ -51,7 +51,7 @@ namespace BackendBiblioMate.DTOs
         public string Phone { get; init; } = string.Empty;
 
         /// <summary>
-        /// Gets the primary address line of the user.
+        /// Gets or sets the primary address line of the user.
         /// </summary>
         /// <remarks>
         /// Maximum length of 200 characters.
@@ -63,7 +63,7 @@ namespace BackendBiblioMate.DTOs
         public string Address1 { get; init; } = string.Empty;
 
         /// <summary>
-        /// Gets the secondary address line of the user (optional).
+        /// Gets or sets the secondary address line of the user (optional).
         /// </summary>
         /// <remarks>
         /// Maximum length of 200 characters.
@@ -73,13 +73,13 @@ namespace BackendBiblioMate.DTOs
         public string? Address2 { get; init; }
 
         /// <summary>
-        /// Gets the user's date of birth (optional).
+        /// Gets or sets the user's date of birth (optional).
         /// </summary>
         /// <example>1995-04-21</example>
         public DateTime? DateOfBirth { get; init; }
 
         /// <summary>
-        /// Gets the password for the user account.
+        /// Gets or sets the password for the user account.
         /// </summary>
         /// <remarks>
         /// Must be between 6 and 100 characters.
@@ -91,19 +91,19 @@ namespace BackendBiblioMate.DTOs
         public string Password { get; init; } = string.Empty;
 
         /// <summary>
-        /// Gets the profile image payload or path (optional).
+        /// Gets or sets the profile image payload or path (optional).
         /// </summary>
         /// <remarks>
-        /// Can be a URL/path or a Base64-encoded string depending on the chosen storage strategy.
+        /// Can be a URL/path or a Base64-encoded string depending on the storage strategy.
         /// </remarks>
         /// <example>https://cdn.example.com/u/42/profile.png</example>
         [MaxLength(2000, ErrorMessage = "Profile image value cannot exceed 2000 characters.")]
         public string? ProfileImage { get; init; }
 
         /// <summary>
-        /// Gets the list of preferred genre identifiers (optional).
+        /// Gets or sets the list of preferred genre identifiers (optional).
         /// </summary>
         /// <example>[1, 3, 7]</example>
-        public IEnumerable<int> FavoriteGenreIds { get; init; } = Enumerable.Empty<int>();
+        public IEnumerable<int> FavoriteGenreIds { get; init; } = [];
     }
 }

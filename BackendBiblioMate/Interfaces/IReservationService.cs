@@ -3,65 +3,83 @@
 namespace BackendBiblioMate.Interfaces
 {
     /// <summary>
-    /// Defines operations for managing book reservations.
+    /// Defines operations for managing book reservations,
+    /// including creation, retrieval, update, and deletion.
+    /// Enforces ownership rules and supports librarian/admin access.
     /// </summary>
     public interface IReservationService
     {
         /// <summary>
-        /// Retrieves all reservations (for librarians and admins).
+        /// Retrieves all reservations in the system.
+        /// Intended for use by Librarians and Admins only.
         /// </summary>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="cancellationToken">
+        /// A <see cref="CancellationToken"/> used to observe cancellation requests.
+        /// </param>
         /// <returns>
-        /// A <see cref="Task{IEnumerable}"/> that yields all <see cref="ReservationReadDto"/>.
+        /// A <see cref="Task{TResult}"/> that, when completed, yields an
+        /// <see cref="IEnumerable{ReservationReadDto}"/> containing all reservations.
         /// </returns>
         Task<IEnumerable<ReservationReadDto>> GetAllAsync(
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Retrieves active reservations for a given user.
+        /// Retrieves all active reservations for a given user.
         /// </summary>
-        /// <param name="userId">The user’s identifier.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="userId">The unique identifier of the user.</param>
+        /// <param name="cancellationToken">
+        /// A <see cref="CancellationToken"/> used to observe cancellation requests.
+        /// </param>
         /// <returns>
-        /// A <see cref="Task{IEnumerable}"/> that yields the user’s active <see cref="ReservationReadDto"/>.
+        /// A <see cref="Task{TResult}"/> that yields an
+        /// <see cref="IEnumerable{ReservationReadDto}"/> containing the user's active reservations.
         /// </returns>
         Task<IEnumerable<ReservationReadDto>> GetByUserAsync(
             int userId,
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Retrieves pending reservations for a given book.
+        /// Retrieves all pending reservations for a specific book.
+        /// Pending reservations are those waiting to be fulfilled when a copy becomes available.
         /// </summary>
-        /// <param name="bookId">The book’s identifier.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="bookId">The unique identifier of the book.</param>
+        /// <param name="cancellationToken">
+        /// A <see cref="CancellationToken"/> used to observe cancellation requests.
+        /// </param>
         /// <returns>
-        /// A <see cref="Task{IEnumerable}"/> that yields pending <see cref="ReservationReadDto"/> for the book.
+        /// A <see cref="Task{TResult}"/> that yields an
+        /// <see cref="IEnumerable{ReservationReadDto}"/> containing pending reservations for the book.
         /// </returns>
         Task<IEnumerable<ReservationReadDto>> GetPendingForBookAsync(
             int bookId,
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Retrieves a single reservation by its identifier.
+        /// Retrieves a reservation by its identifier.
         /// </summary>
-        /// <param name="reservationId">The reservation identifier.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="reservationId">The unique identifier of the reservation.</param>
+        /// <param name="cancellationToken">
+        /// A <see cref="CancellationToken"/> used to observe cancellation requests.
+        /// </param>
         /// <returns>
-        /// A <see cref="Task{ReservationReadDto}"/> that yields the matching <see cref="ReservationReadDto"/>,
-        /// or <c>null</c> if not found.
+        /// A <see cref="Task{ReservationReadDto}"/> that yields the matching
+        /// <see cref="ReservationReadDto"/> if found; otherwise <c>null</c>.
         /// </returns>
         Task<ReservationReadDto?> GetByIdAsync(
             int reservationId,
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Creates a new reservation.
+        /// Creates a new reservation for a user.
         /// </summary>
-        /// <param name="dto">The creation data transfer object.</param>
-        /// <param name="userId">The identifier of the reserving user.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="dto">The <see cref="ReservationCreateDto"/> containing reservation details.</param>
+        /// <param name="userId">The identifier of the user creating the reservation.</param>
+        /// <param name="cancellationToken">
+        /// A <see cref="CancellationToken"/> used to observe cancellation requests.
+        /// </param>
         /// <returns>
-        /// A <see cref="Task{ReservationReadDto}"/> that yields the created <see cref="ReservationReadDto"/>.
+        /// A <see cref="Task{ReservationReadDto}"/> that yields the created
+        /// <see cref="ReservationReadDto"/> with its identifier and metadata.
         /// </returns>
         Task<ReservationReadDto> CreateAsync(
             ReservationCreateDto dto,
@@ -69,10 +87,12 @@ namespace BackendBiblioMate.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Updates an existing reservation’s data.
+        /// Updates an existing reservation.
         /// </summary>
-        /// <param name="dto">The updated reservation data transfer object.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="dto">The <see cref="ReservationUpdateDto"/> containing updated reservation data.</param>
+        /// <param name="cancellationToken">
+        /// A <see cref="CancellationToken"/> used to observe cancellation requests.
+        /// </param>
         /// <returns>
         /// A <see cref="Task{Boolean}"/> that yields <c>true</c> if the update succeeded;
         /// <c>false</c> if no reservation with the given identifier exists.
@@ -84,8 +104,10 @@ namespace BackendBiblioMate.Interfaces
         /// <summary>
         /// Deletes a reservation by its identifier.
         /// </summary>
-        /// <param name="reservationId">The reservation identifier.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="reservationId">The unique identifier of the reservation to delete.</param>
+        /// <param name="cancellationToken">
+        /// A <see cref="CancellationToken"/> used to observe cancellation requests.
+        /// </param>
         /// <returns>
         /// A <see cref="Task{Boolean}"/> that yields <c>true</c> if the deletion succeeded;
         /// <c>false</c> if no reservation with the given identifier exists.

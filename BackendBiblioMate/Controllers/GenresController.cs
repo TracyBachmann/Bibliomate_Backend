@@ -8,11 +8,12 @@ using Swashbuckle.AspNetCore.Annotations;
 namespace BackendBiblioMate.Controllers
 {
     /// <summary>
-    /// Controller for managing genres.
-    /// Provides CRUD endpoints for <see cref="GenreReadDto"/>.
+    /// API controller for managing genres.
+    /// Provides CRUD operations and utility endpoints for genres.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [Route("api/[controller]")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [ApiVersion("1.0")]
     [Produces("application/json")]
     public class GenresController : ControllerBase
@@ -20,9 +21,9 @@ namespace BackendBiblioMate.Controllers
         private readonly IGenreService _service;
 
         /// <summary>
-        /// Initializes a new instance of <see cref="GenresController"/>.
+        /// Initializes a new instance of the <see cref="GenresController"/> class.
         /// </summary>
-        /// <param name="service">Service encapsulating genre logic.</param>
+        /// <param name="service">The service encapsulating genre-related business logic.</param>
         public GenresController(IGenreService service)
         {
             _service = service;
@@ -32,14 +33,12 @@ namespace BackendBiblioMate.Controllers
         /// Retrieves all genres.
         /// </summary>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>200 OK</c> with list of <see cref="GenreReadDto"/>.
-        /// </returns>
+        /// <returns><c>200 OK</c> with a list of genres.</returns>
         [HttpGet, AllowAnonymous]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Retrieves all genres (v1)",
-            Description = "Returns the list of all genres.",
+            Description = "Returns the complete list of genres.",
             Tags = ["Genres"]
         )]
         [ProducesResponseType(typeof(IEnumerable<GenreReadDto>), StatusCodes.Status200OK)]
@@ -51,19 +50,19 @@ namespace BackendBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Retrieves a genre by its identifier.
+        /// Retrieves a single genre by its unique identifier.
         /// </summary>
-        /// <param name="id">Genre identifier.</param>
+        /// <param name="id">The genre identifier.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>200 OK</c> with <see cref="GenreReadDto"/>,  
-        /// <c>404 NotFound</c> if not found.
+        /// <c>200 OK</c> with the genre,  
+        /// <c>404 Not Found</c> if the genre does not exist.
         /// </returns>
-        [HttpGet("{id}"), AllowAnonymous]
+        [HttpGet("{id:int}"), AllowAnonymous]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Retrieves a genre by ID (v1)",
-            Description = "Returns the genre with the specified ID.",
+            Description = "Fetches a single genre by its unique identifier.",
             Tags = ["Genres"]
         )]
         [ProducesResponseType(typeof(GenreReadDto), StatusCodes.Status200OK)]
@@ -75,23 +74,24 @@ namespace BackendBiblioMate.Controllers
             var (dto, error) = await _service.GetByIdAsync(id, cancellationToken);
             if (error != null)
                 return error;
+
             return Ok(dto);
         }
 
         /// <summary>
-        /// Creates a new genre.
+        /// Creates a new genre. Requires Librarian or Admin role.
         /// </summary>
-        /// <param name="dto">Data to create genre.</param>
+        /// <param name="dto">The data required to create the genre.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>201 Created</c> with location header,  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
+        /// <c>201 Created</c> with the created genre,  
+        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access is denied.
         /// </returns>
         [HttpPost, Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Creates a new genre (v1)",
-            Description = "Creates a new genre entry. Requires Librarian or Admin role.",
+            Description = "Creates and persists a new genre entry. Requires Librarian or Admin role.",
             Tags = ["Genres"]
         )]
         [ProducesResponseType(typeof(GenreReadDto), StatusCodes.Status201Created)]
@@ -101,26 +101,26 @@ namespace BackendBiblioMate.Controllers
             [FromBody] GenreCreateDto dto,
             CancellationToken cancellationToken)
         {
-            var (createdDto, result) = await _service.CreateAsync(dto, cancellationToken);
+            var (_, result) = await _service.CreateAsync(dto, cancellationToken);
             return result;
         }
 
         /// <summary>
-        /// Updates an existing genre.
+        /// Updates an existing genre. Requires Librarian or Admin role.
         /// </summary>
-        /// <param name="id">Genre identifier.</param>
-        /// <param name="dto">New genre data.</param>
+        /// <param name="id">The genre identifier.</param>
+        /// <param name="dto">The updated genre data.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>404 NotFound</c> if not found;  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
+        /// <c>204 No Content</c> if update was successful,  
+        /// <c>404 Not Found</c> if the genre does not exist,  
+        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access is denied.
         /// </returns>
-        [HttpPut("{id}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [HttpPut("{id:int}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Updates an existing genre (v1)",
-            Description = "Updates genre details by ID. Requires Librarian or Admin role.",
+            Description = "Updates an existing genre by ID. Requires Librarian or Admin role.",
             Tags = ["Genres"]
         )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -134,24 +134,25 @@ namespace BackendBiblioMate.Controllers
         {
             if (!await _service.UpdateAsync(id, dto, cancellationToken))
                 return NotFound();
+
             return NoContent();
         }
 
         /// <summary>
-        /// Deletes a genre.
+        /// Deletes a genre by its unique identifier. Requires Librarian or Admin role.
         /// </summary>
-        /// <param name="id">Genre identifier.</param>
+        /// <param name="id">The genre identifier.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>204 NoContent</c> on success;  
-        /// <c>404 NotFound</c> if not found;  
-        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access denied.
+        /// <c>204 No Content</c> if deletion was successful,  
+        /// <c>404 Not Found</c> if the genre does not exist,  
+        /// <c>401 Unauthorized</c> or <c>403 Forbidden</c> if access is denied.
         /// </returns>
-        [HttpDelete("{id}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [HttpDelete("{id:int}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Deletes a genre (v1)",
-            Description = "Deletes the genre with the specified ID. Requires Librarian or Admin role.",
+            Description = "Deletes a genre by its unique identifier. Requires Librarian or Admin role.",
             Tags = ["Genres"]
         )]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -164,7 +165,61 @@ namespace BackendBiblioMate.Controllers
         {
             if (!await _service.DeleteAsync(id, cancellationToken))
                 return NotFound();
+
             return NoContent();
+        }
+
+        /// <summary>
+        /// Searches genres by a query string. Supports autocomplete scenarios.
+        /// </summary>
+        /// <param name="search">Optional search term to filter genres by name.</param>
+        /// <param name="take">Maximum number of results to return. Defaults to 20.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <returns><c>200 OK</c> with the filtered list of genres.</returns>
+        [HttpGet("search"), AllowAnonymous]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Search genres (v1)",
+            Description = "Returns a list of genres matching the provided query string.",
+            Tags = ["Genres"]
+        )]
+        [ProducesResponseType(typeof(IEnumerable<GenreReadDto>), StatusCodes.Status200OK)]
+        public async Task<ActionResult<IEnumerable<GenreReadDto>>> Search(
+            [FromQuery] string? search,
+            [FromQuery] int take = 20,
+            CancellationToken cancellationToken = default)
+        {
+            var items = await _service.SearchAsync(search, take, cancellationToken);
+            return Ok(items);
+        }
+
+        /// <summary>
+        /// Ensures a genre exists by name. If not, creates a new one. Requires Librarian or Admin role.
+        /// </summary>
+        /// <param name="dto">The data used to check or create the genre.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <returns>
+        /// <c>200 OK</c> with the existing genre,  
+        /// <c>201 Created</c> with the new genre if it was created.
+        /// </returns>
+        [HttpPost("ensure"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Ensure genre exists (v1)",
+            Description = "Checks if a genre exists by name, or creates it if missing.",
+            Tags = ["Genres"]
+        )]
+        [ProducesResponseType(typeof(GenreReadDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(GenreReadDto), StatusCodes.Status200OK)]
+        public async Task<ActionResult<GenreReadDto>> Ensure(
+            [FromBody] GenreCreateDto dto,
+            CancellationToken cancellationToken)
+        {
+            var (read, created) = await _service.EnsureAsync(dto.Name, cancellationToken);
+            return created
+                ? CreatedAtAction(nameof(GetGenre), new { id = read.GenreId }, read)
+                : Ok(read);
         }
     }
 }
+

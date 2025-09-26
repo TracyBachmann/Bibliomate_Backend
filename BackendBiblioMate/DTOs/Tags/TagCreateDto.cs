@@ -3,13 +3,13 @@ using System.ComponentModel.DataAnnotations;
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to create a new tag.
+    /// Data Transfer Object used to create a new tag.
     /// Contains the name of the tag to be added to the system.
     /// </summary>
     public class TagCreateDto
     {
         /// <summary>
-        /// Gets the name of the tag.
+        /// Gets or sets the name of the tag.
         /// </summary>
         /// <remarks>
         /// Must be between 1 and 50 characters.

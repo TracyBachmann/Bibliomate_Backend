@@ -8,8 +8,9 @@ using Swashbuckle.AspNetCore.Annotations;
 namespace BackendBiblioMate.Controllers
 {
     /// <summary>
-    /// Controller for managing library zones (physical areas in which shelves are organized).
-    /// Supports paginated queries and full CRUD operations for <see cref="ZoneReadDto"/>.
+    /// API controller responsible for managing library zones.
+    /// Zones represent physical areas in which shelves are organized.
+    /// Provides full CRUD operations and supports pagination on read operations.
     /// </summary>
     [ApiController]
     [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
@@ -22,6 +23,9 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Initializes a new instance of <see cref="ZonesController"/>.
         /// </summary>
+        /// <param name="service">
+        /// The service handling business logic and data access for zones.
+        /// </param>
         public ZonesController(IZoneService service)
         {
             _service = service;
@@ -30,11 +34,21 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Retrieves all zones with optional pagination.
         /// </summary>
+        /// <remarks>
+        /// - This endpoint requires authentication.  
+        /// - The response is paginated based on <paramref name="page"/> and <paramref name="pageSize"/>.
+        /// </remarks>
+        /// <param name="page">The page number to retrieve (default: 1).</param>
+        /// <param name="pageSize">The number of items per page (default: 10).</param>
+        /// <param name="cancellationToken">Token to observe for request cancellation.</param>
+        /// <returns>
+        /// <c>200 OK</c> with a collection of <see cref="ZoneReadDto"/> instances.  
+        /// </returns>
         [HttpGet, Authorize]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Retrieves all zones (v1)",
-            Description = "Returns paginated list of zones.",
+            Description = "Returns a paginated list of zones.",
             Tags = ["Zones"]
         )]
         [ProducesResponseType(typeof(IEnumerable<ZoneReadDto>), StatusCodes.Status200OK)]
@@ -50,6 +64,16 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Retrieves a specific zone by its identifier.
         /// </summary>
+        /// <remarks>
+        /// - This endpoint requires authentication.  
+        /// - Returns <c>404 Not Found</c> if the zone does not exist.
+        /// </remarks>
+        /// <param name="id">The unique identifier of the zone.</param>
+        /// <param name="cancellationToken">Token to observe for request cancellation.</param>
+        /// <returns>
+        /// <c>200 OK</c> with the requested <see cref="ZoneReadDto"/>.  
+        /// <c>404 Not Found</c> if the zone does not exist.  
+        /// </returns>
         [HttpGet("{id}"), Authorize]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
@@ -71,6 +95,18 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Creates a new zone.
         /// </summary>
+        /// <remarks>
+        /// - Accessible only to Librarians and Admins.  
+        /// - On success, the created resource is returned and the
+        ///   <c>Location</c> header points to the new resource.
+        /// </remarks>
+        /// <param name="dto">The data used to create the new zone.</param>
+        /// <param name="cancellationToken">Token to observe for request cancellation.</param>
+        /// <returns>
+        /// <c>201 Created</c> with the created <see cref="ZoneReadDto"/>.  
+        /// <c>401 Unauthorized</c> if the user is not authenticated.  
+        /// <c>403 Forbidden</c> if the user lacks required roles.  
+        /// </returns>
         [HttpPost, Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
@@ -92,6 +128,21 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Updates an existing zone.
         /// </summary>
+        /// <remarks>
+        /// - Accessible only to Librarians and Admins.  
+        /// - The route <paramref name="id"/> must match <see cref="ZoneUpdateDto.ZoneId"/> in the payload.  
+        /// - Returns <c>404 Not Found</c> if the zone does not exist.  
+        /// </remarks>
+        /// <param name="id">The identifier of the zone to update.</param>
+        /// <param name="dto">The updated zone data.</param>
+        /// <param name="cancellationToken">Token to observe for request cancellation.</param>
+        /// <returns>
+        /// <c>204 No Content</c> if successfully updated.  
+        /// <c>400 Bad Request</c> if the IDs do not match.  
+        /// <c>404 Not Found</c> if the zone does not exist.  
+        /// <c>401 Unauthorized</c> if the user is not authenticated.  
+        /// <c>403 Forbidden</c> if the user lacks required roles.  
+        /// </returns>
         [HttpPut("{id}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
@@ -119,6 +170,18 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Deletes a zone.
         /// </summary>
+        /// <remarks>
+        /// - Accessible only to Librarians and Admins.  
+        /// - Permanently removes the zone from the system.  
+        /// </remarks>
+        /// <param name="id">The identifier of the zone to delete.</param>
+        /// <param name="cancellationToken">Token to observe for request cancellation.</param>
+        /// <returns>
+        /// <c>204 No Content</c> if successfully deleted.  
+        /// <c>404 Not Found</c> if the zone does not exist.  
+        /// <c>401 Unauthorized</c> if the user is not authenticated.  
+        /// <c>403 Forbidden</c> if the user lacks required roles.  
+        /// </returns>
         [HttpDelete("{id}"), Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(

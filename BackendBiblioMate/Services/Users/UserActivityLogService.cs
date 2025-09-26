@@ -7,25 +7,23 @@ using BackendBiblioMate.Models.Mongo;
 namespace BackendBiblioMate.Services.Users
 {
     /// <summary>
-    /// Service for recording and retrieving user activity logs from MongoDB.
-    /// Implements <see cref="IUserActivityLogService"/>.
+    /// Default implementation of <see cref="IUserActivityLogService"/> that records
+    /// and retrieves user activity logs stored in MongoDB.
     /// </summary>
     public class UserActivityLogService : IUserActivityLogService
     {
         private readonly IMongoCollection<UserActivityLogDocument> _collection;
 
         /// <summary>
-        /// Initializes a new instance of <see cref="UserActivityLogService"/>.
+        /// Initializes a new instance of the <see cref="UserActivityLogService"/> class.
         /// </summary>
-        /// <param name="opts">
-        /// MongoDB connection settings (ConnectionString &amp; DatabaseName).
-        /// </param>
+        /// <param name="opts">Strongly typed MongoDB settings injected via <see cref="IOptions{TOptions}"/>.</param>
         /// <param name="client">MongoDB client instance.</param>
         /// <exception cref="ArgumentNullException">
-        /// Thrown if <paramref name="opts"/> or <paramref name="client"/> is null.
+        /// Thrown if <paramref name="opts"/> or <paramref name="client"/> is <c>null</c>.
         /// </exception>
         /// <exception cref="InvalidOperationException">
-        /// Thrown if the configured database name is null or empty.
+        /// Thrown if the configured <c>DatabaseName</c> is missing or empty.
         /// </exception>
         public UserActivityLogService(
             IOptions<MongoSettings> opts,
@@ -42,13 +40,13 @@ namespace BackendBiblioMate.Services.Users
             _collection = database.GetCollection<UserActivityLogDocument>("UserActivityLogs");
         }
 
+        /// <inheritdoc />
         /// <summary>
-        /// Inserts a new user activity log document into MongoDB.
+        /// Persists a new user activity log entry into the MongoDB collection.
         /// </summary>
-        /// <param name="doc">The log document to insert.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        /// <returns>Asynchronous task representing the insert operation.</returns>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="doc"/> is null.</exception>
+        /// <param name="doc">The <see cref="UserActivityLogDocument"/> to insert.</param>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="doc"/> is <c>null</c>.</exception>
         public Task LogAsync(
             UserActivityLogDocument doc,
             CancellationToken cancellationToken = default)
@@ -57,21 +55,20 @@ namespace BackendBiblioMate.Services.Users
             return _collection.InsertOneAsync(doc, options: null, cancellationToken);
         }
 
+        /// <inheritdoc />
         /// <summary>
-        /// Retrieves all activity log documents for the specified user,
-        /// ordered by most recent first.
+        /// Retrieves all user activity logs for a given user,
+        /// sorted by <see cref="UserActivityLogDocument.Timestamp"/> in descending order.
         /// </summary>
-        /// <param name="userId">Identifier of the user whose logs are retrieved.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        /// <returns>
-        /// List of <see cref="UserActivityLogDocument"/> for the user,
-        /// sorted in descending order by <see cref="UserActivityLogDocument.Timestamp"/>.
-        /// </returns>
+        /// <param name="userId">The identifier of the user whose activity logs are retrieved.</param>
+        /// <param name="cancellationToken">Cancellation token for async operation.</param>
+        /// <returns>A list of <see cref="UserActivityLogDocument"/> entries for the user.</returns>
         public Task<List<UserActivityLogDocument>> GetByUserAsync(
             int userId,
             CancellationToken cancellationToken = default)
         {
             var filter = Builders<UserActivityLogDocument>.Filter.Eq(d => d.UserId, userId);
+
             return _collection
                 .Find(filter)
                 .SortByDescending(d => d.Timestamp)

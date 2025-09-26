@@ -3,13 +3,13 @@ using System.ComponentModel.DataAnnotations;
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to create a new shelf.
+    /// Data Transfer Object used to create a new shelf.
     /// Contains required zone and genre identifiers, shelf name, and optional capacity.
     /// </summary>
     public class ShelfCreateDto
     {
         /// <summary>
-        /// Gets the identifier of the zone where the shelf is located.
+        /// Gets or sets the identifier of the zone where the shelf is located.
         /// </summary>
         /// <example>2</example>
         [Required(ErrorMessage = "ZoneId is required.")]
@@ -17,7 +17,7 @@ namespace BackendBiblioMate.DTOs
         public int ZoneId { get; init; }
 
         /// <summary>
-        /// Gets the identifier of the genre associated with the shelf.
+        /// Gets or sets the identifier of the genre associated with the shelf.
         /// </summary>
         /// <example>5</example>
         [Required(ErrorMessage = "GenreId is required.")]
@@ -25,7 +25,7 @@ namespace BackendBiblioMate.DTOs
         public int GenreId { get; init; }
 
         /// <summary>
-        /// Gets the name of the shelf.
+        /// Gets or sets the name of the shelf.
         /// </summary>
         /// <remarks>
         /// Maximum length of 100 characters.
@@ -37,10 +37,10 @@ namespace BackendBiblioMate.DTOs
         public string Name { get; init; } = string.Empty;
 
         /// <summary>
-        /// Gets the maximum number of books the shelf can hold.
+        /// Gets or sets the maximum number of books the shelf can hold.
         /// </summary>
         /// <remarks>
-        /// If not specified, defaults to 0 (no capacity limit).
+        /// If set to <c>0</c>, the shelf is considered to have no capacity limit.
         /// </remarks>
         /// <example>50</example>
         [Range(0, int.MaxValue, ErrorMessage = "Capacity must be zero or a positive integer.")]

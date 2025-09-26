@@ -8,8 +8,13 @@ using BackendBiblioMate.Models;
 namespace BackendBiblioMate.Services.Loans
 {
     /// <summary>
-    /// Service responsible for sending loan return reminders and overdue notifications.
+    /// Service responsible for analyzing loan records and sending user notifications
+    /// about upcoming due dates and overdue items.
     /// </summary>
+    /// <remarks>
+    /// This service is typically invoked on a scheduled basis by
+    /// <see cref="LoanReminderBackgroundService"/>.
+    /// </remarks>
     public class LoanReminderService
     {
         private readonly BiblioMateDbContext _context;
@@ -17,16 +22,17 @@ namespace BackendBiblioMate.Services.Loans
         private readonly INotificationLogService _logService;
 
         /// <summary>
-        /// Number of hours before due date to send a reminder.
+        /// Number of hours before the due date to trigger a reminder notification.
         /// </summary>
         private const int ReminderWindowHours = 24;
 
         /// <summary>
         /// Initializes a new instance of <see cref="LoanReminderService"/>.
         /// </summary>
-        /// <param name="context">Database context for accessing loan data.</param>
-        /// <param name="notificationService">Service for dispatching user notifications.</param>
-        /// <param name="logService">Service for recording notification logs.</param>
+        /// <param name="context">EF Core database context for accessing loan and user data.</param>
+        /// <param name="notificationService">Service for sending notifications to users.</param>
+        /// <param name="logService">Service for persisting notification log entries.</param>
+        /// <exception cref="ArgumentNullException">Thrown if any dependency is null.</exception>
         public LoanReminderService(
             BiblioMateDbContext context,
             NotificationService notificationService,
@@ -38,15 +44,16 @@ namespace BackendBiblioMate.Services.Loans
         }
 
         /// <summary>
-        /// Sends reminders to users <see cref="ReminderWindowHours"/> hours before their loan due date.
+        /// Sends reminder notifications to users with loans that are due
+        /// within the <see cref="ReminderWindowHours"/> window.
         /// </summary>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        /// <returns>Asynchronous task representing the reminder operation.</returns>
+        /// <param name="cancellationToken">Token used to cancel the operation.</param>
         public async Task SendReturnRemindersAsync(CancellationToken cancellationToken = default)
         {
             var currentUtc = DateTime.UtcNow;
             var reminderThreshold = currentUtc.AddHours(ReminderWindowHours);
 
+            // Fetch unreturned loans whose due date falls within the reminder window
             var upcomingLoans = await GetUnreturnedLoans()
                 .Where(l => l.DueDate >= currentUtc && l.DueDate <= reminderThreshold)
                 .ToListAsync(cancellationToken);
@@ -54,9 +61,10 @@ namespace BackendBiblioMate.Services.Loans
             foreach (var loan in upcomingLoans)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+
                 var hoursLeft = Math.Ceiling((loan.DueDate - currentUtc).TotalHours);
                 var notificationMessage =
-                    $"Reminder: '{loan.Book.Title}' is due in {hoursLeft}h (due at {loan.DueDate:yyyy-MM-dd HH:mm}).";
+                    $"Reminder: '{loan.Book.Title}' is due in {hoursLeft}h (due at {loan.DueDate:yyyy-MM-dd HH:mm} UTC).";
 
                 await SendNotificationAndLogAsync(
                     loan.UserId,
@@ -67,14 +75,14 @@ namespace BackendBiblioMate.Services.Loans
         }
 
         /// <summary>
-        /// Sends overdue notifications to users with loans past their due date.
+        /// Sends overdue notifications to users with loans that are past their due date.
         /// </summary>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        /// <returns>Asynchronous task representing the overdue notification operation.</returns>
+        /// <param name="cancellationToken">Token used to cancel the operation.</param>
         public async Task SendOverdueNotificationsAsync(CancellationToken cancellationToken = default)
         {
             var currentUtc = DateTime.UtcNow;
 
+            // Fetch all unreturned loans with due date already passed
             var overdueLoans = await GetUnreturnedLoans()
                 .Where(l => l.DueDate < currentUtc)
                 .ToListAsync(cancellationToken);
@@ -82,9 +90,10 @@ namespace BackendBiblioMate.Services.Loans
             foreach (var loan in overdueLoans)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var daysLate = (currentUtc - loan.DueDate).Days;
+
+                var daysLate = Math.Max(1, (currentUtc - loan.DueDate).Days);
                 var notificationMessage =
-                    $"Overdue: '{loan.Book.Title}' is {daysLate} day(s) late.";
+                    $"Overdue: '{loan.Book.Title}' is {daysLate} day(s) late. Please return it as soon as possible.";
 
                 await SendNotificationAndLogAsync(
                     loan.UserId,
@@ -95,9 +104,10 @@ namespace BackendBiblioMate.Services.Loans
         }
 
         /// <summary>
-        /// Retrieves all loans that have not yet been returned, including associated user and book details.
+        /// Retrieves all active loans that have not yet been returned,
+        /// including the associated <see cref="User"/> and <see cref="Book"/>.
         /// </summary>
-        /// <returns>Queryable collection of unreturned loans with related user and book data.</returns>
+        /// <returns>Queryable for further filtering.</returns>
         private IQueryable<Loan> GetUnreturnedLoans()
         {
             return _context.Loans
@@ -107,13 +117,12 @@ namespace BackendBiblioMate.Services.Loans
         }
 
         /// <summary>
-        /// Dispatches a notification to the user and logs the event.
+        /// Sends a notification to the specified user and writes a corresponding log entry.
         /// </summary>
-        /// <param name="userId">Identifier of the user to notify.</param>
-        /// <param name="type">Type of notification to log.</param>
-        /// <param name="message">Content of the notification message.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        /// <returns>Asynchronous task representing the send-and-log operation.</returns>
+        /// <param name="userId">User identifier to notify.</param>
+        /// <param name="type">Classification of the notification.</param>
+        /// <param name="message">Content of the notification.</param>
+        /// <param name="cancellationToken">Token used to cancel the operation.</param>
         private async Task SendNotificationAndLogAsync(
             int userId,
             NotificationType type,

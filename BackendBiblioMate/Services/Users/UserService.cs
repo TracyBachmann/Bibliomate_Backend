@@ -8,27 +8,28 @@ using BackendBiblioMate.Models.Enums;
 namespace BackendBiblioMate.Services.Users
 {
     /// <summary>
-    /// Implements <see cref="IUserService"/> using EF Core for CRUD operations on users.
+    /// Default implementation of <see cref="IUserService"/> that provides
+    /// CRUD operations and role management for <see cref="User"/> entities,
+    /// using EF Core as the persistence layer.
     /// </summary>
     public class UserService : IUserService
     {
         private readonly BiblioMateDbContext _context;
 
         /// <summary>
-        /// Initializes a new instance of <see cref="UserService"/>.
+        /// Initializes a new instance of the <see cref="UserService"/> class.
         /// </summary>
-        /// <param name="context">The EF Core database context.</param>
+        /// <param name="context">EF Core database context.</param>
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="context"/> is null.</exception>
         public UserService(BiblioMateDbContext context)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
         }
 
+        /// <inheritdoc />
         /// <summary>
-        /// Retrieves all users.
+        /// Retrieves all users with their associated genres.
         /// </summary>
-        /// <param name="cancellationToken">Token to monitor cancellation.</param>
-        /// <returns>Collection of <see cref="UserReadDto"/>.</returns>
         public async Task<IEnumerable<UserReadDto>> GetAllAsync(
             CancellationToken cancellationToken = default)
         {
@@ -40,15 +41,13 @@ namespace BackendBiblioMate.Services.Users
             return users.Select(MapToDto);
         }
 
+        /// <inheritdoc />
         /// <summary>
-        /// Retrieves a user by their identifier.
+        /// Retrieves a user by their identifier, including favorite genres.
         /// </summary>
-        /// <param name="id">Identifier of the user.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation.</param>
-        /// <returns>
-        /// The <see cref="UserReadDto"/> if found; otherwise <c>null</c>.
-        /// </returns>
-        public async Task<UserReadDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+        public async Task<UserReadDto?> GetByIdAsync(
+            int id,
+            CancellationToken cancellationToken = default)
         {
             var user = await _context.Users
                 .Include(u => u.UserGenres)
@@ -58,31 +57,27 @@ namespace BackendBiblioMate.Services.Users
             return user is null ? null : MapToDto(user);
         }
 
+        /// <inheritdoc />
         /// <summary>
-        /// Creates a new user with the specified data.
+        /// Creates a new user with basic details and hashed password.
         /// </summary>
-        /// <param name="dto">Data for the new user.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation.</param>
-        /// <returns>The created <see cref="UserReadDto"/>.</returns>
         public async Task<UserReadDto> CreateAsync(
             UserCreateDto dto,
             CancellationToken cancellationToken = default)
         {
-            // UserCreateDto possède encore Name / Address : on convertit.
-            SplitName(dto.Name, out var first, out var last);
-
             var user = new User
             {
-                FirstName        = first,
-                LastName         = last,
+                FirstName        = dto.FirstName,
+                LastName         = dto.LastName,
                 Email            = dto.Email,
                 Password         = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                Address1         = dto.Address ?? string.Empty,
-                Address2         = null,
+                Address1         = dto.Address1 ?? string.Empty,
+                Address2         = dto.Address2,
                 Phone            = dto.Phone ?? string.Empty,
                 Role             = dto.Role,
                 IsEmailConfirmed = true,
-                IsApproved       = true
+                IsApproved       = true,
+                DateOfBirth      = dto.DateOfBirth
             };
 
             _context.Users.Add(user);
@@ -91,43 +86,35 @@ namespace BackendBiblioMate.Services.Users
             return MapToDto(user);
         }
 
+        /// <inheritdoc />
         /// <summary>
-        /// Updates an existing user's basic profile information.
+        /// Updates an existing user's profile information.
         /// </summary>
-        /// <param name="id">Identifier of the user to update.</param>
-        /// <param name="dto">Updated user data.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation.</param>
-        /// <returns><c>true</c> if update succeeded; <c>false</c> if user not found.</returns>
         public async Task<bool> UpdateAsync(
             int id,
             UserUpdateDto dto,
             CancellationToken cancellationToken = default)
         {
-            var user = await _context.Users.FindAsync(new object[] { id }, cancellationToken);
-            if (user is null) 
+            var user = await _context.Users.FindAsync([id], cancellationToken);
+            if (user is null)
                 return false;
 
-            SplitName(dto.Name, out var first, out var last);
-
-            user.FirstName = first;
-            user.LastName  = last;
-            user.Email     = dto.Email;
-            user.Address1  = dto.Address;
-            user.Phone     = dto.Phone;
+            user.FirstName   = dto.FirstName;
+            user.LastName    = dto.LastName;
+            user.Email       = dto.Email;
+            user.Address1    = dto.Address1 ?? string.Empty;
+            user.Address2    = dto.Address2 ?? string.Empty;
+            user.Phone       = dto.Phone ?? string.Empty;
+            user.DateOfBirth = dto.DateOfBirth;
 
             await _context.SaveChangesAsync(cancellationToken);
             return true;
         }
 
+        /// <inheritdoc />
         /// <summary>
-        /// Updates the role of an existing user.
+        /// Updates the role of a user if the new role is valid.
         /// </summary>
-        /// <param name="id">Identifier of the user.</param>
-        /// <param name="dto">Role update data.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation.</param>
-        /// <returns>
-        /// <c>true</c> if role was valid and update succeeded; otherwise <c>false</c>.
-        /// </returns>
         public async Task<bool> UpdateRoleAsync(
             int id,
             UserRoleUpdateDto dto,
@@ -137,7 +124,7 @@ namespace BackendBiblioMate.Services.Users
             if (!validRoles.Contains(dto.Role))
                 return false;
 
-            var user = await _context.Users.FindAsync(new object[] { id }, cancellationToken);
+            var user = await _context.Users.FindAsync([id], cancellationToken);
             if (user is null)
                 return false;
 
@@ -146,18 +133,16 @@ namespace BackendBiblioMate.Services.Users
             return true;
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// Deletes a user by their identifier.
         /// </summary>
-        /// <param name="id">Identifier of the user to delete.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation.</param>
-        /// <returns><c>true</c> if deletion succeeded; <c>false</c> if user not found.</returns>
         public async Task<bool> DeleteAsync(
             int id,
             CancellationToken cancellationToken = default)
         {
-            var user = await _context.Users.FindAsync(new object[] { id }, cancellationToken);
-            if (user is null) 
+            var user = await _context.Users.FindAsync([id], cancellationToken);
+            if (user is null)
                 return false;
 
             _context.Users.Remove(user);
@@ -165,16 +150,18 @@ namespace BackendBiblioMate.Services.Users
             return true;
         }
 
+        /// <inheritdoc />
         /// <summary>
-        /// Retrieves the currently authenticated user.
+        /// Retrieves the currently logged-in user's details.
         /// </summary>
         public Task<UserReadDto?> GetCurrentUserAsync(
             int currentUserId,
             CancellationToken cancellationToken = default)
             => GetByIdAsync(currentUserId, cancellationToken);
 
+        /// <inheritdoc />
         /// <summary>
-        /// Updates the currently authenticated user's profile.
+        /// Updates the currently logged-in user's profile information.
         /// </summary>
         public Task<bool> UpdateCurrentUserAsync(
             int currentUserId,
@@ -183,7 +170,7 @@ namespace BackendBiblioMate.Services.Users
             => UpdateAsync(currentUserId, dto, cancellationToken);
 
         /// <summary>
-        /// Maps a <see cref="User"/> entity to its <see cref="UserReadDto"/>.
+        /// Maps a <see cref="User"/> entity to a <see cref="UserReadDto"/>.
         /// </summary>
         private static UserReadDto MapToDto(User u) => new()
         {
@@ -199,14 +186,5 @@ namespace BackendBiblioMate.Services.Users
             ProfileImagePath = u.ProfileImagePath,
             FavoriteGenreIds = u.UserGenres.Select(g => g.GenreId).ToArray()
         };
-
-        private static void SplitName(string fullName, out string first, out string last)
-        {
-            fullName = (fullName ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(fullName)) { first = string.Empty; last = string.Empty; return; }
-            var parts = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            first = parts.Length > 0 ? parts[0] : string.Empty;
-            last  = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : string.Empty;
-        }
     }
 }

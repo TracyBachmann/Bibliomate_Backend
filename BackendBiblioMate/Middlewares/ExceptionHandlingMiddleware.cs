@@ -5,7 +5,8 @@ using System.Text.Json;
 namespace BackendBiblioMate.Middlewares
 {
     /// <summary>
-    /// Middleware to handle exceptions globally and produce standardized JSON error responses.
+    /// Middleware for global exception handling.
+    /// Catches unhandled exceptions in the request pipeline and returns standardized JSON error responses.
     /// </summary>
     public class ExceptionHandlingMiddleware
     {
@@ -13,21 +14,23 @@ namespace BackendBiblioMate.Middlewares
         private readonly ILogger<ExceptionHandlingMiddleware> _logger;
 
         /// <summary>
-        /// Initializes a new instance of <see cref="ExceptionHandlingMiddleware"/>.
+        /// Initializes a new instance of the <see cref="ExceptionHandlingMiddleware"/> class.
         /// </summary>
-        /// <param name="next">The next middleware in the pipeline.</param>
-        /// <param name="logger">The logger for recording exception details.</param>
-        public ExceptionHandlingMiddleware(RequestDelegate next,
-                                           ILogger<ExceptionHandlingMiddleware> logger)
+        /// <param name="next">The next middleware delegate in the pipeline.</param>
+        /// <param name="logger">The logger used to record exception details.</param>
+        public ExceptionHandlingMiddleware(
+            RequestDelegate next,
+            ILogger<ExceptionHandlingMiddleware> logger)
         {
             _next = next;
             _logger = logger;
         }
 
         /// <summary>
-        /// Invokes the middleware to process HTTP context and catch exceptions.
+        /// Processes the current HTTP request, invoking the next middleware in the pipeline,
+        /// and catches exceptions to handle them centrally.
         /// </summary>
-        /// <param name="context">The HTTP context.</param>
+        /// <param name="context">The current HTTP context.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
         public async Task InvokeAsync(HttpContext context)
         {
@@ -42,11 +45,19 @@ namespace BackendBiblioMate.Middlewares
         }
 
         /// <summary>
-        /// Handles exceptions by logging and writing a JSON response with appropriate status code.
+        /// Handles an exception by logging its details and writing a structured JSON response.
         /// </summary>
-        /// <param name="context">The HTTP context.</param>
-        /// <param name="exception">The exception that occurred.</param>
-        /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+        /// <param name="context">The current HTTP context in which the exception occurred.</param>
+        /// <param name="exception">The exception to handle.</param>
+        /// <returns>A <see cref="Task"/> that represents the asynchronous operation of writing the response.</returns>
+        /// <remarks>
+        /// Maps exceptions to standard HTTP status codes:
+        /// <list type="bullet">
+        ///   <item><see cref="ValidationException"/> → 400 Bad Request</item>
+        ///   <item><see cref="KeyNotFoundException"/> → 404 Not Found</item>
+        ///   <item>Any other exception → 500 Internal Server Error</item>
+        /// </list>
+        /// </remarks>
         private async Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
             int statusCode;
@@ -55,7 +66,11 @@ namespace BackendBiblioMate.Middlewares
             switch (exception)
             {
                 case ValidationException vex:
-                    _logger.LogWarning(vex, "Validation failed: {Message}", vex.ValidationResult.ErrorMessage ?? vex.Message);
+                    _logger.LogWarning(
+                        vex,
+                        "Validation failed: {Message}",
+                        vex.ValidationResult.ErrorMessage ?? vex.Message);
+
                     statusCode = (int)HttpStatusCode.BadRequest;
                     payload = new
                     {
@@ -65,7 +80,11 @@ namespace BackendBiblioMate.Middlewares
                     break;
 
                 case KeyNotFoundException knf:
-                    _logger.LogInformation(knf, "Resource not found: {Message}", knf.Message);
+                    _logger.LogInformation(
+                        knf,
+                        "Resource not found: {Message}",
+                        knf.Message);
+
                     statusCode = (int)HttpStatusCode.NotFound;
                     payload = new
                     {
@@ -76,6 +95,7 @@ namespace BackendBiblioMate.Middlewares
 
                 default:
                     _logger.LogError(exception, "Unhandled exception");
+
                     statusCode = (int)HttpStatusCode.InternalServerError;
                     payload = new
                     {
@@ -87,6 +107,7 @@ namespace BackendBiblioMate.Middlewares
 
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = statusCode;
+
             var json = JsonSerializer.Serialize(payload);
             await context.Response.WriteAsync(json);
         }

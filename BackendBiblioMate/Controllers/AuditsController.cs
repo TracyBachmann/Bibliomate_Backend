@@ -8,13 +8,16 @@ using Swashbuckle.AspNetCore.Annotations;
 namespace BackendBiblioMate.Controllers
 {
     /// <summary>
-    /// Controller for retrieving user activity audit logs.
+    /// API controller for retrieving user activity audit logs.
     /// </summary>
     /// <remarks>
-    /// Accessible only by users in the Admin or Librarian roles.
+    /// All endpoints in this controller are protected and require the caller
+    /// to be authenticated with either the <see cref="UserRoles.Admin"/> 
+    /// or <see cref="UserRoles.Librarian"/> role.
     /// </remarks>
     [ApiController]
-    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [Route("api/[controller]")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [ApiVersion("1.0")]
     [Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
     [Produces("application/json")]
@@ -23,10 +26,10 @@ namespace BackendBiblioMate.Controllers
         private readonly IUserActivityLogService _activityLog;
 
         /// <summary>
-        /// Initializes a new instance of <see cref="AuditsController"/>.
+        /// Initializes a new instance of the <see cref="AuditsController"/> class.
         /// </summary>
         /// <param name="activityLog">
-        /// The service used to record and retrieve user activity logs.
+        /// The service used to query user activity log entries from MongoDB.
         /// </param>
         public AuditsController(IUserActivityLogService activityLog)
         {
@@ -34,30 +37,25 @@ namespace BackendBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Retrieves all activity logs for the specified user.
+        /// Retrieves all recorded activity logs for a specific user.
         /// </summary>
-        /// <param name="userId">
-        /// The identifier of the user whose logs are requested.
-        /// </param>
-        /// <param name="cancellationToken">
-        /// Token to monitor for cancellation requests.
-        /// </param>
+        /// <param name="userId">The unique identifier of the user.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>200 OK</c> with a list of <see cref="UserActivityLogDocument"/> entries;  
-        /// <c>404 NotFound</c> if no logs exist for the given user.
+        /// Returns:
+        /// <list type="bullet">
+        ///   <item><description><c>200 OK</c> with a list of <see cref="UserActivityLogDocument"/> objects.</description></item>
+        ///   <item><description><c>404 NotFound</c> if no activity logs are available for the given user.</description></item>
+        /// </list>
         /// </returns>
-        /// <response code="200">
-        /// Returns the list of activity logs for the user.
-        /// </response>
-        /// <response code="404">
-        /// No activity logs found for the specified user.
-        /// </response>
+        /// <response code="200">Activity logs successfully retrieved.</response>
+        /// <response code="404">No activity logs found for the specified user.</response>
         [HttpGet("user/{userId}/logs")]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
-            Summary = "Retrieves all activity logs for a user (v1)",
-            Description = "Returns the list of activity logs for a specific user.",
-            Tags = ["Audits"]
+            Summary = "Retrieve all activity logs for a specific user.",
+            Description = "Returns the list of user activity logs stored in MongoDB for the provided user identifier.",
+            Tags = [ "Audits" ]
         )]
         [ProducesResponseType(typeof(List<UserActivityLogDocument>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -66,6 +64,7 @@ namespace BackendBiblioMate.Controllers
             CancellationToken cancellationToken)
         {
             var logs = await _activityLog.GetByUserAsync(userId, cancellationToken);
+
             if (logs.Count == 0)
             {
                 return NotFound($"No activity logs found for user {userId}.");

@@ -9,11 +9,13 @@ using Swashbuckle.AspNetCore.Annotations;
 namespace BackendBiblioMate.Controllers
 {
     /// <summary>
-    /// Controller for managing analytical reports.
-    /// Provides CRUD endpoints for <see cref="ReportReadDto"/> and enforces ownership.
+    /// API controller for managing analytical reports.
+    /// Provides CRUD endpoints for <see cref="ReportReadDto"/> entities
+    /// and enforces user ownership rules.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [Route("api/[controller]")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [ApiVersion("1.0")]
     [Produces("application/json")]
     public class ReportsController : ControllerBase
@@ -21,20 +23,23 @@ namespace BackendBiblioMate.Controllers
         private readonly IReportService _service;
 
         /// <summary>
-        /// Constructs a new <see cref="ReportsController"/>.
+        /// Initializes a new instance of the <see cref="ReportsController"/> class.
         /// </summary>
         /// <param name="service">Service for report operations.</param>
         public ReportsController(IReportService service)
         {
-            _service = service;
+            _service = service ?? throw new ArgumentNullException(nameof(service));
         }
 
         /// <summary>
-        /// Retrieves all reports (Admins &amp; Librarians only).
+        /// Retrieves all reports.
         /// </summary>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>200 OK</c> with a list of <see cref="ReportReadDto"/>.
+        /// <list type="bullet">
+        /// <item><description><c>200 OK</c> with a list of <see cref="ReportReadDto"/>.</description></item>
+        /// <item><description><c>403 Forbidden</c> if the caller is not an Admin or Librarian.</description></item>
+        /// </list>
         /// </returns>
         [Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [HttpGet]
@@ -59,9 +64,12 @@ namespace BackendBiblioMate.Controllers
         /// <param name="id">The report identifier.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>200 OK</c> with <see cref="ReportReadDto"/>,
-        /// <c>404 NotFound</c> if missing,
-        /// <c>403 Forbidden</c> if access denied.
+        /// <list type="bullet">
+        /// <item><description><c>200 OK</c> with <see cref="ReportReadDto"/>.</description></item>
+        /// <item><description><c>404 NotFound</c> if the report does not exist.</description></item>
+        /// <item><description><c>403 Forbidden</c> if the user is not the owner and not an Admin.</description></item>
+        /// <item><description><c>401 Unauthorized</c> if the request is not authenticated.</description></item>
+        /// </list>
         /// </returns>
         [Authorize]
         [HttpGet("{id}")]
@@ -74,6 +82,7 @@ namespace BackendBiblioMate.Controllers
         [ProducesResponseType(typeof(ReportReadDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<ReportReadDto>> GetReport(
             [FromRoute] int id,
             CancellationToken cancellationToken = default)
@@ -82,7 +91,7 @@ namespace BackendBiblioMate.Controllers
             if (dto == null)
                 return NotFound();
 
-            var currentUser = TokenHelper.GetUserId(User);
+            var currentUser = User.GetUserId();
             if (dto.UserId != currentUser && !User.IsInRole(UserRoles.Admin))
                 return Forbid();
 
@@ -95,7 +104,11 @@ namespace BackendBiblioMate.Controllers
         /// <param name="dto">The report creation data.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>201 Created</c> with the created <see cref="ReportReadDto"/>.
+        /// <list type="bullet">
+        /// <item><description><c>201 Created</c> with the created <see cref="ReportReadDto"/>.</description></item>
+        /// <item><description><c>400 BadRequest</c> if the payload is invalid.</description></item>
+        /// <item><description><c>401 Unauthorized</c> if the request is not authenticated.</description></item>
+        /// </list>
         /// </returns>
         [Authorize]
         [HttpPost]
@@ -107,11 +120,12 @@ namespace BackendBiblioMate.Controllers
         )]
         [ProducesResponseType(typeof(ReportReadDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<ActionResult<ReportReadDto>> CreateReport(
             [FromBody] ReportCreateDto dto,
             CancellationToken cancellationToken = default)
         {
-            var userId = TokenHelper.GetUserId(User);
+            var userId = User.GetUserId();
             var created = await _service.CreateAsync(dto, userId, cancellationToken);
 
             return CreatedAtAction(
@@ -127,10 +141,13 @@ namespace BackendBiblioMate.Controllers
         /// <param name="dto">The updated report data.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>204 NoContent</c> on success,
-        /// <c>400 BadRequest</c> if IDs mismatch,
-        /// <c>404 NotFound</c>,
-        /// <c>403 Forbidden</c> if access denied.
+        /// <list type="bullet">
+        /// <item><description><c>204 NoContent</c> on success.</description></item>
+        /// <item><description><c>400 BadRequest</c> if IDs mismatch.</description></item>
+        /// <item><description><c>404 NotFound</c> if the report does not exist.</description></item>
+        /// <item><description><c>403 Forbidden</c> if the user is not the owner and not an Admin.</description></item>
+        /// <item><description><c>401 Unauthorized</c> if the request is not authenticated.</description></item>
+        /// </list>
         /// </returns>
         [Authorize]
         [HttpPut("{id}")]
@@ -144,6 +161,7 @@ namespace BackendBiblioMate.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> UpdateReport(
             [FromRoute] int id,
             [FromBody] ReportUpdateDto dto,
@@ -156,7 +174,7 @@ namespace BackendBiblioMate.Controllers
             if (existing == null)
                 return NotFound();
 
-            var currentUser = TokenHelper.GetUserId(User);
+            var currentUser = User.GetUserId();
             if (existing.UserId != currentUser && !User.IsInRole(UserRoles.Admin))
                 return Forbid();
 
@@ -170,9 +188,12 @@ namespace BackendBiblioMate.Controllers
         /// <param name="id">The report identifier.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>204 NoContent</c> on success,
-        /// <c>404 NotFound</c>,
-        /// <c>403 Forbidden</c> if access denied.
+        /// <list type="bullet">
+        /// <item><description><c>204 NoContent</c> on success.</description></item>
+        /// <item><description><c>404 NotFound</c> if the report does not exist.</description></item>
+        /// <item><description><c>403 Forbidden</c> if the user is not the owner and not an Admin.</description></item>
+        /// <item><description><c>401 Unauthorized</c> if the request is not authenticated.</description></item>
+        /// </list>
         /// </returns>
         [Authorize]
         [HttpDelete("{id}")]
@@ -185,6 +206,7 @@ namespace BackendBiblioMate.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> DeleteReport(
             [FromRoute] int id,
             CancellationToken cancellationToken = default)
@@ -193,7 +215,7 @@ namespace BackendBiblioMate.Controllers
             if (existing == null)
                 return NotFound();
 
-            var currentUser = TokenHelper.GetUserId(User);
+            var currentUser = User.GetUserId();
             if (existing.UserId != currentUser && !User.IsInRole(UserRoles.Admin))
                 return Forbid();
 

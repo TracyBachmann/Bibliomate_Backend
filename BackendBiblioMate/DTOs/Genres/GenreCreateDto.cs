@@ -3,13 +3,13 @@ using System.ComponentModel.DataAnnotations;
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to create or update a genre.
-    /// Contains the minimal information required for genre operations.
+    /// Data Transfer Object used to create a new genre.
+    /// Contains the minimal required information for genre creation.
     /// </summary>
     public class GenreCreateDto
     {
         /// <summary>
-        /// Gets the name of the genre.
+        /// Gets or sets the name of the genre.
         /// </summary>
         /// <remarks>
         /// Must be between 2 and 50 characters.

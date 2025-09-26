@@ -3,16 +3,16 @@
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to request the creation of a new analytical report.
-    /// Only the Title is provided by the client; the Content is generated on the server.
+    /// Data Transfer Object used to request the creation of a new analytical report.
+    /// Only the <see cref="Title"/> is provided by the client; the <c>Content</c> is generated on the server.
     /// </summary>
     public class ReportCreateDto
     {
         /// <summary>
-        /// Gets the title for the new report.
+        /// Gets or sets the title for the new report.
         /// </summary>
         /// <remarks>
-        /// Must be between 1 and 200 characters.
+        /// Must contain between 1 and 200 characters.
         /// </remarks>
         /// <example>Monthly Loan Statistics</example>
         [Required(ErrorMessage = "Title is required.")]

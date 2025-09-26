@@ -9,8 +9,8 @@ using BackendBiblioMate.Models.Mongo;
 namespace BackendBiblioMate.Services.Loans
 {
     /// <summary>
-    /// Default implementation of <see cref="IReservationService"/>,
-    /// handling EF Core data access, history logging, and audit logging.
+    /// Default implementation of <see cref="IReservationService"/>.
+    /// Handles reservations using EF Core data access and coordinates history and audit logging.
     /// </summary>
     public class ReservationService : IReservationService
     {
@@ -19,11 +19,11 @@ namespace BackendBiblioMate.Services.Loans
         private readonly IUserActivityLogService _audit;
 
         /// <summary>
-        /// Initializes a new instance of <see cref="ReservationService"/>.
+        /// Initializes a new instance of the <see cref="ReservationService"/> class.
         /// </summary>
-        /// <param name="context">Database context for reservations.</param>
-        /// <param name="historyService">Service for logging history events.</param>
-        /// <param name="activityLogService">Service for logging user activity.</param>
+        /// <param name="context">The EF Core database context.</param>
+        /// <param name="historyService">The service used to log historical reservation events.</param>
+        /// <param name="activityLogService">The service used to log user activity for auditing.</param>
         public ReservationService(
             BiblioMateDbContext context,
             IHistoryService historyService,
@@ -35,12 +35,11 @@ namespace BackendBiblioMate.Services.Loans
         }
 
         /// <summary>
-        /// Retrieves all reservations with associated user and book details.
+        /// Retrieves all reservations, including their associated user and book details.
         /// </summary>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        /// <returns>List of <see cref="ReservationReadDto"/>.</returns>
-        public async Task<IEnumerable<ReservationReadDto>> GetAllAsync(
-            CancellationToken cancellationToken = default)
+        /// <param name="cancellationToken">Token used to cancel the asynchronous operation.</param>
+        /// <returns>A collection of <see cref="ReservationReadDto"/> objects representing all reservations.</returns>
+        public async Task<IEnumerable<ReservationReadDto>> GetAllAsync(CancellationToken cancellationToken = default)
         {
             var entities = await _context.Reservations
                 .Include(r => r.User)
@@ -51,14 +50,12 @@ namespace BackendBiblioMate.Services.Loans
         }
 
         /// <summary>
-        /// Retrieves active or available reservations for a specific user.
+        /// Retrieves all active or available reservations for a specific user.
         /// </summary>
-        /// <param name="userId">Identifier of the user.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        /// <returns>List of <see cref="ReservationReadDto"/>.</returns>
-        public async Task<IEnumerable<ReservationReadDto>> GetByUserAsync(
-            int userId,
-            CancellationToken cancellationToken = default)
+        /// <param name="userId">The identifier of the user.</param>
+        /// <param name="cancellationToken">Token used to cancel the asynchronous operation.</param>
+        /// <returns>A collection of <see cref="ReservationReadDto"/> for the given user.</returns>
+        public async Task<IEnumerable<ReservationReadDto>> GetByUserAsync(int userId, CancellationToken cancellationToken = default)
         {
             var entities = await _context.Reservations
                 .Include(r => r.Book)
@@ -72,14 +69,12 @@ namespace BackendBiblioMate.Services.Loans
         }
 
         /// <summary>
-        /// Retrieves pending reservations for a given book, ordered by creation time.
+        /// Retrieves all pending reservations for a specific book, ordered by creation date.
         /// </summary>
-        /// <param name="bookId">Identifier of the book.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        /// <returns>List of <see cref="ReservationReadDto"/>.</returns>
-        public async Task<IEnumerable<ReservationReadDto>> GetPendingForBookAsync(
-            int bookId,
-            CancellationToken cancellationToken = default)
+        /// <param name="bookId">The identifier of the book.</param>
+        /// <param name="cancellationToken">Token used to cancel the asynchronous operation.</param>
+        /// <returns>A collection of pending <see cref="ReservationReadDto"/> for the specified book.</returns>
+        public async Task<IEnumerable<ReservationReadDto>> GetPendingForBookAsync(int bookId, CancellationToken cancellationToken = default)
         {
             var entities = await _context.Reservations
                 .Include(r => r.User)
@@ -92,44 +87,36 @@ namespace BackendBiblioMate.Services.Loans
         }
 
         /// <summary>
-        /// Retrieves a reservation by its identifier.
+        /// Retrieves a single reservation by its identifier.
         /// </summary>
-        /// <param name="id">Identifier of the reservation.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        /// <returns>
-        /// The <see cref="ReservationReadDto"/> if found; otherwise <c>null</c>.
-        /// </returns>
-        public async Task<ReservationReadDto?> GetByIdAsync(
-            int id,
-            CancellationToken cancellationToken = default)
+        /// <param name="id">The reservation identifier.</param>
+        /// <param name="cancellationToken">Token used to cancel the asynchronous operation.</param>
+        /// <returns>A <see cref="ReservationReadDto"/> if found; otherwise <c>null</c>.</returns>
+        public async Task<ReservationReadDto?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         {
             var entity = await _context.Reservations
                 .Include(r => r.User)
                 .Include(r => r.Book)
                 .FirstOrDefaultAsync(r => r.ReservationId == id, cancellationToken);
 
-            return entity is null
-                ? null
-                : MapToDto(entity);
+            return entity is null ? null : MapToDto(entity);
         }
 
         /// <summary>
-        /// Creates a new reservation if the user is authorized and a copy is available.
+        /// Creates a new reservation if the user is authorized and no copies are currently available.
         /// </summary>
-        /// <param name="dto">Data transfer object containing reservation details.</param>
-        /// <param name="currentUserId">Identifier of the user performing the operation.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        /// <returns>The created <see cref="ReservationReadDto"/>.</returns>
-        /// <exception cref="UnauthorizedAccessException">Thrown if the user ID does not match.</exception>
-        /// <exception cref="InvalidOperationException">Thrown if reservation rules are violated.</exception>
-        public async Task<ReservationReadDto> CreateAsync(
-            ReservationCreateDto dto,
-            int currentUserId,
-            CancellationToken cancellationToken = default)
+        /// <param name="dto">The reservation creation data transfer object.</param>
+        /// <param name="currentUserId">The identifier of the currently authenticated user.</param>
+        /// <param name="cancellationToken">Token used to cancel the asynchronous operation.</param>
+        /// <returns>The newly created <see cref="ReservationReadDto"/>.</returns>
+        /// <exception cref="UnauthorizedAccessException">Thrown if the user ID in the request does not match the authenticated user.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if the user already has an active reservation or if copies are available.</exception>
+        public async Task<ReservationReadDto> CreateAsync(ReservationCreateDto dto, int currentUserId, CancellationToken cancellationToken = default)
         {
             if (dto.UserId != currentUserId)
                 throw new UnauthorizedAccessException("User mismatch.");
 
+            // Rule 1: Prevent duplicate active reservations for the same book.
             var hasActive = await _context.Reservations
                 .AnyAsync(r => r.UserId == dto.UserId &&
                                r.BookId == dto.BookId &&
@@ -138,11 +125,20 @@ namespace BackendBiblioMate.Services.Loans
             if (hasActive)
                 throw new InvalidOperationException("Existing active reservation for this book.");
 
-            var available = await _context.Stocks
-                .AnyAsync(s => s.BookId == dto.BookId && s.Quantity > 0, cancellationToken);
-            if (!available)
-                throw new InvalidOperationException("No copies available.");
+            // Rule 2: Ensure no copies are available before allowing a reservation.
+            var stockQty = await _context.Stocks
+                .Where(s => s.BookId == dto.BookId)
+                .Select(s => (int?)s.Quantity)
+                .FirstOrDefaultAsync(cancellationToken) ?? 0;
 
+            var activeLoans = await _context.Loans
+                .CountAsync(l => l.BookId == dto.BookId && l.ReturnDate == null, cancellationToken);
+
+            var remaining = stockQty - activeLoans;
+            if (remaining > 0)
+                throw new InvalidOperationException("Copies available. Please borrow instead of reserving.");
+
+            // Rule 3: Create the reservation.
             var now = DateTime.UtcNow;
             var entity = new Reservation
             {
@@ -162,7 +158,7 @@ namespace BackendBiblioMate.Services.Loans
                 reservationId: entity.ReservationId,
                 cancellationToken: cancellationToken);
 
-            // Reload to get navigation properties
+            // Reload entity to hydrate navigation properties.
             entity = await _context.Reservations
                 .Include(r => r.User)
                 .Include(r => r.Book)
@@ -174,12 +170,10 @@ namespace BackendBiblioMate.Services.Loans
         /// <summary>
         /// Updates an existing reservation’s details.
         /// </summary>
-        /// <param name="dto">Data transfer object containing updated reservation data.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        /// <returns><c>true</c> if update succeeded; <c>false</c> if not found.</returns>
-        public async Task<bool> UpdateAsync(
-            ReservationUpdateDto dto,
-            CancellationToken cancellationToken = default)
+        /// <param name="dto">The reservation update data transfer object.</param>
+        /// <param name="cancellationToken">Token used to cancel the asynchronous operation.</param>
+        /// <returns><c>true</c> if the reservation was updated successfully; otherwise <c>false</c>.</returns>
+        public async Task<bool> UpdateAsync(ReservationUpdateDto dto, CancellationToken cancellationToken = default)
         {
             var entity = await _context.Reservations
                 .FirstOrDefaultAsync(r => r.ReservationId == dto.ReservationId, cancellationToken);
@@ -205,15 +199,13 @@ namespace BackendBiblioMate.Services.Loans
         /// <summary>
         /// Deletes a reservation by its identifier.
         /// </summary>
-        /// <param name="id">Identifier of the reservation to delete.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        /// <returns><c>true</c> if deletion succeeded; <c>false</c> if not found.</returns>
-        public async Task<bool> DeleteAsync(
-            int id,
-            CancellationToken cancellationToken = default)
+        /// <param name="id">The reservation identifier.</param>
+        /// <param name="cancellationToken">Token used to cancel the asynchronous operation.</param>
+        /// <returns><c>true</c> if the reservation was deleted; otherwise <c>false</c>.</returns>
+        public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
         {
             var entity = await _context.Reservations
-                .FindAsync(new object[]{ id }, cancellationToken);
+                .FindAsync(new object[] { id }, cancellationToken);
             if (entity is null)
                 return false;
 
@@ -229,18 +221,16 @@ namespace BackendBiblioMate.Services.Loans
             return true;
         }
 
+        // ----------------- Helper methods -----------------
+
         /// <summary>
-        /// Logs a history event and an audit record for the reservation operation.
+        /// Logs both a history event and a user activity audit entry.
         /// </summary>
-        /// <param name="userId">Identifier of the user performing the action.</param>
-        /// <param name="action">Action name to record.</param>
-        /// <param name="reservationId">Identifier of the reservation.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        private async Task LogHistoryAndAuditAsync(
-            int userId,
-            string action,
-            int reservationId,
-            CancellationToken cancellationToken)
+        /// <param name="userId">The user who performed the action.</param>
+        /// <param name="action">The action performed (e.g., CreateReservation).</param>
+        /// <param name="reservationId">The identifier of the reservation affected.</param>
+        /// <param name="cancellationToken">Token used to cancel the asynchronous operation.</param>
+        private async Task LogHistoryAndAuditAsync(int userId, string action, int reservationId, CancellationToken cancellationToken)
         {
             await _history.LogEventAsync(
                 userId: userId,
@@ -259,17 +249,13 @@ namespace BackendBiblioMate.Services.Loans
         }
 
         /// <summary>
-        /// Logs only an audit record without a history event.
+        /// Logs a user activity audit entry only (without creating a history event).
         /// </summary>
-        /// <param name="userId">Identifier of the user performing the action.</param>
-        /// <param name="action">Action name to record.</param>
-        /// <param name="details">Details to include in the log.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        private async Task LogAuditAsync(
-            int userId,
-            string action,
-            string details,
-            CancellationToken cancellationToken)
+        /// <param name="userId">The user who performed the action.</param>
+        /// <param name="action">The action performed.</param>
+        /// <param name="details">Additional details for the log entry.</param>
+        /// <param name="cancellationToken">Token used to cancel the asynchronous operation.</param>
+        private async Task LogAuditAsync(int userId, string action, string details, CancellationToken cancellationToken)
         {
             await _audit.LogAsync(
                 new UserActivityLogDocument
@@ -284,18 +270,20 @@ namespace BackendBiblioMate.Services.Loans
         /// <summary>
         /// Maps a <see cref="Reservation"/> entity to its <see cref="ReservationReadDto"/>.
         /// </summary>
-        /// <param name="r">Reservation entity to map.</param>
-        /// <returns>A new <see cref="ReservationReadDto"/> instance.</returns>
+        /// <param name="r">The reservation entity to map.</param>
+        /// <returns>A corresponding <see cref="ReservationReadDto"/>.</returns>
         private static ReservationReadDto MapToDto(Reservation r) => new()
         {
             ReservationId   = r.ReservationId,
             UserId          = r.UserId,
-            // Combine first/last name; Trim() avoids trailing space if one part is empty.
             UserName        = r.User != null ? $"{r.User.FirstName} {r.User.LastName}".Trim() : string.Empty,
             BookId          = r.BookId,
             BookTitle       = r.Book?.Title ?? string.Empty,
             ReservationDate = r.ReservationDate,
-            Status          = r.Status
+            Status          = r.Status,
+            ExpirationDate  = r.AvailableAt.HasValue 
+                ? r.AvailableAt.Value.AddHours(48)   // Business rule: 48h after availability
+                : (DateTime?)null
         };
     }
 }

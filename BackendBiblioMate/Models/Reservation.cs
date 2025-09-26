@@ -10,8 +10,9 @@ namespace BackendBiblioMate.Models
     public class Reservation
     {
         /// <summary>
-        /// Gets the primary key of the reservation.
+        /// Gets or sets the unique identifier of the reservation.
         /// </summary>
+        /// <example>23</example>
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int ReservationId { get; set; }
@@ -19,6 +20,7 @@ namespace BackendBiblioMate.Models
         /// <summary>
         /// Gets or sets the identifier of the reserved book.
         /// </summary>
+        /// <example>42</example>
         [Required(ErrorMessage = "BookId is required.")]
         [Range(1, int.MaxValue, ErrorMessage = "BookId must be a positive integer.")]
         public int BookId { get; set; }
@@ -26,38 +28,47 @@ namespace BackendBiblioMate.Models
         /// <summary>
         /// Gets or sets the identifier of the user who made the reservation.
         /// </summary>
+        /// <example>7</example>
         [Required(ErrorMessage = "UserId is required.")]
         [Range(1, int.MaxValue, ErrorMessage = "UserId must be a positive integer.")]
         public int UserId { get; set; }
 
         /// <summary>
-        /// Gets or sets the date and time when the reservation was created.
+        /// Gets or sets the UTC timestamp when the reservation record was created.
         /// </summary>
+        /// <example>2025-06-20T12:45:00Z</example>
         [Required(ErrorMessage = "CreatedAt is required.")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         /// <summary>
-        /// Gets or sets the date and time when the reservation becomes effective.
+        /// Gets or sets the effective date of the reservation (when the reservation becomes active).
         /// </summary>
+        /// <example>2025-06-21T09:00:00Z</example>
         [Required(ErrorMessage = "ReservationDate is required.")]
         public DateTime ReservationDate { get; set; } = DateTime.UtcNow;
 
         /// <summary>
         /// Gets or sets the current status of the reservation.
         /// </summary>
+        /// <remarks>
+        /// Possible values: Pending, Completed, Cancelled, Expired.
+        /// </remarks>
+        /// <example>Pending</example>
         [Required(ErrorMessage = "Status is required.")]
         [EnumDataType(typeof(ReservationStatus), ErrorMessage = "Invalid reservation status.")]
         public ReservationStatus Status { get; set; } = ReservationStatus.Pending;
 
         /// <summary>
-        /// Gets or sets the identifier of the assigned stock entry, when available.
+        /// Gets or sets the identifier of the stock entry assigned to this reservation (if available).
         /// </summary>
+        /// <example>15</example>
         [Range(1, int.MaxValue, ErrorMessage = "AssignedStockId must be a positive integer.")]
         public int? AssignedStockId { get; set; }
 
         /// <summary>
-        /// Gets or sets the date and time when the reserved book became available for pickup.
+        /// Gets or sets the UTC timestamp when the reserved book became available for pickup.
         /// </summary>
+        /// <example>2025-06-22T08:30:00Z</example>
         public DateTime? AvailableAt { get; set; }
 
         /// <summary>
@@ -73,3 +84,4 @@ namespace BackendBiblioMate.Models
         public User User { get; set; } = null!;
     }
 }
+

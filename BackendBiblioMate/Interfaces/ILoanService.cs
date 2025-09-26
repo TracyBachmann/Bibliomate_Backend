@@ -4,73 +4,95 @@ using BackendBiblioMate.Models;
 namespace BackendBiblioMate.Interfaces
 {
     /// <summary>
-    /// Defines business operations related to book loans.
+    /// Defines business operations related to book loans,
+    /// including creation, return handling, retrieval, update, and deletion.
     /// </summary>
+    /// <remarks>
+    /// This contract abstracts the loan domain logic from the persistence layer.
+    /// It enforces validation rules (e.g., loan policies, stock availability) and
+    /// ensures consistent domain behavior across implementations.
+    /// </remarks>
     public interface ILoanService
     {
         /// <summary>
-        /// Creates a new loan.
+        /// Creates a new loan for a given book and user.
         /// </summary>
-        /// <param name="dto">Data transfer object containing loan details.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="dto">
+        /// Data transfer object containing loan details (user identifier, book identifier, etc.).
+        /// </param>
+        /// <param name="cancellationToken">
+        /// Token to observe for cancellation requests.
+        /// </param>
         /// <returns>
-        /// A <see cref="T:System.Threading.Tasks.Task{BackendBiblioMate.Interfaces.Result{LoanCreatedResult,string}}"/>
-        /// that yields a <see cref="T:BackendBiblioMate.Interfaces.Result{LoanCreatedResult,string}"/>.
-        /// On success, <c>Value</c> contains a <see cref="T:BackendBiblioMate.Interfaces.LoanCreatedResult"/>; on failure, <c>Error</c> contains an error message.
+        /// A <see cref="Result{TSuccess,TError}"/> where:
+        /// <list type="bullet">
+        ///   <item><description><c>Value</c>: <see cref="LoanCreatedResult"/> with the due date if successful.</description></item>
+        ///   <item><description><c>Error</c>: a descriptive error message if creation fails (e.g., invalid user, no stock available).</description></item>
+        /// </list>
         /// </returns>
         Task<Result<LoanCreatedResult, string>> CreateAsync(
             LoanCreateDto dto,
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Marks a loan as returned.
+        /// Marks an existing loan as returned.
+        /// Updates stock availability and may trigger reservation notifications.
         /// </summary>
-        /// <param name="loanId">Identifier of the loan to return.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="loanId">The unique identifier of the loan to return.</param>
+        /// <param name="cancellationToken">Token to observe for cancellation requests.</param>
         /// <returns>
-        /// A <see cref="T:System.Threading.Tasks.Task{BackendBiblioMate.Interfaces.Result{LoanReturnedResult,string}}"/>
-        /// that yields a <see cref="T:BackendBiblioMate.Interfaces.Result{LoanReturnedResult,string}"/>.
-        /// On success, <c>Value</c> contains a <see cref="T:BackendBiblioMate.Interfaces.LoanReturnedResult"/>; on failure, <c>Error</c> contains an error message.
+        /// A <see cref="Result{TSuccess,TError}"/> where:
+        /// <list type="bullet">
+        ///   <item><description><c>Value</c>: <see cref="LoanReturnedResult"/> with fine and notification status if successful.</description></item>
+        ///   <item><description><c>Error</c>: an error message if the loan was not found or already returned.</description></item>
+        /// </list>
         /// </returns>
-        Task<Result<DTOs.LoanReturnedResult, string>>   ReturnAsync(
-            int loanId, CancellationToken cancellationToken = default);
+        Task<Result<LoanReturnedResult, string>> ReturnAsync(
+            int loanId,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Retrieves all loans.
+        /// Retrieves all existing loans in the system.
         /// </summary>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="cancellationToken">Token to observe for cancellation requests.</param>
         /// <returns>
-        /// A <see cref="T:System.Threading.Tasks.Task{BackendBiblioMate.Interfaces.Result{System.Collections.Generic.IEnumerable{BackendBiblioMate.Models.Loan},string}}"/>
-        /// that yields a <see cref="T:BackendBiblioMate.Interfaces.Result{System.Collections.Generic.IEnumerable{BackendBiblioMate.Models.Loan},string}"/>.
-        /// On success, <c>Value</c> contains the collection of <see cref="T:BackendBiblioMate.Models.Loan"/>; on failure, <c>Error</c> contains an error message.
+        /// A <see cref="Result{TSuccess,TError}"/> where:
+        /// <list type="bullet">
+        ///   <item><description><c>Value</c>: an <see cref="IEnumerable{Loan}"/> containing all loans.</description></item>
+        ///   <item><description><c>Error</c>: an error message if retrieval fails.</description></item>
+        /// </list>
         /// </returns>
         Task<Result<IEnumerable<Loan>, string>> GetAllAsync(
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Retrieves a loan by its identifier.
+        /// Retrieves a loan by its unique identifier.
         /// </summary>
-        /// <param name="loanId">Identifier of the loan to retrieve.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="loanId">The identifier of the loan to retrieve.</param>
+        /// <param name="cancellationToken">Token to observe for cancellation requests.</param>
         /// <returns>
-        /// A <see cref="T:System.Threading.Tasks.Task{BackendBiblioMate.Interfaces.Result{BackendBiblioMate.Models.Loan,string}}"/>
-        /// that yields a <see cref="T:BackendBiblioMate.Interfaces.Result{BackendBiblioMate.Models.Loan,string}"/>.
-        /// On success, <c>Value</c> contains the <see cref="T:BackendBiblioMate.Models.Loan"/>; on failure, <c>Error</c> contains an error message.
+        /// A <see cref="Result{TSuccess,TError}"/> where:
+        /// <list type="bullet">
+        ///   <item><description><c>Value</c>: the <see cref="Loan"/> if found.</description></item>
+        ///   <item><description><c>Error</c>: an error message if the loan was not found.</description></item>
+        /// </list>
         /// </returns>
         Task<Result<Loan, string>> GetByIdAsync(
             int loanId,
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Updates an existing loan.
+        /// Updates an existing loan (e.g., changes to due date).
         /// </summary>
-        /// <param name="loanId">Identifier of the loan to update.</param>
-        /// <param name="dto">Data transfer object with updated loan details.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="loanId">The identifier of the loan to update.</param>
+        /// <param name="dto">Data transfer object containing updated loan details.</param>
+        /// <param name="cancellationToken">Token to observe for cancellation requests.</param>
         /// <returns>
-        /// A <see cref="T:System.Threading.Tasks.Task{BackendBiblioMate.Interfaces.Result{BackendBiblioMate.Models.Loan,string}}"/>
-        /// yielding a <see cref="T:BackendBiblioMate.Interfaces.Result{BackendBiblioMate.Models.Loan,string}"/>.
-        /// On success, <c>Value</c> contains the updated <see cref="T:BackendBiblioMate.Models.Loan"/>; on failure, <c>Error</c> contains an error message.
+        /// A <see cref="Result{TSuccess,TError}"/> where:
+        /// <list type="bullet">
+        ///   <item><description><c>Value</c>: the updated <see cref="Loan"/> if successful.</description></item>
+        ///   <item><description><c>Error</c>: an error message if the loan could not be updated.</description></item>
+        /// </list>
         /// </returns>
         Task<Result<Loan, string>> UpdateAsync(
             int loanId,
@@ -78,14 +100,16 @@ namespace BackendBiblioMate.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Deletes a loan by its identifier.
+        /// Permanently deletes a loan by its identifier.
         /// </summary>
-        /// <param name="loanId">Identifier of the loan to delete.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <param name="loanId">The identifier of the loan to delete.</param>
+        /// <param name="cancellationToken">Token to observe for cancellation requests.</param>
         /// <returns>
-        /// A <see cref="T:System.Threading.Tasks.Task{BackendBiblioMate.Interfaces.Result{bool,string}}"/>
-        /// yielding a <see cref="T:BackendBiblioMate.Interfaces.Result{System.Boolean,string}"/>.
-        /// On success, <c>Value</c> is <c>true</c>; on failure, <c>Error</c> contains an error message.
+        /// A <see cref="Result{TSuccess,TError}"/> where:
+        /// <list type="bullet">
+        ///   <item><description><c>Value</c>: <c>true</c> if the loan was successfully deleted.</description></item>
+        ///   <item><description><c>Error</c>: an error message if the loan was not found or could not be deleted.</description></item>
+        /// </list>
         /// </returns>
         Task<Result<bool, string>> DeleteAsync(
             int loanId,
@@ -93,49 +117,33 @@ namespace BackendBiblioMate.Interfaces
     }
 
     /// <summary>
-    /// Holds the result data for a successfully created loan.
+    /// Represents the result of an operation that can either succeed with a value
+    /// or fail with an error.
     /// </summary>
-    public record LoanCreatedResult
-    {
-        /// <summary>
-        /// Due date of the loan.
-        /// </summary>
-        public DateTime DueDate { get; init; }
-    }
-
-    /// <summary>
-    /// Holds the result data for a successfully returned loan.
-    /// </summary>
-    public record LoanReturnedResult
-    {
-        /// <summary>
-        /// Indicates whether reservation notification was sent.
-        /// </summary>
-        public bool ReservationNotified { get; init; }
-    }
-
-    /// <summary>
-    /// Represents either a success (<typeparamref name="TSuccess"/>) or an error (<typeparamref name="TError"/>).
-    /// </summary>
-    /// <typeparam name="TSuccess">Type of the success value.</typeparam>
-    /// <typeparam name="TError">Type of the error value.</typeparam>
+    /// <typeparam name="TSuccess">Type of the value returned on success.</typeparam>
+    /// <typeparam name="TError">Type of the error returned on failure.</typeparam>
     public sealed class Result<TSuccess, TError>
     {
         /// <summary>
-        /// Gets the success value, or <c>default</c> if an error occurred.
+        /// Gets the value if the operation succeeded; otherwise <c>default</c>.
         /// </summary>
         public TSuccess? Value { get; }
 
         /// <summary>
-        /// Gets the error value, or <c>default</c> if the operation was successful.
+        /// Gets the error if the operation failed; otherwise <c>default</c>.
         /// </summary>
         public TError? Error { get; }
 
         /// <summary>
-        /// Gets a value indicating whether the result represents an error.
+        /// Gets a value indicating whether this result represents an error.
         /// </summary>
         public bool IsError => Error is not null;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Result{TSuccess,TError}"/> class.
+        /// </summary>
+        /// <param name="value">The success value (if any).</param>
+        /// <param name="error">The error value (if any).</param>
         private Result(TSuccess? value, TError? error)
         {
             Value = value;
@@ -143,19 +151,17 @@ namespace BackendBiblioMate.Interfaces
         }
 
         /// <summary>
-        /// Creates a successful result.
+        /// Creates a successful result containing the specified value.
         /// </summary>
         /// <param name="value">The success value.</param>
-        /// <returns>A <see cref="T:BackendBiblioMate.Interfaces.Result{TSuccess,TError}"/> representing success.</returns>
-        public static Result<TSuccess, TError> Ok(TSuccess value)
-            => new(value, default);
+        /// <returns>A new <see cref="Result{TSuccess,TError}"/> in success state.</returns>
+        public static Result<TSuccess, TError> Ok(TSuccess value) => new(value, default);
 
         /// <summary>
-        /// Creates an error result.
+        /// Creates a failed result containing the specified error.
         /// </summary>
         /// <param name="error">The error value.</param>
-        /// <returns>A <see cref="T:BackendBiblioMate.Interfaces.Result{TSuccess,TError}"/> representing an error.</returns>
-        public static Result<TSuccess, TError> Fail(TError error)
-            => new(default, error);
+        /// <returns>A new <see cref="Result{TSuccess,TError}"/> in error state.</returns>
+        public static Result<TSuccess, TError> Fail(TError error) => new(default, error);
     }
 }

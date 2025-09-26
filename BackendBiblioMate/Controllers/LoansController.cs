@@ -1,5 +1,4 @@
-﻿using System.Dynamic;
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Models.Enums;
@@ -12,8 +11,27 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace BackendBiblioMate.Controllers
 {
+    /// <summary>
+    /// Represents a simplified row of an active loan returned by <c>GET /api/v1/loans/active/me</c>.
+    /// </summary>
+    public sealed class LoanActiveRowDto
+    {
+        public int LoanId { get; set; }
+        public int BookId { get; set; }
+        public string BookTitle { get; set; } = default!;
+        public string? CoverUrl { get; set; }
+        public string? Description { get; set; }
+        public DateTime LoanDate { get; set; }
+        public DateTime? DueDate { get; set; }
+    }
+
+    /// <summary>
+    /// API controller for managing book loans.
+    /// Provides endpoints for creating, retrieving, updating, returning, extending, and deleting loans.
+    /// </summary>
     [ApiController]
-    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [Route("api/[controller]")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [ApiVersion("1.0")]
     [Produces("application/json")]
     public class LoansController : ControllerBase
@@ -21,7 +39,7 @@ namespace BackendBiblioMate.Controllers
         private readonly ILoanService _loanService;
         private readonly ILogger<LoansController> _logger;
         private readonly IWebHostEnvironment _env;
-        private readonly BiblioMateDbContext _db; // utilisé pour les lectures (mapping)
+        private readonly BiblioMateDbContext _db;
 
         public LoansController(
             ILoanService loanService,
@@ -36,6 +54,7 @@ namespace BackendBiblioMate.Controllers
         }
 
         // ---------- Helpers ----------
+
         private static int? TryGetUserIdFromClaims(ClaimsPrincipal user)
         {
             var claim = user.FindFirst(ClaimTypes.NameIdentifier)
@@ -47,31 +66,23 @@ namespace BackendBiblioMate.Controllers
 
         private async Task<LoanReadDto> ToDtoAsync(Models.Loan l, CancellationToken ct)
         {
-            // User
-            string userName;
-            if (l.User != null)
-                userName = $"{l.User.FirstName} {l.User.LastName}".Trim();
-            else
-            {
-                var u = await _db.Users.AsNoTracking()
+            // Resolve User name
+            string userName = l.User != null
+                ? $"{l.User.FirstName} {l.User.LastName}".Trim()
+                : (await _db.Users.AsNoTracking()
                     .Where(x => x.UserId == l.UserId)
                     .Select(x => new { x.FirstName, x.LastName })
-                    .FirstOrDefaultAsync(ct);
-                userName = u != null ? $"{u.FirstName} {u.LastName}".Trim() : string.Empty;
-            }
+                    .FirstOrDefaultAsync(ct)) is { } u
+                    ? $"{u.FirstName} {u.LastName}".Trim()
+                    : string.Empty;
 
-            // Book
-            string bookTitle;
-            if (l.Book != null)
-                bookTitle = l.Book.Title;
-            else
-            {
-                var b = await _db.Books.AsNoTracking()
+            // Resolve Book title
+            string bookTitle = l.Book?.Title
+                ?? (await _db.Books.AsNoTracking()
                     .Where(x => x.BookId == l.BookId)
-                    .Select(x => new { x.Title })
-                    .FirstOrDefaultAsync(ct);
-                bookTitle = b?.Title ?? string.Empty;
-            }
+                    .Select(x => x.Title)
+                    .FirstOrDefaultAsync(ct))
+                ?? string.Empty;
 
             return new LoanReadDto
             {
@@ -89,21 +100,21 @@ namespace BackendBiblioMate.Controllers
 
         // ---------- Endpoints ----------
 
-        /// <summary>Crée un prêt.</summary>
         [HttpPost]
         [Authorize]
         [MapToApiVersion("1.0")]
-        [SwaggerOperation(Summary = "Creates a new loan (v1)", Tags = new[] { "Loans" })]
+        [SwaggerOperation(Summary = "Creates a new loan (v1)", Tags = ["Loans"])]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> CreateLoan([FromBody] LoanCreateDto dto, CancellationToken ct = default)
         {
-            if (dto == null || dto.BookId <= 0)
+            if (dto.BookId <= 0)
                 return BadRequest(new { error = "Invalid payload." });
 
             try
             {
-                // Qui emprunte ?
                 var isStaff = User.IsInRole(UserRoles.Librarian) || User.IsInRole(UserRoles.Admin);
                 int? userIdFromToken = TryGetUserIdFromClaims(User);
                 if (!isStaff && userIdFromToken is null)
@@ -133,12 +144,12 @@ namespace BackendBiblioMate.Controllers
             }
         }
 
-        /// <summary>
-        /// Endpoint de DIAGNOSTIC : état du stock & prêts actifs pour un BookId.
-        /// </summary>
         [HttpGet("debug/{bookId:int}")]
         [Authorize]
         [MapToApiVersion("1.0")]
+        [SwaggerOperation(Summary = "Debug stock & active loans (v1)", Tags = ["Loans"])]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> DebugBook(int bookId, CancellationToken ct = default)
         {
             try
@@ -172,11 +183,10 @@ namespace BackendBiblioMate.Controllers
             }
         }
 
-        /// <summary>Marque un prêt comme rendu.</summary>
         [HttpPut("{id}/return")]
         [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [MapToApiVersion("1.0")]
-        [SwaggerOperation(Summary = "Returns a book for an existing loan (v1)", Tags = new[] { "Loans" })]
+        [SwaggerOperation(Summary = "Marks a loan as returned (v1)", Tags = ["Loans"])]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ReturnLoan([FromRoute] int id, CancellationToken cancellationToken = default)
@@ -194,30 +204,29 @@ namespace BackendBiblioMate.Controllers
             });
         }
 
-        /// <summary>Liste tous les prêts.</summary>
         [HttpGet]
         [Authorize]
         [MapToApiVersion("1.0")]
-        [SwaggerOperation(Summary = "Retrieves all loans (v1)", Tags = new[] { "Loans" })]
+        [SwaggerOperation(Summary = "Retrieves all loans (v1)", Tags = ["Loans"])]
         [ProducesResponseType(typeof(IEnumerable<LoanReadDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAll(CancellationToken ct = default)
         {
             var result = await _loanService.GetAllAsync(ct);
             if (result.IsError) return BadRequest(new { error = result.Error });
 
-            // Mapping manuel
             var dtos = new List<LoanReadDto>();
-            foreach (var l in result.Value)
+            foreach (var l in result.Value!)
                 dtos.Add(await ToDtoAsync(l, ct));
 
             return Ok(dtos);
         }
 
-        /// <summary>Récupère un prêt par ID.</summary>
         [HttpGet("{id}")]
         [Authorize]
         [MapToApiVersion("1.0")]
+        [SwaggerOperation(Summary = "Retrieves a loan by ID (v1)", Tags = ["Loans"])]
         [ProducesResponseType(typeof(LoanReadDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetById([FromRoute] int id, CancellationToken ct = default)
         {
             if (id <= 0) return BadRequest(new { error = "Invalid loan ID." });
@@ -225,32 +234,34 @@ namespace BackendBiblioMate.Controllers
             var result = await _loanService.GetByIdAsync(id, ct);
             if (result.IsError) return BadRequest(new { error = result.Error });
 
-            var dto = await ToDtoAsync(result.Value, ct);
+            var dto = await ToDtoAsync(result.Value!, ct);
             return Ok(dto);
         }
 
-        /// <summary>Met à jour un prêt.</summary>
         [HttpPut("{id}")]
         [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [MapToApiVersion("1.0")]
+        [SwaggerOperation(Summary = "Updates an existing loan (v1)", Tags = ["Loans"])]
         [ProducesResponseType(typeof(LoanReadDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> UpdateLoan([FromRoute] int id, [FromBody] LoanUpdateDto dto, CancellationToken ct = default)
         {
             if (id <= 0) return BadRequest(new { error = "Invalid loan ID." });
-            if (dto == null || !ModelState.IsValid) return BadRequest(new { error = "Invalid payload." });
+            if (!ModelState.IsValid) return BadRequest(new { error = "Invalid payload." });
 
             var result = await _loanService.UpdateAsync(id, dto, ct);
             if (result.IsError) return BadRequest(new { error = result.Error });
 
-            var updatedDto = await ToDtoAsync(result.Value, ct);
+            var updatedDto = await ToDtoAsync(result.Value!, ct);
             return Ok(updatedDto);
         }
 
-        /// <summary>Supprime un prêt.</summary>
         [HttpDelete("{id}")]
         [Authorize(Roles = UserRoles.Librarian + "," + UserRoles.Admin)]
         [MapToApiVersion("1.0")]
+        [SwaggerOperation(Summary = "Deletes a loan (v1)", Tags = ["Loans"])]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> DeleteLoan([FromRoute] int id, CancellationToken ct = default)
         {
             if (id <= 0) return BadRequest(new { error = "Invalid loan ID." });
@@ -260,21 +271,14 @@ namespace BackendBiblioMate.Controllers
 
             return Ok(new { message = "Loan deleted successfully." });
         }
-        
-        /// <summary>
-        /// Indique si l'utilisateur courant a déjà un prêt actif pour ce livre.
-        /// </summary>
+
         [HttpGet("active/me/{bookId:int}")]
         [Authorize]
         [MapToApiVersion("1.0")]
-        [SwaggerOperation(
-            Summary = "Checks if current user has an active loan for the book (v1)",
-            Tags = new[] { "Loans" }
-        )]
+        [SwaggerOperation(Summary = "Checks if current user has an active loan for the book (v1)", Tags = ["Loans"])]
         [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
-        public async Task<IActionResult> HasActiveForMe(
-            [FromRoute] int bookId,
-            CancellationToken ct = default)
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> HasActiveForMe([FromRoute] int bookId, CancellationToken ct = default)
         {
             var uid = TryGetUserIdFromClaims(User);
             if (uid is null) return Unauthorized(new { error = "Authenticated user id not found in token." });
@@ -290,5 +294,68 @@ namespace BackendBiblioMate.Controllers
 
             return Ok(new { hasActive = true, dueDate = loan.DueDate });
         }
+
+        [HttpGet("active/me")]
+        [Authorize]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(Summary = "Lists current user's active loans (v1)", Tags = ["Loans"])]
+        [ProducesResponseType(typeof(IEnumerable<LoanActiveRowDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetMyActive(CancellationToken ct = default)
+        {
+            var uid = TryGetUserIdFromClaims(User);
+            if (uid is null) return Unauthorized(new { error = "Authenticated user id not found in token." });
+
+            var rows = await _db.Loans
+                .AsNoTracking()
+                .Where(l => l.UserId == uid.Value && l.ReturnDate == null)
+                .OrderByDescending(l => l.LoanDate)
+                .Select(l => new LoanActiveRowDto
+                {
+                    LoanId = l.LoanId,
+                    BookId = l.BookId,
+                    BookTitle = _db.Books.Where(b => b.BookId == l.BookId).Select(b => b.Title).FirstOrDefault()!,
+                    CoverUrl = _db.Books.Where(b => b.BookId == l.BookId).Select(b => b.CoverUrl).FirstOrDefault(),
+                    Description = _db.Books.Where(b => b.BookId == l.BookId).Select(b => b.Description).FirstOrDefault(),
+                    LoanDate = l.LoanDate,
+                    DueDate = l.DueDate
+                })
+                .ToListAsync(ct);
+
+            return Ok(rows);
+        }
+
+        [HttpPost("{id:int}/extend")]
+        [Authorize]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(Summary = "Extends an active loan (v1)", Tags = ["Loans"])]
+        [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> ExtendLoan([FromRoute] int id, CancellationToken ct = default)
+        {
+            if (id <= 0) return BadRequest(new { error = "Invalid loan ID." });
+
+            var loan = await _db.Loans.FirstOrDefaultAsync(l => l.LoanId == id, ct);
+            if (loan is null) return NotFound(new { error = "Loan not found." });
+            if (loan.ReturnDate is not null) return BadRequest(new { error = "Loan already returned." });
+
+            var me = TryGetUserIdFromClaims(User);
+            var isStaff = User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.Librarian);
+            if (!isStaff && (!me.HasValue || me.Value != loan.UserId))
+                return Forbid();
+
+            if (loan.ExtensionsCount >= LoanPolicy.MaxExtensionsPerLoan)
+                return BadRequest(new { error = "Maximum number of extensions reached." });
+
+            loan.DueDate = loan.DueDate.AddDays(LoanPolicy.DefaultLoanDurationDays);
+            loan.ExtensionsCount++;
+
+            await _db.SaveChangesAsync(ct);
+
+            return Ok(new { dueDate = loan.DueDate, extensions = loan.ExtensionsCount });
+        }
     }
 }
+

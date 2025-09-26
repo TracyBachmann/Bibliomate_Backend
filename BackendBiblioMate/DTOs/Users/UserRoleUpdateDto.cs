@@ -3,13 +3,13 @@
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to update a user's role.
+    /// Data Transfer Object used to update a user's role.
     /// Contains the new role assignment for an existing user.
     /// </summary>
     public class UserRoleUpdateDto
     {
         /// <summary>
-        /// Gets the new role to assign to the user.
+        /// Gets or sets the new role to assign to the user.
         /// </summary>
         /// <remarks>
         /// Must be one of the defined roles: User, Librarian, Admin.

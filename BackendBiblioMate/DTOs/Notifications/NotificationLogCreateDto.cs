@@ -1,16 +1,16 @@
-using BackendBiblioMate.Models.Enums;
 using System.ComponentModel.DataAnnotations;
+using BackendBiblioMate.Models.Enums;
 
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to create a new notification log entry.
-    /// Contains all necessary information to log a notification.
+    /// Data Transfer Object used to create a new notification log entry.
+    /// Contains all necessary information to log a notification dispatch.
     /// </summary>
     public class NotificationLogCreateDto
     {
         /// <summary>
-        /// Gets the identifier of the user who received the notification.
+        /// Gets or sets the identifier of the user who received the notification.
         /// </summary>
         /// <example>123</example>
         [Required(ErrorMessage = "UserId is required.")]
@@ -18,28 +18,31 @@ namespace BackendBiblioMate.DTOs
         public int UserId { get; init; }
 
         /// <summary>
-        /// Gets the type of notification.
+        /// Gets or sets the type of the notification.
         /// </summary>
         /// <remarks>
-        /// Examples: LoanReminder, ReservationAvailable, OverdueAlert.
+        /// Common values include:
+        /// - <c>LoanReminder</c>  
+        /// - <c>ReservationAvailable</c>  
+        /// - <c>OverdueAlert</c>  
         /// </remarks>
         /// <example>LoanReminder</example>
         [Required(ErrorMessage = "Type is required.")]
         public NotificationType Type { get; init; }
 
         /// <summary>
-        /// Gets the content of the notification message.
+        /// Gets or sets the content of the notification message.
         /// </summary>
         /// <example>Your loan for “The Hobbit” is due tomorrow.</example>
         [Required(ErrorMessage = "Message is required.")]
-        [MinLength(1, ErrorMessage = "Message cannot be empty.")]
+        [MinLength(1, ErrorMessage = "Message must not be empty.")]
         public string Message { get; init; } = string.Empty;
 
         /// <summary>
-        /// Gets the UTC timestamp when the notification was sent.
+        /// Gets or sets the UTC timestamp when the notification was sent.
         /// </summary>
         /// <remarks>
-        /// Defaults to the current UTC time if not provided.
+        /// Defaults to the current UTC time if not explicitly provided.
         /// </remarks>
         /// <example>2025-06-30T14:25:00Z</example>
         public DateTime SentAt { get; init; } = DateTime.UtcNow;

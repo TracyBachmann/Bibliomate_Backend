@@ -31,23 +31,49 @@ using MongoDB.Driver;
 using Prometheus;
 using AspNetCoreRateLimit;
 
+// ============================================================================
+// Program.cs
+// Application bootstrap for BackendBiblioMate.
+// - Configures data sources (SQL Server + optional MongoDB)
+// - Sets up CORS, API versioning, rate limiting
+// - Registers authentication/authorization (JWT + SignalR token handling)
+// - Wires DI for domain services
+// - Enables Swagger (versioned), health checks, Prometheus metrics
+// - Adds global exception handling middleware and security headers
+// - Applies EF Core migrations at startup
+// ============================================================================
+
 var builder = WebApplication.CreateBuilder(args);
 
-// -------- Connexions (SQL & Mongo) --------
+#region Connection string helpers (SQL & Mongo)
+/*
+ * Resolve SQL Server / MongoDB connection strings from various conventional keys.
+ * This enables flexibility across environments (local, CI/CD, containerized).
+ */
 string? GetSqlConnectionString()
 {
+    // Tries common keys in order; returns null if none present.
     return builder.Configuration.GetConnectionString("Default")
         ?? builder.Configuration.GetConnectionString("DefaultConnection")
         ?? builder.Configuration["ConnectionStrings:Default"]
         ?? builder.Configuration["ConnectionStrings:DefaultConnection"];
 }
+
 string? GetMongoConnectionString()
 {
+    // Single point of truth for Mongo connection string.
     return builder.Configuration.GetConnectionString("MongoDb")
         ?? builder.Configuration["MongoDb:ConnectionString"];
 }
+#endregion
 
-// -------- CORS --------
+#region CORS
+/*
+ * CORS policies:
+ * - "Development": broader set of localhost origins for local frontends
+ * - "Default": stricter list for non-development environments
+ * Both policies allow credentials, any header, and any method.
+ */
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Default", policy =>
@@ -61,6 +87,7 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod()
             .AllowCredentials()
     );
+
     options.AddPolicy("Development", policy =>
         policy.WithOrigins(
                 "http://localhost:4200",
@@ -76,8 +103,14 @@ builder.Services.AddCors(options =>
             .AllowCredentials()
     );
 });
+#endregion
 
-// -------- Versioning --------
+#region API Versioning
+/*
+ * URL, header, and query-string based API versioning.
+ * - Default version: 1.0
+ * - Explorer groups documented as 'vX' (e.g., v1)
+ */
 builder.Services.AddApiVersioning(opts =>
 {
     opts.AssumeDefaultVersionWhenUnspecified = true;
@@ -89,27 +122,52 @@ builder.Services.AddApiVersioning(opts =>
         new UrlSegmentApiVersionReader()
     );
 });
+
 builder.Services.AddVersionedApiExplorer(opts =>
 {
     opts.GroupNameFormat = "'v'VVV";
     opts.SubstituteApiVersionInUrl = true;
 });
+#endregion
 
-// -------- Rate limiting --------
+#region Rate limiting (IP-based)
+/*
+ * In-memory IP rate limiting with AspNetCoreRateLimit.
+ * Stores policies and counters in MemoryCache.
+ * NOTE: Policies and general rules must be provided in configuration (appsettings).
+ */
 builder.Services.AddMemoryCache();
 builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
 builder.Services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
 builder.Services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounterStore>();
 builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 builder.Services.AddSingleton<IProcessingStrategy, AsyncKeyLockProcessingStrategy>();
+#endregion
 
-// -------- EF Core (SQL Server) --------
+#region EF Core (SQL Server)
+/*
+ * SQL Server DbContext registration.
+ * Fails fast if no connection string is configured.
+ */
 var sqlConnString = GetSqlConnectionString();
 if (string.IsNullOrWhiteSpace(sqlConnString))
-    throw new InvalidOperationException("Aucune chaîne de connexion SQL trouvée (ConnectionStrings:Default ou DefaultConnection).");
-builder.Services.AddDbContext<BiblioMateDbContext>(o => o.UseSqlServer(sqlConnString));
+    throw new InvalidOperationException("No SQL connection string found (ConnectionStrings:Default or DefaultConnection).");
 
-// -------- Controllers --------
+builder.Services.AddDbContext<BiblioMateDbContext>(o => o.UseSqlServer(sqlConnString));
+#endregion
+
+#region Controllers + JSON + ModelState shaping
+/*
+ * Global authorization policy: all endpoints require authentication by default.
+ * Controllers can opt-out with [AllowAnonymous] or per-action [Authorize] attributes.
+ *
+ * JSON options:
+ * - camelCase for properties and dictionary keys
+ * - enums serialized as strings
+ *
+ * ModelState shaping:
+ * - Returns a compact, consistent validation payload: { error, details }
+ */
 builder.Services
     .AddControllers(o =>
     {
@@ -134,13 +192,21 @@ builder.Services
                     kvp => kvp.Key,
                     kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray()
                 );
+
             var result = new BadRequestObjectResult(new { error = "ValidationError", details = errors });
             result.ContentTypes.Add("application/json");
             return result;
         };
     });
+#endregion
 
-// -------- HealthChecks --------
+#region HealthChecks
+/*
+ * Health checks for:
+ * - EF Core DbContext (SQL)
+ * - Raw SQL Server connection
+ * - Optional MongoDB connection (only if configured)
+ */
 var healthChecks = builder.Services.AddHealthChecks()
     .AddDbContextCheck<BiblioMateDbContext>(name: "sqlserver-dbcontext", tags: new[] { "db", "sql" })
     .AddSqlServer(sqlConnString, name: "sqlserver-raw", tags: new[] { "db", "sql" });
@@ -150,15 +216,29 @@ if (!string.IsNullOrWhiteSpace(mongoConnString))
 {
     healthChecks.AddMongoDb(mongoConnString, name: "mongodb", tags: new[] { "db", "mongo" });
 }
+#endregion
 
-// -------- Auth / JWT --------
+#region Authentication / JWT
+/*
+ * JWT bearer authentication with:
+ * - Issuer/Audience/Key from configuration
+ * - Name & Role claim mapping
+ * - Security stamp verification on token validated
+ * - SignalR support: token via 'access_token' query string for WebSocket connections
+ *
+ * IMPORTANT:
+ * - o.MapInboundClaims = false keeps original claim names (e.g., "sub", "given_name").
+ *   Ensure token generation aligns with claim types consumed by the app (NameIdentifier, Role).
+ */
 var jwt = builder.Configuration.GetSection("Jwt");
-var key = Encoding.UTF8.GetBytes(jwt["Key"] ?? throw new InvalidOperationException("Jwt:Key manquant."));
+var key = Encoding.UTF8.GetBytes(jwt["Key"] ?? throw new InvalidOperationException("Missing Jwt:Key."));
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
     {
-        o.RequireHttpsMetadata = false;
+        o.RequireHttpsMetadata = false; // set to true in production if only HTTPS is used
         o.SaveToken = true;
+
         o.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer           = true,
@@ -169,16 +249,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience            = jwt["Audience"],
             IssuerSigningKey         = new SymmetricSecurityKey(key),
 
-            // ✅ important pour que Role/Name soient bien « mappés »
+            // Ensure role and name claims are correctly resolved in ClaimsPrincipal
             RoleClaimType            = ClaimTypes.Role,
             NameClaimType            = ClaimTypes.Name
         };
 
-        // ✅ garde les noms de claims tels quels (given_name, family_name…)
+        // Keep inbound claim types as-is (do not remap to Microsoft legacy names).
         o.MapInboundClaims = false;
 
         o.Events = new JwtBearerEvents
         {
+            // Allow SignalR clients to pass JWT via query string
             OnMessageReceived = ctx =>
             {
                 if (ctx.Request.Path.StartsWithSegments("/hubs/notifications") &&
@@ -188,29 +269,45 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 }
                 return Task.CompletedTask;
             },
+
+            // Validate security stamp on every request to support token invalidation
             OnTokenValidated = async ctx =>
             {
                 var db     = ctx.HttpContext.RequestServices.GetRequiredService<BiblioMateDbContext>();
                 var userId = int.Parse(ctx.Principal!.FindFirst(ClaimTypes.NameIdentifier)!.Value);
                 var stamp  = ctx.Principal.FindFirst("stamp")?.Value;
-                var user   = await db.Users.FindAsync(userId);
+
+                var user = await db.Users.FindAsync(userId);
                 if (user == null || user.SecurityStamp != stamp)
+                {
                     ctx.Fail("Invalid token: security stamp mismatch.");
+                }
             }
         };
     });
+#endregion
 
-// -------- Mongo settings + client --------
+#region Mongo settings / client
+/*
+ * Mongo settings bound from configuration section "MongoDb".
+ * Registers a singleton IMongoClient (no-op client if no connection string provided).
+ */
 builder.Services.Configure<MongoSettings>(builder.Configuration.GetSection("MongoDb"));
 builder.Services.AddSingleton<IMongoClient>(sp =>
 {
     var s = sp.GetRequiredService<IOptions<MongoSettings>>().Value;
     if (string.IsNullOrWhiteSpace(s.ConnectionString))
-        return new MongoClient("mongodb://unused-host:27017");
+        return new MongoClient("mongodb://unused-host:27017"); // placeholder client when Mongo is disabled
     return new MongoClient(s.ConnectionString);
 });
+#endregion
 
-// -------- DI métier --------
+#region Dependency Injection: domain services
+/*
+ * Registers application services and infrastructure components.
+ * NOTE: NotificationService is registered both as interface and as concrete type to support
+ *       scenarios where the concrete implementation is injected directly.
+ */
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IUserService, UserService>();
@@ -231,36 +328,53 @@ builder.Services.AddScoped<ISearchActivityLogService, SearchActivityLogService>(
 builder.Services.AddScoped<IShelfService, ShelfService>();
 builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IZoneService, ZoneService>();
+builder.Services.AddScoped<ILocationService, LocationService>();
 
 builder.Services.AddScoped<INotificationLogCollection, NotificationLogCollection>();
 builder.Services.AddScoped<IMongoLogService, MongoLogService>();
-builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<NotificationService>(); // concrete registration (in addition to INotificationService)
 
 builder.Services.AddSingleton<EncryptionService>();
 builder.Services.AddHttpClient<IGoogleBooksService, GoogleBooksService>();
 
-// Email
+// Email provider selection based on configuration
 var smtpHost = builder.Configuration["Smtp:Host"];
 if (!string.IsNullOrWhiteSpace(smtpHost))
     builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 else
     builder.Services.AddScoped<IEmailService, SendGridEmailService>();
 
+// Background services & contextual infrastructure
 builder.Services.AddScoped<IReservationCleanupService, ReservationCleanupService>();
 builder.Services.AddScoped<LoanReminderService>();
 builder.Services.AddHostedService<LoanReminderBackgroundService>();
 builder.Services.AddHttpContextAccessor();
+#endregion
 
+#region Swagger / API explorer
+/*
+ * Swagger (OpenAPI) with API versioning integration:
+ * - One document per API version (e.g., v1)
+ * - Includes XML comments if generated (enable in .csproj)
+ * - Adds JWT bearer security definition
+ * - OperationFilter<SwaggerDefaultValues> allows default values for versioning
+ */
 builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
 builder.Services
     .AddOptions<Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenOptions>()
     .Configure<IApiVersionDescriptionProvider>((options, provider) =>
     {
         foreach (var desc in provider.ApiVersionDescriptions)
-            options.SwaggerDoc(desc.GroupName, new OpenApiInfo { Title = $"BiblioMate API {desc.ApiVersion}", Version = desc.GroupName });
+            options.SwaggerDoc(desc.GroupName, new OpenApiInfo
+            {
+                Title   = $"BiblioMate API {desc.ApiVersion}",
+                Version = desc.GroupName
+            });
 
+        // Only include endpoints whose route contains the version segment matching the doc name
         options.DocInclusionPredicate((docName, apiDesc) =>
         {
             if (apiDesc.GroupName != docName) return false;
@@ -269,11 +383,15 @@ builder.Services
         });
 
         options.OperationFilter<SwaggerDefaultValues>();
+
+        // XML documentation (requires <GenerateDocumentationFile>true</GenerateDocumentationFile> in .csproj)
         var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
         var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
         if (File.Exists(xmlPath))
             options.IncludeXmlComments(xmlPath);
+
         options.EnableAnnotations();
+
         options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
         {
             Description  = "JWT Authorization header using the Bearer scheme.",
@@ -281,15 +399,29 @@ builder.Services
             Scheme       = "bearer",
             BearerFormat = "JWT"
         });
+
         options.AddSecurityRequirement(new OpenApiSecurityRequirement
         {
-            { new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }, Array.Empty<string>() }
+            {
+                new OpenApiSecurityScheme
+                {
+                    Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+                },
+                Array.Empty<string>()
+            }
         });
     });
+#endregion
 
 var app = builder.Build();
 
-// -------- Swagger / UI --------
+#region Swagger UI (development)
+/*
+ * Developer-friendly Swagger UI:
+ * - Available only in Development environment
+ * - Versioned endpoints listed in UI
+ * - Root URL redirects to /swagger
+ */
 var apiVersions = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
 if (app.Environment.IsDevelopment())
 {
@@ -301,10 +433,23 @@ if (app.Environment.IsDevelopment())
             c.SwaggerEndpoint($"/swagger/{desc.GroupName}/swagger.json", $"BiblioMate API {desc.ApiVersion}");
         c.RoutePrefix = "swagger";
     });
+
     app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 }
+#endregion
 
-// -------- Sécurité HTTP --------
+#region HTTP security and CORS
+/*
+ * Production HTTP hardening:
+ * - HSTS and HTTPS redirection outside Development
+ *
+ * CORS:
+ * - Selects "Development" policy in dev, "Default" otherwise
+ *
+ * Additional security headers:
+ * - X-Content-Type-Options, X-Frame-Options, Referrer-Policy
+ *   (CSP could be added if/when static content is served)
+ */
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
@@ -316,7 +461,7 @@ if (app.Environment.IsDevelopment())
 else
     app.UseCors("Default");
 
-// En-têtes sécurité
+// Minimal security headers suitable for API responses
 app.Use(async (ctx, next) =>
 {
     ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
@@ -324,29 +469,57 @@ app.Use(async (ctx, next) =>
     ctx.Response.Headers["Referrer-Policy"] = "no-referrer";
     await next();
 });
+#endregion
 
-// -------- Observabilité / erreurs --------
+#region Observability / error handling
+/*
+ * Global exception handling:
+ * - Uniform JSON error payloads via ExceptionHandlingMiddleware
+ *
+ * Prometheus metrics:
+ * - /metrics endpoint via UseMetricServer
+ * - HTTP metrics middleware
+ *
+ * IP rate limiting:
+ * - Applies rate limits before MVC
+ */
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseIpRateLimiting();
+
 app.UseMetricServer();
 app.UseHttpMetrics();
+#endregion
 
-// -------- Auth --------
+#region Authentication / Authorization
+/*
+ * Authentication must precede Authorization.
+ * With a global AuthorizeFilter on controllers, endpoints require auth by default.
+ */
 app.UseAuthentication();
 app.UseAuthorization();
+#endregion
 
-// -------- Auto-migration EF au démarrage --------
+#region EF Core migrations at startup
+/*
+ * Applies pending EF Core migrations automatically during startup.
+ * Runs in a scoped service provider to resolve DbContext safely.
+ */
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<BiblioMateDbContext>();
     await db.Database.MigrateAsync();
 }
+#endregion
 
-// -------- Endpoints --------
+#region Endpoint mapping
+/*
+ * Controllers and SignalR hubs.
+ * Health checks at /health with concise JSON payload.
+ */
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-// Health
+// Health check endpoint (anonymous for external probes)
 app.MapHealthChecks("/health", new HealthCheckOptions
 {
     ResponseWriter = async (ctx, report) =>
@@ -357,9 +530,9 @@ app.MapHealthChecks("/health", new HealthCheckOptions
             status = report.Status.ToString(),
             checks = report.Entries.Select(e => new
             {
-                name = e.Key,
-                status = e.Value.Status.ToString(),
-                error = e.Value.Exception?.Message,
+                name     = e.Key,
+                status   = e.Value.Status.ToString(),
+                error    = e.Value.Exception?.Message,
                 duration = e.Value.Duration.ToString()
             })
         };
@@ -367,5 +540,7 @@ app.MapHealthChecks("/health", new HealthCheckOptions
     }
 })
 .AllowAnonymous();
+#endregion
 
 app.Run();
+

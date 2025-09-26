@@ -1,42 +1,43 @@
-﻿namespace BackendBiblioMate.Configuration
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace BackendBiblioMate.Configuration
 {
     /// <summary>
-    /// Represents the settings required to connect to MongoDB.
+    /// Represents the configuration settings required to connect to MongoDB.
     /// </summary>
     /// <remarks>
-    /// These settings are bound from the "Mongo" section of appsettings.json 
-    /// and injected via IOptions&lt;MongoSettings&gt; in Startup.ConfigureServices().
+    /// These settings are typically bound from the "Mongo" section of <c>appsettings.json</c>.
+    /// They can be injected into services via <c>IOptions&lt;MongoSettings&gt;</c>.
     /// </remarks>
     public class MongoSettings
     {
         /// <summary>
-        /// Gets or sets the MongoDB connection string, including credentials and host.
+        /// Gets or sets the MongoDB connection string.
         /// </summary>
         /// <value>
-        /// A valid MongoDB connection string (e.g. "mongodb://user:pass@host:27017").
+        /// A valid MongoDB connection string including credentials and host
+        /// (e.g. <c>mongodb://user:pass@host:27017</c>).
         /// </value>
-        [System.ComponentModel.DataAnnotations.Required(
-            ErrorMessage = "ConnectionString for MongoDB must be provided.")]
+        [Required(ErrorMessage = "ConnectionString for MongoDB must be provided.")]
         public string ConnectionString { get; set; } = null!;
 
         /// <summary>
         /// Gets or sets the name of the MongoDB database to use.
         /// </summary>
         /// <value>
-        /// The database name as defined in the data access layer.
+        /// The database name where collections are stored.
         /// </value>
-        [System.ComponentModel.DataAnnotations.Required(
-            ErrorMessage = "DatabaseName for MongoDB must be provided.")]
+        [Required(ErrorMessage = "DatabaseName for MongoDB must be provided.")]
         public string DatabaseName { get; set; } = null!;
 
         /// <summary>
-        /// Gets or sets the name of the collection where notification logs are stored.
+        /// Gets or sets the name of the MongoDB collection where notification logs are stored.
         /// </summary>
         /// <value>
-        /// The collection name for <see cref="Models.Mongo.NotificationLogDocument"/>.
+        /// The collection name that stores <see cref="Models.Mongo.NotificationLogDocument"/> records.
+        /// Defaults to <c>"logEntries"</c> if not explicitly configured.
         /// </value>
-        [System.ComponentModel.DataAnnotations.Required(
-            ErrorMessage = "LogCollectionName for MongoDB must be provided.")]
+        [Required(ErrorMessage = "LogCollectionName for MongoDB must be provided.")]
         public string LogCollectionName { get; set; } = "logEntries";
     }
 }

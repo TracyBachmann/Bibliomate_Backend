@@ -12,7 +12,8 @@ namespace BackendBiblioMate.Controllers
     /// including registration, login, email confirmation, password reset, and admin approval.
     /// </summary>
     [ApiController]
-    [Route("api/[controller]"), Route("api/v{version:apiVersion}/[controller]")]
+    [Route("api/[controller]")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [ApiVersion("1.0")]
     [Produces("application/json")]
     public class AuthsController : ControllerBase
@@ -22,9 +23,7 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Initializes a new instance of the <see cref="AuthsController"/> class.
         /// </summary>
-        /// <param name="authService">
-        /// The authentication service used for handling user auth logic.
-        /// </param>
+        /// <param name="authService">The authentication service handling all user-related auth logic.</param>
         public AuthsController(IAuthService authService)
         {
             _authService = authService;
@@ -33,15 +32,11 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Registers a new user account.
         /// </summary>
-        /// <param name="dto">
-        /// The registration data including name, email, password, address, and phone.
-        /// </param>
-        /// <param name="cancellationToken">
-        /// Token to monitor for cancellation requests.
-        /// </param>
+        /// <param name="dto">The registration data including name, email, password, address, and phone.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
         /// <c>201 Created</c> on success,  
-        /// <c>400 Bad Request</c> if validation failed.
+        /// <c>400 Bad Request</c> if validation fails.
         /// </returns>
         [AllowAnonymous]
         [HttpPost("register")]
@@ -64,12 +59,8 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Authenticates a user and returns a JWT token if credentials are valid.
         /// </summary>
-        /// <param name="dto">
-        /// The login data including email and password.
-        /// </param>
-        /// <param name="cancellationToken">
-        /// Token to monitor for cancellation requests.
-        /// </param>
+        /// <param name="dto">The login data including email and password.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
         /// <c>200 OK</c> with JWT and user info on success,  
         /// <c>401 Unauthorized</c> if credentials are invalid.
@@ -79,7 +70,7 @@ namespace BackendBiblioMate.Controllers
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Authenticates a user and returns a JWT (v1)",
-            Description = "Authenticates user credentials and returns a token.",
+            Description = "Validates credentials and returns a token with user information.",
             Tags = ["Auths"]
         )]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -95,12 +86,8 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Confirms the user's email address using a confirmation token.
         /// </summary>
-        /// <param name="token">
-        /// The email confirmation token provided in the verification link.
-        /// </param>
-        /// <param name="cancellationToken">
-        /// Token to monitor for cancellation requests.
-        /// </param>
+        /// <param name="token">The email confirmation token provided in the verification link.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
         /// <c>200 OK</c> if the email is confirmed,  
         /// <c>400 Bad Request</c> if the token is invalid or expired.
@@ -110,7 +97,7 @@ namespace BackendBiblioMate.Controllers
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Confirms a user's email address (v1)",
-            Description = "Verifies a user's email using the confirmation token.",
+            Description = "Verifies a user's email using the confirmation token provided in the verification email.",
             Tags = ["Auths"]
         )]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -126,12 +113,8 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Sends a password reset email to the specified address.
         /// </summary>
-        /// <param name="dto">
-        /// Contains the email address of the user requesting a password reset.
-        /// </param>
-        /// <param name="cancellationToken">
-        /// Token to monitor for cancellation requests.
-        /// </param>
+        /// <param name="dto">Contains the email address of the user requesting a password reset.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
         /// <c>200 OK</c> if the email was sent,  
         /// <c>404 Not Found</c> if the email is not associated with any account.
@@ -141,7 +124,7 @@ namespace BackendBiblioMate.Controllers
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Requests a password reset email (v1)",
-            Description = "Sends a password reset link to the user's email.",
+            Description = "Sends a password reset link to the specified email address.",
             Tags = ["Auths"]
         )]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -157,12 +140,8 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Resets the user's password using a reset token and new password.
         /// </summary>
-        /// <param name="dto">
-        /// Contains the reset token and new password information.
-        /// </param>
-        /// <param name="cancellationToken">
-        /// Token to monitor for cancellation requests.
-        /// </param>
+        /// <param name="dto">Contains the reset token and new password information.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
         /// <c>200 OK</c> on successful reset,  
         /// <c>400 Bad Request</c> if the token is invalid or expired.
@@ -172,7 +151,7 @@ namespace BackendBiblioMate.Controllers
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Resets the user's password (v1)",
-            Description = "Resets a user's password using a token.",
+            Description = "Resets a user's password using a provided reset token.",
             Tags = ["Auths"]
         )]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -188,12 +167,8 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Approves a pending user account. Only accessible to administrators.
         /// </summary>
-        /// <param name="id">
-        /// The identifier of the user account to approve.
-        /// </param>
-        /// <param name="cancellationToken">
-        /// Token to monitor for cancellation requests.
-        /// </param>
+        /// <param name="id">The identifier of the user account to approve.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
         /// <c>200 OK</c> if the user is approved,  
         /// <c>404 Not Found</c> if the user is not found or not pending,  
@@ -204,7 +179,7 @@ namespace BackendBiblioMate.Controllers
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Approves a pending user account (v1)",
-            Description = "Admin endpoint to approve new users.",
+            Description = "Administrator-only endpoint to approve new user accounts.",
             Tags = ["Auths"]
         )]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -219,14 +194,17 @@ namespace BackendBiblioMate.Controllers
         }
         
         /// <summary>
-        /// Resends the email confirmation link to the given email.
+        /// Resends the email confirmation link to the given email address.
         /// </summary>
+        /// <param name="dto">The email of the user requesting confirmation.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <returns><c>200 OK</c> if the confirmation email was successfully sent.</returns>
         [AllowAnonymous]
         [HttpPost("resend-confirmation")]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
             Summary = "Resends the confirmation email (v1)",
-            Description = "Sends again the email confirmation link if the account exists and is not confirmed.",
+            Description = "Resends the email confirmation link if the account exists and has not been confirmed yet.",
             Tags = ["Auths"]
         )]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -237,6 +215,5 @@ namespace BackendBiblioMate.Controllers
             var result = await _authService.ResendConfirmationAsync(dto.Email, cancellationToken);
             return result.Result;
         }
-
     }
 }

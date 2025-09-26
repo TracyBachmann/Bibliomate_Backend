@@ -28,10 +28,6 @@ namespace BackendBiblioMate.Services.Catalog
         /// <summary>
         /// Retrieves all genres from the data store.
         /// </summary>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// An <see cref="IEnumerable{GenreReadDto}"/> containing all genres.
-        /// </returns>
         public async Task<IEnumerable<GenreReadDto>> GetAllAsync(
             CancellationToken cancellationToken = default)
         {
@@ -44,15 +40,6 @@ namespace BackendBiblioMate.Services.Catalog
         /// <summary>
         /// Retrieves a single genre by its identifier.
         /// </summary>
-        /// <param name="id">Identifier of the genre to retrieve.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// A tuple containing:
-        /// <list type="bullet">
-        ///   <item>The <see cref="GenreReadDto"/> if found, otherwise null.</item>
-        ///   <item>An <see cref="IActionResult"/> <c>NotFound</c> when missing, otherwise null.</item>
-        /// </list>
-        /// </returns>
         public async Task<(GenreReadDto? Dto, IActionResult? ErrorResult)> GetByIdAsync(
             int id,
             CancellationToken cancellationToken = default)
@@ -71,11 +58,6 @@ namespace BackendBiblioMate.Services.Catalog
         /// <summary>
         /// Creates a new genre in the data store.
         /// </summary>
-        /// <param name="dto">Data transfer object containing genre creation data.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// A tuple containing the created <see cref="GenreReadDto"/> and a <see cref="CreatedAtActionResult"/>.
-        /// </returns>
         public async Task<(GenreReadDto CreatedDto, CreatedAtActionResult Result)> CreateAsync(
             GenreCreateDto dto,
             CancellationToken cancellationToken = default)
@@ -102,12 +84,6 @@ namespace BackendBiblioMate.Services.Catalog
         /// <summary>
         /// Updates an existing genre in the data store.
         /// </summary>
-        /// <param name="id">Identifier of the genre to update.</param>
-        /// <param name="dto">Data transfer object containing updated genre data.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>true</c> if the update was successful; <c>false</c> if the genre was not found.
-        /// </returns>
         public async Task<bool> UpdateAsync(
             int id,
             GenreUpdateDto dto,
@@ -127,11 +103,6 @@ namespace BackendBiblioMate.Services.Catalog
         /// <summary>
         /// Deletes a genre from the data store.
         /// </summary>
-        /// <param name="id">Identifier of the genre to delete.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// <c>true</c> if the deletion was successful; <c>false</c> if the genre was not found.
-        /// </returns>
         public async Task<bool> DeleteAsync(
             int id,
             CancellationToken cancellationToken = default)
@@ -153,5 +124,45 @@ namespace BackendBiblioMate.Services.Catalog
             GenreId = g.GenreId,
             Name    = g.Name
         };
+
+        // ===== AJOUTS: Search + Ensure ======================================
+
+        public async Task<IEnumerable<GenreReadDto>> SearchAsync(string? search, int take, CancellationToken ct)
+        {
+            var q = _db.Genres.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var s = search.Trim().ToLower();
+                q = q.Where(g => g.Name.ToLower().Contains(s));
+            }
+
+            take = Math.Clamp(take, 1, 100);
+
+            return await q.OrderBy(g => g.Name)
+                          .Take(take)
+                          .Select(MapToReadDto)
+                          .ToListAsync(ct);
+        }
+
+        public async Task<(GenreReadDto Dto, bool Created)> EnsureAsync(string name, CancellationToken ct)
+        {
+            var normalized = (name ?? "").Trim();
+            if (normalized.Length < 2) throw new ArgumentException("Name too short", nameof(name));
+
+            var existing = await _db.Genres
+                .AsNoTracking()
+                .Where(g => g.Name.ToLower() == normalized.ToLower())
+                .Select(g => new GenreReadDto { GenreId = g.GenreId, Name = g.Name })
+                .FirstOrDefaultAsync(ct);
+
+            if (existing != null) return (existing, false);
+
+            var entity = new Genre { Name = normalized };
+            _db.Genres.Add(entity);
+            await _db.SaveChangesAsync(ct);
+
+            return (new GenreReadDto { GenreId = entity.GenreId, Name = entity.Name }, true);
+        }
     }
 }

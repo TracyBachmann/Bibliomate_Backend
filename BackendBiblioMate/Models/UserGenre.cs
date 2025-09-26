@@ -11,12 +11,13 @@ namespace BackendBiblioMate.Models
         /// <summary>
         /// Gets or sets the foreign key referencing the user.
         /// </summary>
+        /// <example>7</example>
         [Required(ErrorMessage = "UserId is required.")]
         [Range(1, int.MaxValue, ErrorMessage = "UserId must be a positive integer.")]
         public int UserId { get; init; }
 
         /// <summary>
-        /// Navigation property for the user.
+        /// Navigation property for the user who selected this genre as a preference.
         /// </summary>
         [ForeignKey(nameof(UserId))]
         public User User { get; init; } = null!;
@@ -24,12 +25,13 @@ namespace BackendBiblioMate.Models
         /// <summary>
         /// Gets or sets the foreign key referencing the preferred genre.
         /// </summary>
+        /// <example>3</example>
         [Required(ErrorMessage = "GenreId is required.")]
         [Range(1, int.MaxValue, ErrorMessage = "GenreId must be a positive integer.")]
         public int GenreId { get; init; }
 
         /// <summary>
-        /// Navigation property for the genre.
+        /// Navigation property for the genre chosen by the user as a favorite.
         /// </summary>
         [ForeignKey(nameof(GenreId))]
         public Genre Genre { get; init; } = null!;

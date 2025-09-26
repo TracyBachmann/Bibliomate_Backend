@@ -45,11 +45,10 @@ namespace BackendBiblioMate.Models
         public string Password { get; set; } = string.Empty;
 
         /// <summary>
-        /// Gets or sets the primary postal address of the user.
+        /// Gets or sets the primary postal address of the user (optional).
         /// </summary>
-        [Required(ErrorMessage = "Primary address is required.")]
         [StringLength(200, ErrorMessage = "Primary address cannot exceed 200 characters.")]
-        public string Address1 { get; set; } = string.Empty;
+        public string? Address1 { get; set; }
 
         /// <summary>
         /// Gets or sets the secondary postal address of the user (optional).
@@ -58,11 +57,10 @@ namespace BackendBiblioMate.Models
         public string? Address2 { get; set; }
 
         /// <summary>
-        /// Gets or sets the phone number of the user.
+        /// Gets or sets the phone number of the user (optional).
         /// </summary>
-        [Required(ErrorMessage = "Phone is required.")]
         [Phone(ErrorMessage = "Phone must be a valid phone number.")]
-        public string Phone { get; set; } = string.Empty;
+        public string? Phone { get; set; }
 
         /// <summary>
         /// Gets or sets the date of birth of the user (optional).
@@ -72,7 +70,7 @@ namespace BackendBiblioMate.Models
         /// <summary>
         /// Gets or sets the profile image path or URL of the user (optional).
         /// </summary>
-        [StringLength(1000, ErrorMessage = "Profile image path cannot exceed 1000 characters.")]
+        [StringLength(2000, ErrorMessage = "Profile image path cannot exceed 2000 characters.")]
         public string? ProfileImagePath { get; set; }
 
         /// <summary>

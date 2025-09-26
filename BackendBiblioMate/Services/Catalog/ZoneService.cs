@@ -17,7 +17,7 @@ namespace BackendBiblioMate.Services.Catalog
         /// <summary>
         /// Initializes a new instance of the <see cref="ZoneService"/> class.
         /// </summary>
-        /// <param name="context">EF Core database context.</param>
+        /// <param name="context">The EF Core database context.</param>
         public ZoneService(BiblioMateDbContext context)
         {
             _context = context;
@@ -26,11 +26,11 @@ namespace BackendBiblioMate.Services.Catalog
         /// <summary>
         /// Retrieves all zones with pagination.
         /// </summary>
-        /// <param name="page">Page number (1-based).</param>
+        /// <param name="page">Page index (1-based).</param>
         /// <param name="pageSize">Number of items per page.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// An <see cref="IEnumerable{ZoneReadDto}"/> containing the paginated results.
+        /// An <see cref="IEnumerable{ZoneReadDto}"/> containing the requested page of zones.
         /// </returns>
         public async Task<IEnumerable<ZoneReadDto>> GetAllAsync(
             int page,
@@ -70,7 +70,9 @@ namespace BackendBiblioMate.Services.Catalog
         /// </summary>
         /// <param name="dto">Data transfer object containing zone creation data.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>The created <see cref="ZoneReadDto"/>.</returns>
+        /// <returns>
+        /// The created <see cref="ZoneReadDto"/>.
+        /// </returns>
         public async Task<ZoneReadDto> CreateAsync(
             ZoneCreateDto dto,
             CancellationToken cancellationToken = default)
@@ -103,7 +105,7 @@ namespace BackendBiblioMate.Services.Catalog
         /// <param name="dto">Data transfer object containing updated zone data.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>true</c> if the update was successful; <c>false</c> if the zone was not found.
+        /// <c>true</c> if the update was successful; otherwise <c>false</c> if the zone was not found.
         /// </returns>
         public async Task<bool> UpdateAsync(
             int id,
@@ -130,7 +132,7 @@ namespace BackendBiblioMate.Services.Catalog
         /// <param name="id">Identifier of the zone to delete.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
-        /// <c>true</c> if the deletion was successful; <c>false</c> if the zone was not found.
+        /// <c>true</c> if the deletion was successful; otherwise <c>false</c> if the zone was not found.
         /// </returns>
         public async Task<bool> DeleteAsync(
             int id,

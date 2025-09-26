@@ -6,6 +6,7 @@ using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace BackendBiblioMate.Services.Catalog
 {
@@ -13,23 +14,23 @@ namespace BackendBiblioMate.Services.Catalog
     {
         private readonly BiblioMateDbContext _db;
         private readonly ISearchActivityLogService? _searchLog;
+        private readonly ILocationService? _location;
+        private readonly IStockService? _stockSvc;
 
         public BookService(
             BiblioMateDbContext db,
-            ISearchActivityLogService? searchLog)
+            ISearchActivityLogService? searchLog,
+            ILocationService? location = null,
+            IStockService? stockSvc = null)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
-            _searchLog = searchLog; // peut être null si non configuré
+            _searchLog = searchLog;
+            _location = location;
+            _stockSvc = stockSvc;
         }
 
         #region Projection unique -> DTO
 
-        /// <summary>
-        /// Projection unique réutilisée partout (liste/détail/recherche).
-        /// Localisation : Zone/Shelf/ShelfLevel.
-        /// Disponibilité : Quantity - prêts actifs (ReturnDate == null) > 0.
-        /// IMPORTANT : on compte une clé non nulle (LoanId) pour éviter les faux "1" dus aux LEFT JOIN.
-        /// </summary>
         private Expression<Func<Book, BookReadDto>> ReadProjection => b => new BookReadDto
         {
             BookId = b.BookId,
@@ -50,14 +51,20 @@ namespace BackendBiblioMate.Services.Catalog
                     -
                     _db.Loans
                         .Where(l => l.BookId == b.BookId && l.ReturnDate == null)
-                        .Select(l => (int?)l.LoanId) // COUNT(LoanId) -> ignore NULL
+                        .Select(l => (int?)l.LoanId)
                         .Count()
                 ) > 0,
+
+            // 🔥 Nouveau champ exposé
+            StockQuantity = _db.Stocks
+                .Where(s => s.BookId == b.BookId)
+                .Select(s => (int?)s.Quantity)
+                .FirstOrDefault() ?? 0,
 
             CoverUrl = b.CoverUrl,
             Description = b.Description,
 
-            // Localisation aplatie (si tu as des nulls, on pourra la rendre null-safe)
+            // Localisation aplatie
             Floor = b.ShelfLevel.Shelf.Zone.FloorNumber,
             Aisle = b.ShelfLevel.Shelf.Zone.AisleCode,
             Rayon = b.ShelfLevel.Shelf.Name,
@@ -69,17 +76,16 @@ namespace BackendBiblioMate.Services.Catalog
 
         #endregion
 
-        #region Lecture
+        #region Lecture (inchangé)
 
         public async Task<(PagedResult<BookReadDto> Page, string? ETag, IActionResult? NotModified)>
             GetPagedAsync(int pageNumber, int pageSize, string sortBy, bool ascending, CancellationToken ct = default)
         {
             pageNumber = Math.Max(1, pageNumber);
-            pageSize = Math.Clamp(pageSize, 1, 100);
+            pageSize   = Math.Clamp(pageSize, 1, 100);
 
             var baseQuery = _db.Books.AsNoTracking();
 
-            // Tri
             IOrderedQueryable<Book> ordered = (sortBy ?? "Title").ToLowerInvariant() switch
             {
                 "bookid" or "id" => ascending ? baseQuery.OrderBy(b => b.BookId) : baseQuery.OrderByDescending(b => b.BookId),
@@ -98,8 +104,7 @@ namespace BackendBiblioMate.Services.Catalog
                 .ToListAsync(ct);
 
             var page = PagedResult<BookReadDto>.Create(items, pageNumber, pageSize, totalCount);
-
-            return (page, null, null); // ETag non géré ici
+            return (page, null, null);
         }
 
         public async Task<BookReadDto?> GetByIdAsync(int id, CancellationToken ct = default) =>
@@ -149,7 +154,6 @@ namespace BackendBiblioMate.Services.Catalog
             if (dto.YearMin.HasValue) q = q.Where(b => b.PublicationDate.Year >= dto.YearMin.Value);
             if (dto.YearMax.HasValue) q = q.Where(b => b.PublicationDate.Year <= dto.YearMax.Value);
 
-            // Filtre disponible/indisponible (même formule que dans la projection)
             if (dto.IsAvailable.HasValue)
             {
                 if (dto.IsAvailable.Value)
@@ -207,13 +211,6 @@ namespace BackendBiblioMate.Services.Catalog
 
             var results = await q.Select(ReadProjection).ToListAsync(ct);
 
-            // Logging optionnel (laisse commenté si le service n’est pas branché)
-            // if (userId.HasValue && _searchLog != null)
-            // {
-            //     try { await _searchLog.LogAsync(userId.Value, dto, results.Count, ct); }
-            //     catch { /* non bloquant */ }
-            // }
-
             return results;
         }
 
@@ -229,6 +226,23 @@ namespace BackendBiblioMate.Services.Catalog
 
         public async Task<BookReadDto> CreateAsync(BookCreateDto dto, CancellationToken ct = default)
         {
+            int shelfLevelId;
+            if (dto.ShelfLevelId.HasValue)
+            {
+                shelfLevelId = dto.ShelfLevelId.Value;
+            }
+            else if (dto.Location is not null)
+            {
+                if (_location is null)
+                    throw new InvalidOperationException("Location service is not configured, but Location payload was provided.");
+                var loc = await _location.EnsureAsync(dto.Location, ct);
+                shelfLevelId = loc.ShelfLevelId;
+            }
+            else
+            {
+                throw new ValidationException("Either ShelfLevelId or Location must be provided.");
+            }
+
             var book = new Book
             {
                 Title = dto.Title,
@@ -238,22 +252,13 @@ namespace BackendBiblioMate.Services.Catalog
                 AuthorId = dto.AuthorId,
                 GenreId = dto.GenreId,
                 EditorId = dto.EditorId,
-                ShelfLevelId = dto.ShelfLevelId,
+                ShelfLevelId = shelfLevelId,
                 CoverUrl = dto.CoverUrl
             };
 
             _db.Books.Add(book);
             await _db.SaveChangesAsync(ct);
 
-            // Stock initial si absent → 0
-            var stock = await _db.Stocks.FirstOrDefaultAsync(s => s.BookId == book.BookId, ct);
-            if (stock == null)
-            {
-                _db.Stocks.Add(new Stock { BookId = book.BookId, Quantity = 0 });
-                await _db.SaveChangesAsync(ct);
-            }
-
-            // Tags
             if (dto.TagIds is { Count: > 0 })
             {
                 foreach (var tagId in dto.TagIds.Distinct())
@@ -262,7 +267,21 @@ namespace BackendBiblioMate.Services.Catalog
                 await _db.SaveChangesAsync(ct);
             }
 
-            // Retourne le DTO projeté (avec dispo calculée)
+            var stock = await _db.Stocks.FirstOrDefaultAsync(s => s.BookId == book.BookId, ct);
+            if (stock == null)
+            {
+                stock = new Stock { BookId = book.BookId, Quantity = dto.StockQuantity ?? 0 };
+                _db.Stocks.Add(stock);
+            }
+            else if (dto.StockQuantity.HasValue)
+            {
+                stock.Quantity = dto.StockQuantity.Value;
+                _db.Stocks.Update(stock);
+            }
+
+            if (_stockSvc != null) _stockSvc.UpdateAvailability(stock);
+            await _db.SaveChangesAsync(ct);
+
             return await _db.Books.AsNoTracking()
                 .Where(b => b.BookId == book.BookId)
                 .Select(ReadProjection)
@@ -284,7 +303,6 @@ namespace BackendBiblioMate.Services.Catalog
             b.ShelfLevelId = dto.ShelfLevelId;
             b.CoverUrl = dto.CoverUrl;
 
-            // Tags (remplace)
             if (dto.TagIds != null)
             {
                 var current = _db.BookTags.Where(bt => bt.BookId == id);
@@ -292,6 +310,17 @@ namespace BackendBiblioMate.Services.Catalog
 
                 foreach (var tagId in dto.TagIds.Distinct())
                     _db.BookTags.Add(new BookTag { BookId = id, TagId = tagId });
+            }
+            
+            if (dto.StockQuantity.HasValue)
+            {
+                var stock = await _db.Stocks.FirstOrDefaultAsync(s => s.BookId == id, ct);
+                if (stock != null)
+                {
+                    stock.Quantity = dto.StockQuantity.Value;
+                    if (_stockSvc != null) _stockSvc.UpdateAvailability(stock);
+                    _db.Stocks.Update(stock);
+                }
             }
 
             await _db.SaveChangesAsync(ct);
@@ -303,7 +332,6 @@ namespace BackendBiblioMate.Services.Catalog
             var b = await _db.Books.FirstOrDefaultAsync(x => x.BookId == id, ct);
             if (b == null) return false;
 
-            // dépendances simples
             var tags = _db.BookTags.Where(bt => bt.BookId == id);
             _db.BookTags.RemoveRange(tags);
 
@@ -318,4 +346,3 @@ namespace BackendBiblioMate.Services.Catalog
         #endregion
     }
 }
-

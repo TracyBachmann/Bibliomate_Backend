@@ -1,5 +1,4 @@
 using BackendBiblioMate.Models;
-using BackendBiblioMate.Services;
 using BackendBiblioMate.Services.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -8,8 +7,8 @@ namespace BackendBiblioMate.Data
 {
     /// <summary>
     /// Entity Framework Core database context for BiblioMate.
-    /// Configures entity sets, indexes, relationships, and
-    /// encryption of sensitive fields.
+    /// Manages entity sets, relationships, indexes, constraints,
+    /// and encryption of sensitive fields using <see cref="EncryptionService"/>.
     /// </summary>
     public class BiblioMateDbContext : DbContext
     {
@@ -18,20 +17,16 @@ namespace BackendBiblioMate.Data
         #region Constructor
 
         /// <summary>
-        /// Initializes a new instance of <see cref="BiblioMateDbContext"/>.
+        /// Initializes a new instance of the <see cref="BiblioMateDbContext"/> class.
         /// </summary>
-        /// <param name="options">
-        /// The options to be used by this DbContext.
-        /// </param>
-        /// <param name="encryptionService">
-        /// Service for encrypting and decrypting sensitive user data.
-        /// </param>
+        /// <param name="options">EF Core DbContext configuration options.</param>
+        /// <param name="encryptionService">Service responsible for encrypting sensitive data.</param>
         public BiblioMateDbContext(
             DbContextOptions<BiblioMateDbContext> options,
             EncryptionService encryptionService)
             : base(options)
         {
-            _encryptionService = encryptionService;
+            _encryptionService = encryptionService ?? throw new ArgumentNullException(nameof(encryptionService));
         }
 
         #endregion
@@ -68,30 +63,32 @@ namespace BackendBiblioMate.Data
         #region Model Configuration
 
         /// <summary>
-        /// Configures the EF Core model.
-        /// Defines indexes, relationships, precision, and encryption.
+        /// Configures the EF Core model:
+        /// - Unique constraints & indexes
+        /// - Relationships (1–1, 1–n, n–n)
+        /// - Composite keys
+        /// - Decimal precision
+        /// - Encryption for sensitive fields
         /// </summary>
-        /// <param name="modelBuilder">
-        /// The builder being used to construct the model for this context.
-        /// </param>
+        /// <param name="modelBuilder">The <see cref="ModelBuilder"/> used to configure entities.</param>
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             // 1) Unique constraints & indexes
             ConfigureIndexes(modelBuilder);
 
-            // 2) Decimal precision for fines
+            // 2) Decimal precision for Loan fines
             modelBuilder.Entity<Loan>()
                 .Property(l => l.Fine)
                 .HasColumnType("decimal(10,2)");
 
-            // 3) Loan ↔ Stock (no cascade delete)
+            // 3) Loan → Stock : one Stock can have many Loans (no cascade delete)
             modelBuilder.Entity<Loan>()
                 .HasOne(l => l.Stock)
                 .WithMany(s => s.Loans)
                 .HasForeignKey(l => l.StockId)
                 .OnDelete(DeleteBehavior.NoAction);
 
-            // 4) Many-to-many: BookTag
+            // 4) Book ↔ Tag (many-to-many via BookTag)
             modelBuilder.Entity<BookTag>(entity =>
             {
                 entity.HasKey(bt => new { bt.BookId, bt.TagId });
@@ -104,20 +101,20 @@ namespace BackendBiblioMate.Data
                       .WithMany(t => t.BookTags)
                       .HasForeignKey(bt => bt.TagId);
             });
-            
-            // Book ↔ Stock : 1–1 (Stock porte la FK BookId)
+
+            // 5) Book ↔ Stock : one-to-one (cascade delete)
             modelBuilder.Entity<Book>()
                 .HasOne(b => b.Stock)
                 .WithOne(s => s.Book)
                 .HasForeignKey<Stock>(s => s.BookId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Un seul Stock par Book
+            // Guarantee one Stock per Book
             modelBuilder.Entity<Stock>()
                 .HasIndex(s => s.BookId)
                 .IsUnique();
-            
-            // 5) Restrict delete for Book → Author/Editor/Genre
+
+            // 6) Restrict delete for Book → Author/Editor/Genre
             modelBuilder.Entity<Book>(entity =>
             {
                 entity.HasOne(b => b.Author)
@@ -136,7 +133,7 @@ namespace BackendBiblioMate.Data
                       .OnDelete(DeleteBehavior.Restrict);
             });
 
-            // 6) Composite key: UserGenre
+            // 7) User ↔ Genre : composite key with cascade delete
             modelBuilder.Entity<UserGenre>(entity =>
             {
                 entity.HasKey(ug => new { ug.UserId, ug.GenreId });
@@ -152,20 +149,15 @@ namespace BackendBiblioMate.Data
                       .OnDelete(DeleteBehavior.Cascade);
             });
 
-            // 7) Encrypt sensitive User fields
-            var encString        = CreateEncryptionConverter();
+            // 8) Encrypt sensitive User fields
+            var encString         = CreateEncryptionConverter();
             var encNullableString = CreateNullableEncryptionConverter();
 
             modelBuilder.Entity<User>(entity =>
             {
-                entity.Property(u => u.Address1)
-                      .HasConversion(encString);
-
-                entity.Property(u => u.Address2)
-                      .HasConversion(encNullableString);
-
-                entity.Property(u => u.Phone)
-                      .HasConversion(encString);
+                entity.Property(u => u.Address1).HasConversion(encString);
+                entity.Property(u => u.Address2).HasConversion(encNullableString);
+                entity.Property(u => u.Phone).HasConversion(encString);
             });
 
             base.OnModelCreating(modelBuilder);
@@ -176,11 +168,8 @@ namespace BackendBiblioMate.Data
         #region Private Helpers
 
         /// <summary>
-        /// Configures unique constraints and indexes for entities.
+        /// Configures unique indexes across entities to enforce data integrity.
         /// </summary>
-        /// <param name="modelBuilder">
-        /// The model builder to configure.
-        /// </param>
         private static void ConfigureIndexes(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<User>()
@@ -192,6 +181,7 @@ namespace BackendBiblioMate.Data
             modelBuilder.Entity<Book>().HasIndex(b => b.AuthorId);
             modelBuilder.Entity<Book>().HasIndex(b => b.EditorId);
             modelBuilder.Entity<Book>().HasIndex(b => b.PublicationDate);
+
             modelBuilder.Entity<Book>()
                         .HasIndex(b => b.Isbn)
                         .IsUnique();
@@ -213,18 +203,19 @@ namespace BackendBiblioMate.Data
         /// Builds a value converter that encrypts/decrypts non-null string properties.
         /// </summary>
         private ValueConverter<string, string> CreateEncryptionConverter()
-            => new ValueConverter<string, string>(
+            => new(
                 v => _encryptionService.Encrypt(v),
                 v => _encryptionService.Decrypt(v)
             );
+
 
         /// <summary>
         /// Builds a value converter that encrypts/decrypts nullable string properties.
         /// </summary>
         private ValueConverter<string?, string?> CreateNullableEncryptionConverter()
-            => new ValueConverter<string?, string?>(
-                v => v == null ? null : _encryptionService.Encrypt(v),
-                v => v == null ? null : _encryptionService.Decrypt(v)
+            => new(
+                v => string.IsNullOrEmpty(v) ? null : _encryptionService.Encrypt(v),
+                v => string.IsNullOrEmpty(v) ? null : _encryptionService.Decrypt(v)
             );
 
         #endregion

@@ -3,13 +3,13 @@
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to initialize stock for a book.
+    /// Data Transfer Object used to initialize stock for a book.
     /// Contains the book identifier and the initial quantity to set.
     /// </summary>
     public class StockCreateDto
     {
         /// <summary>
-        /// Gets the identifier of the book for which stock is being created.
+        /// Gets or sets the identifier of the book for which stock is being created.
         /// </summary>
         /// <example>42</example>
         [Required(ErrorMessage = "BookId is required.")]
@@ -17,7 +17,7 @@ namespace BackendBiblioMate.DTOs
         public int BookId { get; init; }
 
         /// <summary>
-        /// Gets the initial quantity of the book to add to stock.
+        /// Gets or sets the initial quantity of the book to add to stock.
         /// </summary>
         /// <remarks>
         /// Must be zero or a positive integer.

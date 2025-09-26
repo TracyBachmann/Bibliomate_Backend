@@ -153,5 +153,40 @@ namespace BackendBiblioMate.Services.Catalog
             AuthorId = author.AuthorId,
             Name     = author.Name
         };
+        
+        public async Task<IEnumerable<AuthorReadDto>> SearchAsync(string? search, int take, CancellationToken ct)
+        {
+            var q = _db.Authors.AsNoTracking();
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var s = search.Trim().ToLower();
+                q = q.Where(a => a.Name.ToLower().Contains(s));
+            }
+            return await q.OrderBy(a => a.Name)
+                .Take(Math.Clamp(take, 1, 100))
+                .Select(a => new AuthorReadDto { AuthorId = a.AuthorId, Name = a.Name })
+                .ToListAsync(ct);
+        }
+
+        public async Task<(AuthorReadDto Dto, bool Created)> EnsureAsync(string name, CancellationToken ct)
+        {
+            var normalized = (name ?? "").Trim();
+            if (normalized.Length < 2) throw new ArgumentException("Name too short", nameof(name));
+
+            var existing = await _db.Authors
+                .AsNoTracking()
+                .Where(a => a.Name.ToLower() == normalized.ToLower())
+                .Select(a => new AuthorReadDto { AuthorId = a.AuthorId, Name = a.Name })
+                .FirstOrDefaultAsync(ct);
+
+            if (existing != null) return (existing, false);
+
+            var entity = new Author { Name = normalized };
+            _db.Authors.Add(entity);
+            await _db.SaveChangesAsync(ct);
+
+            return (new AuthorReadDto { AuthorId = entity.AuthorId, Name = entity.Name }, true);
+        }
+
     }
 }

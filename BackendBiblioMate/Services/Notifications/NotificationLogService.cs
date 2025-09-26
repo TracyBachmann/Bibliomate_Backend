@@ -6,40 +6,49 @@ using BackendBiblioMate.Interfaces;
 namespace BackendBiblioMate.Services.Notifications
 {
     /// <summary>
-    /// Service for logging notification events to MongoDB and retrieving them by user.
+    /// Default implementation of <see cref="INotificationLogService"/>.
+    /// Responsible for persisting notification log entries in MongoDB
+    /// and retrieving them for a specific user.
     /// </summary>
     public class NotificationLogService : INotificationLogService
     {
         private readonly IMongoCollection<NotificationLogDocument> _collection;
 
         /// <summary>
-        /// Initializes a new instance of <see cref="NotificationLogService"/>.
+        /// Initializes a new instance of the <see cref="NotificationLogService"/> class.
+        /// Establishes a MongoDB connection and retrieves the notification log collection.
         /// </summary>
-        /// <param name="config">Application configuration containing MongoDB settings.</param>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="config"/> is null.</exception>
-        /// <exception cref="InvalidOperationException">Thrown if MongoDB settings are missing.</exception>
+        /// <param name="config">The application configuration containing MongoDB connection settings.</param>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="config"/> is <c>null</c>.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown if required MongoDB settings (<c>MongoDb:ConnectionString</c> or <c>MongoDb:DatabaseName</c>) are missing.
+        /// </exception>
         public NotificationLogService(IConfiguration config)
         {
-            if (config == null) throw new ArgumentNullException(nameof(config));
+            if (config == null)
+                throw new ArgumentNullException(nameof(config));
 
             var connectionString = config["MongoDb:ConnectionString"];
             var databaseName     = config["MongoDb:DatabaseName"];
+
             if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(databaseName))
                 throw new InvalidOperationException("MongoDB settings missing.");
 
-            var client = new MongoClient(connectionString);
+            var client   = new MongoClient(connectionString);
             var database = client.GetDatabase(databaseName);
+
             _collection = database.GetCollection<NotificationLogDocument>("NotificationLogs");
         }
 
         /// <summary>
-        /// Inserts a new notification log entry for the specified user.
+        /// Creates and inserts a new notification log entry into MongoDB.
         /// </summary>
-        /// <param name="userId">Identifier of the user who received the notification.</param>
-        /// <param name="type">Type of the notification sent.</param>
-        /// <param name="message">Content of the notification message.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
-        /// <returns>Asynchronous task representing the insert operation.</returns>
+        /// <param name="userId">The identifier of the user who received the notification.</param>
+        /// <param name="type">The type of the notification (e.g., reminder, overdue, system alert).</param>
+        /// <param name="message">The message content of the notification.</param>
+        /// <param name="cancellationToken">Token to monitor cancellation of the asynchronous operation.</param>
+        /// <returns>A <see cref="Task"/> representing the asynchronous insert operation.</returns>
+        /// <exception cref="ArgumentException">Thrown if <paramref name="message"/> is null or whitespace.</exception>
         public async Task LogAsync(
             int userId,
             NotificationType type,
@@ -61,20 +70,19 @@ namespace BackendBiblioMate.Services.Notifications
         }
 
         /// <summary>
-        /// Retrieves all notification log entries for the specified user, ordered by most recent first.
+        /// Retrieves all notification logs for a specific user, ordered by most recent first.
         /// </summary>
-        /// <param name="userId">Identifier of the user whose logs are retrieved.</param>
-        /// <param name="cancellationToken">Token to monitor cancellation of the operation.</param>
+        /// <param name="userId">The identifier of the user whose logs should be retrieved.</param>
+        /// <param name="cancellationToken">Token to monitor cancellation of the asynchronous operation.</param>
         /// <returns>
-        /// List of <see cref="NotificationLogDocument"/> for the user,
+        /// A list of <see cref="NotificationLogDocument"/> objects corresponding to the user,
         /// sorted in descending order by <see cref="NotificationLogDocument.SentAt"/>.
         /// </returns>
         public async Task<List<NotificationLogDocument>> GetByUserAsync(
             int userId,
             CancellationToken cancellationToken = default)
         {
-            var filter = Builders<NotificationLogDocument>
-                .Filter.Eq(d => d.UserId, userId);
+            var filter = Builders<NotificationLogDocument>.Filter.Eq(d => d.UserId, userId);
 
             using var cursor = await _collection.FindAsync(filter, options: null, cancellationToken);
             var all = new List<NotificationLogDocument>();

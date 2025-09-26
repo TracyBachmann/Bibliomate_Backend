@@ -3,13 +3,13 @@ using System.ComponentModel.DataAnnotations;
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to update an existing tag.
+    /// Data Transfer Object used to update an existing tag.
     /// Contains the identifier and the new name for the tag.
     /// </summary>
     public class TagUpdateDto
     {
         /// <summary>
-        /// Gets the unique identifier of the tag to update.
+        /// Gets or sets the unique identifier of the tag to update.
         /// </summary>
         /// <example>10</example>
         [Required(ErrorMessage = "TagId is required.")]
@@ -17,7 +17,7 @@ namespace BackendBiblioMate.DTOs
         public int TagId { get; init; }
 
         /// <summary>
-        /// Gets the updated name of the tag.
+        /// Gets or sets the updated name of the tag.
         /// </summary>
         /// <remarks>
         /// Must be between 1 and 50 characters.

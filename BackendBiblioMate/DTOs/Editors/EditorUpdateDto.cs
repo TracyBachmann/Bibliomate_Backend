@@ -3,13 +3,13 @@ using System.ComponentModel.DataAnnotations;
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to update an existing editor (publisher).
-    /// Contains the minimal information that can be modified for an editor.
+    /// Data Transfer Object used to update an existing editor (publisher).
+    /// Contains the editable information for an editor record.
     /// </summary>
     public class EditorUpdateDto
     {
         /// <summary>
-        /// Gets the new name of the editor or publisher.
+        /// Gets or sets the new name of the editor or publisher.
         /// </summary>
         /// <remarks>
         /// Must be between 2 and 100 characters.

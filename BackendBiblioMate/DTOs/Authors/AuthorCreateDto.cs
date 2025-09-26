@@ -3,16 +3,17 @@ using System.ComponentModel.DataAnnotations;
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to create a new author.
+    /// Data Transfer Object used when creating a new author.
     /// Contains the minimal required information for author creation.
     /// </summary>
     public class AuthorCreateDto
     {
         /// <summary>
-        /// Gets the full name of the author.
+        /// Gets or sets the full name of the author.
         /// </summary>
         /// <remarks>
-        /// Must be between 2 and 100 characters.
+        /// - Required field.  
+        /// - Must be between 2 and 100 characters.  
         /// </remarks>
         /// <example>J.K. Rowling</example>
         [Required(ErrorMessage = "Author name is required.")]

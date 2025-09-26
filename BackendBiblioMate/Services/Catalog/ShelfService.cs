@@ -127,7 +127,7 @@ namespace BackendBiblioMate.Services.Catalog
             ShelfUpdateDto dto,
             CancellationToken cancellationToken = default)
         {
-            var entity = await _context.Shelves.FindAsync(new object[] { dto.ShelfId }, cancellationToken);
+            var entity = await _context.Shelves.FindAsync([dto.ShelfId], cancellationToken);
             if (entity is null)
                 return false;
 
@@ -152,7 +152,7 @@ namespace BackendBiblioMate.Services.Catalog
             int id,
             CancellationToken cancellationToken = default)
         {
-            var entity = await _context.Shelves.FindAsync(new object[] { id }, cancellationToken);
+            var entity = await _context.Shelves.FindAsync([id], cancellationToken);
             if (entity is null)
                 return false;
 

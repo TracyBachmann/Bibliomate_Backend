@@ -4,7 +4,7 @@ using System.Text;
 namespace BackendBiblioMate.Services.Infrastructure.Security
 {
     /// <summary>
-    /// Provides AES-256-CBC encryption and decryption for sensitive strings.
+    /// Provides AES-256-CBC encryption and decryption for sensitive string data.
     /// </summary>
     public class EncryptionService
     {
@@ -14,10 +14,10 @@ namespace BackendBiblioMate.Services.Infrastructure.Security
         /// Initializes a new instance of the <see cref="EncryptionService"/> class.
         /// </summary>
         /// <param name="config">
-        /// Application configuration; must contain a Base64-encoded 32-byte key under "Encryption:Key".
+        /// Application configuration; must contain a Base64-encoded 32-byte key under <c>Encryption:Key</c>.
         /// </param>
         /// <exception cref="ArgumentNullException">
-        /// Thrown if <paramref name="config"/> is null.
+        /// Thrown if <paramref name="config"/> is <c>null</c>.
         /// </exception>
         /// <exception cref="InvalidOperationException">
         /// Thrown if the key is missing, not valid Base64, or not exactly 32 bytes when decoded.
@@ -47,7 +47,7 @@ namespace BackendBiblioMate.Services.Infrastructure.Security
         /// Encrypts the specified plaintext using AES-256-CBC.
         /// </summary>
         /// <param name="plain">
-        /// The plaintext to encrypt. If null or empty, returns an empty string.
+        /// The plaintext string to encrypt. If <c>null</c> or empty, returns an empty string.
         /// </param>
         /// <returns>
         /// A Base64-encoded string containing the IV concatenated with the ciphertext.
@@ -64,10 +64,10 @@ namespace BackendBiblioMate.Services.Infrastructure.Security
             var plainBytes  = Encoding.UTF8.GetBytes(plain);
             var cipherBytes = encryptor.TransformFinalBlock(plainBytes, 0, plainBytes.Length);
 
-            // Prepend IV
+            // Prepend IV to ciphertext
             var combined = new byte[aes.IV.Length + cipherBytes.Length];
-            Buffer.BlockCopy(aes.IV,       0, combined, 0,           aes.IV.Length);
-            Buffer.BlockCopy(cipherBytes,  0, combined, aes.IV.Length, cipherBytes.Length);
+            Buffer.BlockCopy(aes.IV,        0, combined, 0,             aes.IV.Length);
+            Buffer.BlockCopy(cipherBytes,   0, combined, aes.IV.Length, cipherBytes.Length);
 
             return Convert.ToBase64String(combined);
         }
@@ -76,14 +76,14 @@ namespace BackendBiblioMate.Services.Infrastructure.Security
         /// Decrypts the specified Base64-encoded IV+ciphertext string using AES-256-CBC.
         /// </summary>
         /// <param name="cipher">
-        /// The Base64-encoded payload (IV + ciphertext). If null or empty, returns an empty string.
+        /// The Base64-encoded payload (IV + ciphertext). If <c>null</c> or empty, returns an empty string.
         /// </param>
         /// <returns>The decrypted plaintext string.</returns>
         /// <exception cref="FormatException">
         /// Thrown if <paramref name="cipher"/> is not valid Base64.
         /// </exception>
         /// <exception cref="CryptographicException">
-        /// Thrown if decryption fails (e.g. tampered data).
+        /// Thrown if decryption fails (e.g. tampered or invalid data).
         /// </exception>
         public string Decrypt(string? cipher)
         {
@@ -98,7 +98,7 @@ namespace BackendBiblioMate.Services.Infrastructure.Security
             var iv          = new byte[ivLen];
             var cipherBytes = new byte[fullCipher.Length - ivLen];
 
-            Buffer.BlockCopy(fullCipher, 0, iv,          0, ivLen);
+            Buffer.BlockCopy(fullCipher, 0,      iv,          0, ivLen);
             Buffer.BlockCopy(fullCipher, ivLen, cipherBytes, 0, cipherBytes.Length);
 
             aes.IV = iv;
@@ -109,13 +109,12 @@ namespace BackendBiblioMate.Services.Infrastructure.Security
         }
 
         /// <summary>
-        /// Creates a pre-configured  Aes instance for AES-256-CBC.
+        /// Creates and configures a new <see cref="Aes"/> instance for AES-256-CBC.
         /// </summary>
-        /// <returns>
-        /// An Aes object with Aes.Key, Aes.Mode, and Aes.Padding set.
-        /// </returns>
-        /// CryptographicException>
+        /// <returns>A configured <see cref="Aes"/> instance.</returns>
+        /// <exception cref="CryptographicException">
         /// Thrown if the AES algorithm cannot be instantiated.
+        /// </exception>
         private Aes CreateAes()
         {
             var aes = Aes.Create()

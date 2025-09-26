@@ -11,7 +11,7 @@ using Swashbuckle.AspNetCore.Annotations;
 namespace BackendBiblioMate.Controllers
 {
     /// <summary>
-    /// Controller for managing stock entries (inventory).
+    /// API controller for managing stock entries (inventory).
     /// Provides CRUD operations and quantity adjustments for <see cref="StockReadDto"/>.
     /// </summary>
     [ApiController]
@@ -39,6 +39,14 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Retrieves all stock entries with optional pagination.
         /// </summary>
+        /// <remarks>
+        /// - Accessible to authenticated users.  
+        /// - Supports pagination using <paramref name="page"/> and <paramref name="pageSize"/>.  
+        /// </remarks>
+        /// <param name="page">Page index (1-based). Default is 1.</param>
+        /// <param name="pageSize">Number of items per page. Default is 10.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <returns><c>200 OK</c> with a list of <see cref="StockReadDto"/>.</returns>
         [HttpGet, Authorize]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
@@ -74,6 +82,16 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Retrieves a specific stock entry by its identifier.
         /// </summary>
+        /// <remarks>
+        /// - Accessible to authenticated users.  
+        /// - Returns <c>404 Not Found</c> if the stock entry does not exist.  
+        /// </remarks>
+        /// <param name="id">The stock entry identifier.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <returns>
+        /// <c>200 OK</c> with the stock entry.  
+        /// <c>404 Not Found</c> if the stock entry does not exist.  
+        /// </returns>
         [HttpGet("{id}"), Authorize]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
@@ -109,6 +127,16 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Creates a new stock entry.
         /// </summary>
+        /// <remarks>
+        /// - Accessible to <c>Librarian</c> and <c>Admin</c> roles.  
+        /// - A stock entry for a given book must be unique.  
+        /// </remarks>
+        /// <param name="dto">The stock creation data.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <returns>
+        /// <c>201 Created</c> with the created stock entry.  
+        /// <c>409 Conflict</c> if a stock entry already exists for the specified book.  
+        /// </returns>
         [HttpPost, Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
@@ -154,6 +182,18 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Updates an existing stock entry.
         /// </summary>
+        /// <remarks>
+        /// - Accessible to <c>Librarian</c> and <c>Admin</c> roles.  
+        /// - The <paramref name="id"/> must match <see cref="StockUpdateDto.StockId"/>.  
+        /// </remarks>
+        /// <param name="id">The stock entry identifier.</param>
+        /// <param name="dto">The updated stock data.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <returns>
+        /// <c>204 No Content</c> if updated successfully.  
+        /// <c>400 Bad Request</c> if IDs mismatch.  
+        /// <c>404 Not Found</c> if the stock entry does not exist.  
+        /// </returns>
         [HttpPut("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
@@ -172,7 +212,7 @@ namespace BackendBiblioMate.Controllers
             if (id != dto.StockId)
                 return BadRequest(new { error = "Route ID and payload StockId do not match." });
 
-            var e = await _context.Stocks.FindAsync(new object[] { id }, cancellationToken);
+            var e = await _context.Stocks.FindAsync([id], cancellationToken);
             if (e == null)
                 return NotFound();
 
@@ -186,6 +226,19 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Adjusts the quantity of a stock entry.
         /// </summary>
+        /// <remarks>
+        /// - Accessible to <c>Librarian</c> and <c>Admin</c> roles.  
+        /// - Adjustment must not result in a negative quantity.  
+        /// - Adjustment value cannot be zero.  
+        /// </remarks>
+        /// <param name="id">The stock entry identifier.</param>
+        /// <param name="dto">The adjustment data (positive or negative integer).</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <returns>
+        /// <c>200 OK</c> with the new quantity.  
+        /// <c>400 Bad Request</c> if adjustment is invalid.  
+        /// <c>404 Not Found</c> if the stock entry does not exist.  
+        /// </returns>
         [HttpPatch("{id}/adjustQuantity"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
@@ -204,7 +257,7 @@ namespace BackendBiblioMate.Controllers
             if (dto.Adjustment == 0)
                 return BadRequest(new { message = "Adjustment cannot be zero." });
 
-            var e = await _context.Stocks.FindAsync(new object[] { id }, cancellationToken);
+            var e = await _context.Stocks.FindAsync([id], cancellationToken);
             if (e == null)
                 return NotFound();
 
@@ -224,6 +277,16 @@ namespace BackendBiblioMate.Controllers
         /// <summary>
         /// Deletes a stock entry.
         /// </summary>
+        /// <remarks>
+        /// - Accessible to <c>Librarian</c> and <c>Admin</c> roles.  
+        /// - Permanently removes the stock record from the database.  
+        /// </remarks>
+        /// <param name="id">The stock entry identifier.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <returns>
+        /// <c>204 No Content</c> if successfully deleted.  
+        /// <c>404 Not Found</c> if the stock entry does not exist.  
+        /// </returns>
         [HttpDelete("{id}"), Authorize(Roles = UserRoles.Admin + "," + UserRoles.Librarian)]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
@@ -237,7 +300,7 @@ namespace BackendBiblioMate.Controllers
             [FromRoute] int id,
             CancellationToken cancellationToken = default)
         {
-            var e = await _context.Stocks.FindAsync(new object[] { id }, cancellationToken);
+            var e = await _context.Stocks.FindAsync([id], cancellationToken);
             if (e == null)
                 return NotFound();
 

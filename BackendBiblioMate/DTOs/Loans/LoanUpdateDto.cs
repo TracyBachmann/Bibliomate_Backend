@@ -3,13 +3,12 @@ using System.ComponentModel.DataAnnotations;
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to update the due date of an existing loan.
-    /// Contains the new due date to apply to the loan record.
+    /// Data Transfer Object used to update the due date of an existing loan.
     /// </summary>
     public class LoanUpdateDto
     {
         /// <summary>
-        /// Gets the new due date for the loan (UTC).
+        /// Gets or sets the new due date for the loan, in UTC.
         /// </summary>
         /// <example>2025-07-15T10:30:00Z</example>
         [Required(ErrorMessage = "DueDate is required.")]

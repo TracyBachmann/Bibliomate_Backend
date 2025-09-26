@@ -3,13 +3,13 @@
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used for user authentication during login.
-    /// Contains the user’s credentials for obtaining a token.
+    /// Data Transfer Object used for user authentication during login.
+    /// Contains the user’s credentials for obtaining a JWT token.
     /// </summary>
     public class LoginDto
     {
         /// <summary>
-        /// Gets the registered email address of the user.
+        /// Gets or sets the registered email address of the user.
         /// </summary>
         /// <example>user@example.com</example>
         [Required(ErrorMessage = "Email is required.")]
@@ -17,7 +17,7 @@ namespace BackendBiblioMate.DTOs
         public string Email { get; init; } = string.Empty;
 
         /// <summary>
-        /// Gets the password of the user.
+        /// Gets or sets the password of the user.
         /// </summary>
         /// <remarks>
         /// Must be at least 6 characters long.

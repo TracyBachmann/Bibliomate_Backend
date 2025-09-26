@@ -12,7 +12,7 @@ namespace BackendBiblioMate.Services.Infrastructure.External
         /// <summary>
         /// Searches Google Books for the specified term and returns a list of <see cref="BookCreateDto"/>.
         /// </summary>
-        /// <param name="term">The search term (e.g. title, author, ISBN).</param>
+        /// <param name="term">The search term (e.g., title, author, ISBN).</param>
         /// <param name="maxResults">Maximum number of results to retrieve. Default is 20.</param>
         /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
         /// <returns>
@@ -50,25 +50,14 @@ namespace BackendBiblioMate.Services.Infrastructure.External
             _logger     = logger;
         }
 
-        /// <summary>
-        /// Searches Google Books for the specified term and returns a list of <see cref="BookCreateDto"/>.
-        /// </summary>
-        /// <param name="term">The search term (e.g. title, author, ISBN).</param>
-        /// <param name="maxResults">Maximum number of results to retrieve. Default is 20.</param>
-        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
-        /// <returns>
-        /// A <see cref="List{BookCreateDto}"/> containing book data.
-        /// If no items were found, returns an empty list.
-        /// </returns>
+        /// <inheritdoc/>
         public async Task<List<BookCreateDto>> SearchAsync(
             string term,
             int maxResults = 20,
             CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(term))
-            {
                 throw new ArgumentException("Search term must be provided.", nameof(term));
-            }
 
             var url = BuildRequestUrl(term, maxResults);
 
@@ -106,7 +95,7 @@ namespace BackendBiblioMate.Services.Infrastructure.External
         /// Builds the Google Books API request URL with query parameters.
         /// </summary>
         /// <param name="term">Search term.</param>
-        /// <param name="maxResults">Maximum results.</param>
+        /// <param name="maxResults">Maximum results to fetch.</param>
         /// <returns>Full request URL string.</returns>
         private string BuildRequestUrl(string term, int maxResults)
         {
@@ -115,9 +104,7 @@ namespace BackendBiblioMate.Services.Infrastructure.External
                 $"&maxResults={maxResults}");
 
             if (!string.IsNullOrWhiteSpace(_apiKey))
-            {
                 builder.Append($"&key={_apiKey}");
-            }
 
             return builder.ToString();
         }
@@ -166,11 +153,11 @@ namespace BackendBiblioMate.Services.Infrastructure.External
                 Title           = title,
                 Isbn            = isbn,
                 PublicationDate = publicationDate,
-                AuthorId        = 0,               // TODO: upsert author in your domain
+                AuthorId        = 0,               // TODO: upsert author in domain
                 GenreId         = 0,               // TODO: upsert genre
                 EditorId        = 0,               // TODO: upsert editor
                 ShelfLevelId    = 0,               // TODO: assign default shelf level
-                TagIds          = new List<int>(), // TODO: populate tags as needed
+                TagIds          = new List<int>(), // TODO: populate tags if needed
                 CoverUrl        = coverUrl
             };
         }

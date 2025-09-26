@@ -3,12 +3,12 @@
 namespace BackendBiblioMate.DTOs
 {
     /// <summary>
-    /// DTO used to initiate a password reset request.
+    /// Data Transfer Object used to initiate a password reset request.
     /// </summary>
     public class RequestPasswordResetDto
     {
         /// <summary>
-        /// Email address of the user requesting password reset.
+        /// Gets or sets the email address of the user requesting password reset.
         /// </summary>
         /// <example>user@example.com</example>
         [Required(ErrorMessage = "Email is required.")]

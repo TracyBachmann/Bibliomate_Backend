@@ -152,5 +152,44 @@ namespace BackendBiblioMate.Services.Catalog
             EditorId = e.EditorId,
             Name     = e.Name
         };
+        
+        public async Task<IEnumerable<EditorReadDto>> SearchAsync(string? search, int take, CancellationToken ct)
+        {
+            var q = _db.Editors.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var s = search.Trim().ToLower();
+                q = q.Where(e => e.Name.ToLower().Contains(s));
+            }
+
+            take = Math.Clamp(take, 1, 100);
+
+            return await q.OrderBy(e => e.Name)
+                .Take(take)
+                .Select(MapToReadDto)
+                .ToListAsync(ct);
+        }
+
+        public async Task<(EditorReadDto Dto, bool Created)> EnsureAsync(string name, CancellationToken ct)
+        {
+            var normalized = (name ?? "").Trim();
+            if (normalized.Length < 2) throw new ArgumentException("Name too short", nameof(name));
+
+            var existing = await _db.Editors
+                .AsNoTracking()
+                .Where(e => e.Name.ToLower() == normalized.ToLower())
+                .Select(e => new EditorReadDto { EditorId = e.EditorId, Name = e.Name })
+                .FirstOrDefaultAsync(ct);
+
+            if (existing != null) return (existing, false);
+
+            var entity = new Editor { Name = normalized };
+            _db.Editors.Add(entity);
+            await _db.SaveChangesAsync(ct);
+
+            return (new EditorReadDto { EditorId = entity.EditorId, Name = entity.Name }, true);
+        }
+
     }
 }
