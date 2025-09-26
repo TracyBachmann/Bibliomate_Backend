@@ -11,7 +11,8 @@ namespace UnitTestsBiblioMate.Controllers
 {
     /// <summary>
     /// Unit tests for <see cref="RecommendationsController"/>.
-    /// Verifies authorization and successful retrieval of recommendations.
+    /// Verifies authorization rules and successful retrieval of recommendations
+    /// depending on user identity and roles.
     /// </summary>
     public class RecommendationsControllerTest
     {
@@ -19,7 +20,8 @@ namespace UnitTestsBiblioMate.Controllers
         private readonly RecommendationsController    _controller;
 
         /// <summary>
-        /// Initializes mocks and controller for testing.
+        /// Initializes the test class by setting up a mocked <see cref="IRecommendationService"/>
+        /// and an instance of <see cref="RecommendationsController"/>.
         /// </summary>
         public RecommendationsControllerTest()
         {
@@ -28,8 +30,11 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Sets up the controller's user identity and roles.
+        /// Helper method to configure the controller's <see cref="ClaimsPrincipal"/>
+        /// with the provided user ID and role.
         /// </summary>
+        /// <param name="userId">The user ID to set in the claims.</param>
+        /// <param name="role">The role to assign (e.g., <see cref="UserRoles.User"/> or <see cref="UserRoles.Admin"/>).</param>
         private void SetUser(int userId, string role)
         {
             var claims = new[]
@@ -48,7 +53,8 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// A user requesting their own recommendations should receive 200 OK with the list.
+        /// Verifies that a normal user requesting their own recommendations
+        /// receives a 200 OK response containing the expected list of recommendations.
         /// </summary>
         [Fact]
         public async Task GetRecommendations_UserRequestsOwn_ReturnsOk()
@@ -75,7 +81,8 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// An admin requesting any user's recommendations should receive 200 OK with the list.
+        /// Verifies that an administrator requesting recommendations
+        /// for another user receives a 200 OK response with the expected list.
         /// </summary>
         [Fact]
         public async Task GetRecommendations_AdminRequestsOtherUser_ReturnsOk()
@@ -101,7 +108,8 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// A non-admin user requesting another user's recommendations should receive 403 Forbidden.
+        /// Verifies that a normal user attempting to request recommendations
+        /// for another user (not themselves) receives a 403 Forbidden response.
         /// </summary>
         [Fact]
         public async Task GetRecommendations_UserRequestsOtherUser_ReturnsForbid()

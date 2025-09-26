@@ -1,5 +1,4 @@
-﻿// Controllers/LocationsController.cs
-using BackendBiblioMate.DTOs;
+﻿using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Models.Enums;
 using Microsoft.AspNetCore.Authorization;

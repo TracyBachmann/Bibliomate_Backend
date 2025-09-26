@@ -18,7 +18,7 @@ namespace UnitTestsBiblioMate.Controllers
         private readonly NotificationsLogsController _controller;
 
         /// <summary>
-        /// Initializes mocks and controller for testing.
+        /// Initializes the test class with a mocked Mongo logging service.
         /// </summary>
         public NotificationsLogsControllerTest()
         {
@@ -27,7 +27,8 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Ensures GetAll returns 200 OK with a list of log documents.
+        /// Ensures that <see cref="NotificationsLogsController.GetAll"/> returns
+        /// all documents with 200 OK.
         /// </summary>
         [Fact]
         public async Task GetAll_ShouldReturnOkWithLogs()
@@ -35,20 +36,8 @@ namespace UnitTestsBiblioMate.Controllers
             // Arrange
             var logs = new List<NotificationLogDocument>
             {
-                new NotificationLogDocument 
-                { 
-                    Id = "1", 
-                    UserId = 1, 
-                    Type = NotificationType.Custom,
-                    Message = "Msg1" 
-                },
-                new NotificationLogDocument 
-                { 
-                    Id = "2", 
-                    UserId = 2, 
-                    Type = NotificationType.Info,
-                    Message = "Msg2" 
-                }
+                new NotificationLogDocument { Id = "1", UserId = 1, Type = NotificationType.Custom, Message = "Msg1" },
+                new NotificationLogDocument { Id = "2", UserId = 2, Type = NotificationType.Info,   Message = "Msg2" }
             };
             _mongoLogMock
                 .Setup(s => s.GetAllAsync(It.IsAny<CancellationToken>()))
@@ -63,7 +52,8 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Ensures GetById returns 200 OK when the log exists.
+        /// Ensures that <see cref="NotificationsLogsController.GetById"/>
+        /// returns the document when it exists.
         /// </summary>
         [Fact]
         public async Task GetById_ShouldReturnOkWhenFound()
@@ -73,7 +63,7 @@ namespace UnitTestsBiblioMate.Controllers
             {
                 Id      = "abc123",
                 UserId  = 5,
-                Type    = NotificationType.Custom,  // ← enum
+                Type    = NotificationType.Custom,
                 Message = "Hello",
                 SentAt  = DateTime.UtcNow
             };
@@ -90,7 +80,8 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Ensures GetById returns 404 NotFound when the log does not exist.
+        /// Ensures that <see cref="NotificationsLogsController.GetById"/>
+        /// returns 404 NotFound when the document does not exist.
         /// </summary>
         [Fact]
         public async Task GetById_ShouldReturnNotFoundWhenMissing()
@@ -104,11 +95,13 @@ namespace UnitTestsBiblioMate.Controllers
             var action = await _controller.GetById("missing", CancellationToken.None);
 
             // Assert
-            Assert.IsType<NotFoundResult>(action);
+            var nf = Assert.IsType<NotFoundObjectResult>(action);
+            Assert.Contains("not found", nf.Value!.ToString(), StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
-        /// Ensures Create returns 201 Created with location header and the created document.
+        /// Ensures that <see cref="NotificationsLogsController.Create"/> adds
+        /// a new document and returns 201 Created.
         /// </summary>
         [Fact]
         public async Task Create_ShouldReturnCreatedWithDocument()
@@ -117,7 +110,7 @@ namespace UnitTestsBiblioMate.Controllers
             var dto = new NotificationLogCreateDto
             {
                 UserId  = 7,
-                Type    = NotificationType.Warning,  // ← enum
+                Type    = NotificationType.Warning,
                 Message = "Test message",
                 SentAt  = DateTime.UtcNow
             };
@@ -126,7 +119,7 @@ namespace UnitTestsBiblioMate.Controllers
                 .Setup(s => s.AddAsync(It.IsAny<NotificationLogDocument>(), It.IsAny<CancellationToken>()))
                 .Callback<NotificationLogDocument, CancellationToken>((doc, ct) =>
                 {
-                    // simulate Mongo generating an Id
+                    // Simulate Mongo ID generation
                     doc.Id = "new-id";
                     createdDoc = doc;
                 })

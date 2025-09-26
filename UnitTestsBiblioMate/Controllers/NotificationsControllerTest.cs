@@ -28,19 +28,12 @@ namespace UnitTestsBiblioMate.Controllers
         private const int NormalUserId    = 1;
         private const int LibrarianUserId = 2;
 
-        /// <summary>
-        /// Initializes a new instance of <see cref="NotificationsControllerTest"/>.
-        /// Sets up an in-memory database seeded with users and notifications,
-        /// and mocks the notification and log services.
-        /// </summary>
         public NotificationsControllerTest()
         {
-            // Build EF Core in-memory options
             var options = new DbContextOptionsBuilder<BiblioMateDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-            // Provide a dummy EncryptionService (required by the DbContext)
             var encryptionConfig = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
@@ -52,13 +45,11 @@ namespace UnitTestsBiblioMate.Controllers
 
             _context = new BiblioMateDbContext(options, encryptionService);
 
-            // Seed users (✅ FirstName / LastName instead of deprecated Name)
             _context.Users.AddRange(
                 new User { UserId = NormalUserId,    FirstName = "User1", LastName = string.Empty },
                 new User { UserId = LibrarianUserId, FirstName = "Lib1",  LastName = string.Empty }
             );
 
-            // Seed notifications
             _context.Notifications.AddRange(
                 new Notification
                 {
@@ -79,11 +70,9 @@ namespace UnitTestsBiblioMate.Controllers
             );
             _context.SaveChanges();
 
-            // Create mocks
             _notifyMock = new Mock<INotificationService>();
             _logMock    = new Mock<INotificationLogService>();
 
-            // Instantiate controller
             _controller = new NotificationsController(
                 _context,
                 _notifyMock.Object,
@@ -91,36 +80,19 @@ namespace UnitTestsBiblioMate.Controllers
             );
         }
 
-        /// <summary>
-        /// Tears down in-memory context.
-        /// </summary>
         public void Dispose() => _context.Dispose();
 
-        /// <summary>
-        /// Configures the controller's HttpContext with a user identity.
-        /// </summary>
-        /// <param name="userId">The user ID to set on the claims.</param>
-        /// <param name="roles">Optional roles to include in the claims.</param>
         private void SetUser(int userId, params string[] roles)
         {
-            var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.NameIdentifier, userId.ToString())
-            };
+            var claims = new List<Claim> { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) };
             claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
             var identity = new ClaimsIdentity(claims, "test");
             _controller.ControllerContext = new ControllerContext
             {
-                HttpContext = new DefaultHttpContext
-                {
-                    User = new ClaimsPrincipal(identity)
-                }
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) }
             };
         }
 
-        /// <summary>
-        /// When called by a normal user, GetNotifications should return only that user's notifications.
-        /// </summary>
         [Fact]
         public async Task GetNotifications_AsNormalUser_ReturnsOnlyOwn()
         {
@@ -133,9 +105,6 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.All(list, dto => Assert.Equal(NormalUserId, dto.UserId));
         }
 
-        /// <summary>
-        /// When called by a librarian, GetNotifications should return all notifications.
-        /// </summary>
         [Fact]
         public async Task GetNotifications_AsLibrarian_ReturnsAll()
         {
@@ -148,9 +117,6 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal(2, list.Count());
         }
 
-        /// <summary>
-        /// Getting a non-existent notification should return 404 NotFound.
-        /// </summary>
         [Fact]
         public async Task GetNotification_NotFound_Returns404()
         {
@@ -161,9 +127,6 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.IsType<NotFoundResult>(action.Result);
         }
 
-        /// <summary>
-        /// A normal user requesting another user's notification should get 403 Forbidden.
-        /// </summary>
         [Fact]
         public async Task GetNotification_ForbiddenForNormalUser_WhenOtherUser()
         {
@@ -174,9 +137,6 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.IsType<ForbidResult>(action.Result);
         }
 
-        /// <summary>
-        /// A librarian requesting any notification should get 200 OK with the DTO.
-        /// </summary>
         [Fact]
         public async Task GetNotification_AsLibrarian_Returns200()
         {
@@ -189,9 +149,6 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal(10, dto.NotificationId);
         }
 
-        /// <summary>
-        /// Creating a notification as librarian should persist it, dispatch via SignalR, and log the event.
-        /// </summary>
         [Fact]
         public async Task CreateNotification_AsLibrarian_CreatesAndDispatches()
         {
@@ -221,9 +178,6 @@ namespace UnitTestsBiblioMate.Controllers
                 Times.Once);
         }
 
-        /// <summary>
-        /// Updating with mismatched IDs should return 400 BadRequest.
-        /// </summary>
         [Fact]
         public async Task UpdateNotification_IdMismatch_ReturnsBadRequest()
         {
@@ -242,9 +196,6 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.IsType<BadRequestResult>(action);
         }
 
-        /// <summary>
-        /// Updating a non-existent notification should return 404 NotFound.
-        /// </summary>
         [Fact]
         public async Task UpdateNotification_NotFound_Returns404()
         {
@@ -263,9 +214,6 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.IsType<NotFoundResult>(action);
         }
 
-        /// <summary>
-        /// Updating an existing notification should return 204 NoContent and persist changes.
-        /// </summary>
         [Fact]
         public async Task UpdateNotification_WhenExists_ReturnsNoContent()
         {
@@ -290,9 +238,6 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal(dto.UserId,  updated.UserId);
         }
 
-        /// <summary>
-        /// Deleting a non-existent notification should return 404 NotFound.
-        /// </summary>
         [Fact]
         public async Task DeleteNotification_NotFound_Returns404()
         {
@@ -303,9 +248,6 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.IsType<NotFoundResult>(action);
         }
 
-        /// <summary>
-        /// Deleting an existing notification should return 204 NoContent and remove it from the database.
-        /// </summary>
         [Fact]
         public async Task DeleteNotification_WhenExists_ReturnsNoContent()
         {
@@ -319,3 +261,4 @@ namespace UnitTestsBiblioMate.Controllers
         }
     }
 }
+

@@ -11,35 +11,45 @@ namespace UnitTestsBiblioMate.Controllers
 {
     /// <summary>
     /// Unit tests for <see cref="HistoriesController"/>.
-    /// Verifies behavior of GetUserHistory endpoint with authorization and pagination.
+    /// Validates authorization rules and response behavior for the
+    /// <see cref="HistoriesController.GetUserHistory"/> endpoint.
     /// </summary>
     public class HistoriesControllerTest
     {
         private readonly Mock<IHistoryService> _historyServiceMock;
         private readonly HistoriesController _controller;
 
+        /// <summary>
+        /// Initializes the test environment with:
+        /// <list type="bullet">
+        ///   <item><description>A mocked <see cref="IHistoryService"/>.</description></item>
+        ///   <item><description>An instance of <see cref="HistoriesController"/> using the mock.</description></item>
+        /// </list>
+        /// </summary>
         public HistoriesControllerTest()
         {
             _historyServiceMock = new Mock<IHistoryService>();
-            _controller = new HistoriesController(_historyServiceMock.Object);
+            _controller         = new HistoriesController(_historyServiceMock.Object);
         }
 
         /// <summary>
-        /// Owner requests their own history ⇒ 200 OK.
+        /// Ensures that when a user requests their own history,
+        /// the controller returns HTTP 200 OK with the correct data.
         /// </summary>
         [Fact]
         public async Task GetUserHistory_Owner_ShouldReturnOk()
         {
             // Arrange
-            const int userId = 7;
-            const int page = 1;
+            const int userId   = 7;
+            const int page     = 1;
             const int pageSize = 20;
-            var history = new List<HistoryReadDto>();  // on ne se soucie pas des champs
+            var history        = new List<HistoryReadDto>();
+
             _historyServiceMock
                 .Setup(s => s.GetHistoryForUserAsync(userId, page, pageSize, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(history);
 
-            // Simuler l'utilisateur authentifié (propriétaire)
+            // Simulate authenticated user (owner)
             _controller.ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext
@@ -58,22 +68,24 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Staff (Librarian/Admin) requests someone else's history ⇒ 200 OK.
+        /// Ensures that when a staff member (Librarian/Admin)
+        /// requests another user's history, the controller returns HTTP 200 OK.
         /// </summary>
         [Fact]
         public async Task GetUserHistory_Staff_ShouldReturnOk()
         {
             // Arrange
             const int requestedUserId = 8;
-            const int currentUserId = 1;
-            const int page = 2;
-            const int pageSize = 10;
-            var history = new List<HistoryReadDto>();
+            const int currentUserId   = 1;
+            const int page            = 2;
+            const int pageSize        = 10;
+            var history               = new List<HistoryReadDto>();
+
             _historyServiceMock
                 .Setup(s => s.GetHistoryForUserAsync(requestedUserId, page, pageSize, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(history);
 
-            // Simuler un utilisateur en rôle Librarian
+            // Simulate user with Librarian role
             _controller.ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext
@@ -95,16 +107,17 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Un autorisé demande l'historique d'un autre ⇒ 403 Forbidden.
+        /// Ensures that when an unauthorized user (not owner and not staff)
+        /// requests another user's history, the controller returns HTTP 403 Forbidden.
         /// </summary>
         [Fact]
         public async Task GetUserHistory_Unauthorized_ShouldReturnForbid()
         {
             // Arrange
             const int requestedUserId = 5;
-            const int currentUserId = 6;
+            const int currentUserId   = 6;
 
-            // Simuler un utilisateur sans rôle staff
+            // Simulate non-staff user trying to access another user's history
             _controller.ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext

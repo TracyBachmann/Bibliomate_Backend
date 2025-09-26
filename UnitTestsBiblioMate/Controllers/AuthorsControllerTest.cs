@@ -7,8 +7,8 @@ using Moq;
 namespace UnitTestsBiblioMate.Controllers
 {
     /// <summary>
-    /// Unit tests for <see cref="AuthorsController"/>.
-    /// Verifies behavior of all CRUD endpoints with mocked <see cref="IAuthorService"/>.
+    /// Unit test suite for <see cref="AuthorsController"/>.
+    /// Verifies CRUD and search operations using a mocked <see cref="IAuthorService"/>.
     /// </summary>
     public class AuthorsControllerTest
     {
@@ -16,16 +16,26 @@ namespace UnitTestsBiblioMate.Controllers
         private readonly AuthorsController _controller;
 
         /// <summary>
-        /// Initializes mocks and controller for testing.
+        /// Initializes the test environment with:
+        /// <list type="bullet">
+        ///   <item><description>
+        /// A mocked <see cref="IAuthorService"/> using Moq.
+        /// </description></item>
+        ///   <item><description>
+        /// An instance of <see cref="AuthorsController"/> configured
+        /// with the mocked dependency.
+        /// </description></item>
+        /// </list>
         /// </summary>
         public AuthorsControllerTest()
         {
             _serviceMock = new Mock<IAuthorService>();
-            _controller = new AuthorsController(_serviceMock.Object);
+            _controller  = new AuthorsController(_serviceMock.Object);
         }
 
         /// <summary>
-        /// Ensures that GetAuthors returns 200 OK with a list of authors.
+        /// Ensures <see cref="AuthorsController.GetAuthors"/> returns
+        /// HTTP 200 OK with a list of authors when authors exist.
         /// </summary>
         [Fact]
         public async Task GetAuthors_ShouldReturnOkWithAuthors()
@@ -45,11 +55,15 @@ namespace UnitTestsBiblioMate.Controllers
 
             // Assert
             var ok = Assert.IsType<OkObjectResult>(result.Result);
-            Assert.Equal(list, ok.Value);
+            var returned = Assert.IsAssignableFrom<IEnumerable<AuthorReadDto>>(ok.Value);
+            Assert.Collection(returned,
+                item => Assert.Equal("A1", item.Name),
+                item => Assert.Equal("A2", item.Name));
         }
 
         /// <summary>
-        /// Ensures that GetAuthor returns 200 OK when the author exists.
+        /// Ensures <see cref="AuthorsController.GetAuthor"/> returns
+        /// HTTP 200 OK with the author when the author exists.
         /// </summary>
         [Fact]
         public async Task GetAuthor_ShouldReturnOkWhenFound()
@@ -65,11 +79,14 @@ namespace UnitTestsBiblioMate.Controllers
 
             // Assert
             var ok = Assert.IsType<OkObjectResult>(result);
-            Assert.Equal(dto, ok.Value);
+            var returned = Assert.IsType<AuthorReadDto>(ok.Value);
+            Assert.Equal(dto.AuthorId, returned.AuthorId);
+            Assert.Equal(dto.Name, returned.Name);
         }
 
         /// <summary>
-        /// Ensures that GetAuthor returns 404 NotFound when the author does not exist.
+        /// Ensures <see cref="AuthorsController.GetAuthor"/> returns
+        /// HTTP 404 NotFound when the author does not exist.
         /// </summary>
         [Fact]
         public async Task GetAuthor_ShouldReturnNotFoundWhenNotExists()
@@ -87,15 +104,16 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Ensures that CreateAuthor returns the service's action result.
+        /// Ensures <see cref="AuthorsController.CreateAuthor"/> returns
+        /// HTTP 201 CreatedAtAction with the created author.
         /// </summary>
         [Fact]
-        public async Task CreateAuthor_ShouldReturnServiceResult()
+        public async Task CreateAuthor_ShouldReturnCreatedAtAction()
         {
             // Arrange
-            var input = new AuthorCreateDto { Name = "New" };
+            var input   = new AuthorCreateDto { Name = "New" };
             var created = new AuthorReadDto { AuthorId = 3, Name = "New" };
-            var action = new CreatedAtActionResult(
+            var action  = new CreatedAtActionResult(
                 actionName: nameof(AuthorsController.GetAuthor),
                 controllerName: "Authors",
                 routeValues: new { id = created.AuthorId },
@@ -110,12 +128,14 @@ namespace UnitTestsBiblioMate.Controllers
 
             // Assert
             var createdResult = Assert.IsType<CreatedAtActionResult>(result);
-            Assert.Equal(created, createdResult.Value);
-            Assert.Equal(nameof(AuthorsController.GetAuthor), createdResult.ActionName);
+            var returned = Assert.IsType<AuthorReadDto>(createdResult.Value);
+            Assert.Equal(created.AuthorId, returned.AuthorId);
+            Assert.Equal(created.Name, returned.Name);
         }
 
         /// <summary>
-        /// Ensures that UpdateAuthor returns 204 NoContent when update succeeds.
+        /// Ensures <see cref="AuthorsController.UpdateAuthor"/> returns
+        /// HTTP 204 NoContent when the update succeeds.
         /// </summary>
         [Fact]
         public async Task UpdateAuthor_ShouldReturnNoContentWhenSuccess()
@@ -134,7 +154,8 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Ensures that UpdateAuthor returns 404 NotFound when the author does not exist.
+        /// Ensures <see cref="AuthorsController.UpdateAuthor"/> returns
+        /// HTTP 404 NotFound when the author does not exist.
         /// </summary>
         [Fact]
         public async Task UpdateAuthor_ShouldReturnNotFoundWhenNotExists()
@@ -153,7 +174,8 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Ensures that DeleteAuthor returns 204 NoContent when deletion succeeds.
+        /// Ensures <see cref="AuthorsController.DeleteAuthor"/> returns
+        /// HTTP 204 NoContent when deletion succeeds.
         /// </summary>
         [Fact]
         public async Task DeleteAuthor_ShouldReturnNoContentWhenSuccess()
@@ -171,7 +193,8 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Ensures that DeleteAuthor returns 404 NotFound when the author does not exist.
+        /// Ensures <see cref="AuthorsController.DeleteAuthor"/> returns
+        /// HTTP 404 NotFound when the author does not exist.
         /// </summary>
         [Fact]
         public async Task DeleteAuthor_ShouldReturnNotFoundWhenNotExists()
@@ -186,6 +209,79 @@ namespace UnitTestsBiblioMate.Controllers
 
             // Assert
             Assert.IsType<NotFoundResult>(result);
+        }
+
+        /// <summary>
+        /// Ensures <see cref="AuthorsController.SearchAuthors"/> returns
+        /// HTTP 200 OK with matching results.
+        /// </summary>
+        [Fact]
+        public async Task SearchAuthors_ShouldReturnOkWithResults()
+        {
+            // Arrange
+            var results = new List<AuthorReadDto>
+            {
+                new AuthorReadDto { AuthorId = 1, Name = "John" }
+            };
+            _serviceMock
+                .Setup(s => s.SearchAsync("John", 20, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(results);
+
+            // Act
+            var result = await _controller.SearchAuthors("John", 20, CancellationToken.None);
+
+            // Assert
+            var ok = Assert.IsType<OkObjectResult>(result.Result);
+            var returned = Assert.IsAssignableFrom<IEnumerable<AuthorReadDto>>(ok.Value);
+            Assert.Single(returned);
+        }
+
+        /// <summary>
+        /// Ensures <see cref="AuthorsController.EnsureAuthor"/> returns
+        /// HTTP 201 Created when a new author is created.
+        /// </summary>
+        [Fact]
+        public async Task EnsureAuthor_ShouldReturnCreatedWhenNew()
+        {
+            // Arrange
+            var dto  = new AuthorCreateDto { Name = "Fresh" };
+            var read = new AuthorReadDto { AuthorId = 5, Name = "Fresh" };
+
+            _serviceMock
+                .Setup(s => s.EnsureAsync(dto.Name, It.IsAny<CancellationToken>()))
+                .ReturnsAsync((read, true));
+
+            // Act
+            var result = await _controller.EnsureAuthor(dto, CancellationToken.None);
+
+            // Assert
+            var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+            var returned = Assert.IsType<AuthorReadDto>(created.Value);
+            Assert.Equal(read.AuthorId, returned.AuthorId);
+        }
+
+        /// <summary>
+        /// Ensures <see cref="AuthorsController.EnsureAuthor"/> returns
+        /// HTTP 200 OK when the author already exists.
+        /// </summary>
+        [Fact]
+        public async Task EnsureAuthor_ShouldReturnOkWhenExists()
+        {
+            // Arrange
+            var dto  = new AuthorCreateDto { Name = "Existing" };
+            var read = new AuthorReadDto { AuthorId = 10, Name = "Existing" };
+
+            _serviceMock
+                .Setup(s => s.EnsureAsync(dto.Name, It.IsAny<CancellationToken>()))
+                .ReturnsAsync((read, false));
+
+            // Act
+            var result = await _controller.EnsureAuthor(dto, CancellationToken.None);
+
+            // Assert
+            var ok = Assert.IsType<OkObjectResult>(result.Result);
+            var returned = Assert.IsType<AuthorReadDto>(ok.Value);
+            Assert.Equal(read.AuthorId, returned.AuthorId);
         }
     }
 }

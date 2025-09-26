@@ -18,8 +18,6 @@ namespace BackendBiblioMate.Interfaces
         /// This must correspond to an existing user in the system.
         /// </param>
         /// <param name="type">
-        /// The type of notification event (e.g. <see cref="NotificationType.Email"/>, 
-        /// <see cref="NotificationType.Sms"/>, <see cref="NotificationType.InApp"/>).
         /// </param>
         /// <param name="message">
         /// The content of the notification message to store in the log.

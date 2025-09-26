@@ -6,8 +6,8 @@ using BackendBiblioMate.Models;
 using BackendBiblioMate.Services.Infrastructure.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Moq;
 using Microsoft.Extensions.Configuration;
+using Moq;
 
 namespace UnitTestsBiblioMate.Controllers
 {
@@ -19,7 +19,7 @@ namespace UnitTestsBiblioMate.Controllers
     {
         private readonly BiblioMateDbContext _context;
         private readonly Mock<IStockService> _stockServiceMock;
-        private readonly StocksController _controller;
+        private readonly StocksController    _controller;
 
         public StocksControllerTest()
         {
@@ -53,11 +53,14 @@ namespace UnitTestsBiblioMate.Controllers
             _context.SaveChanges();
 
             _stockServiceMock = new Mock<IStockService>();
-            _controller = new StocksController(_context, _stockServiceMock.Object);
+            _controller       = new StocksController(_context, _stockServiceMock.Object);
         }
 
         public void Dispose() => _context.Dispose();
 
+        /// <summary>
+        /// Retrieving all stocks with default pagination should return all mapped DTOs.
+        /// </summary>
         [Fact]
         public async Task GetStocks_DefaultPagination_ReturnsAllMapped()
         {
@@ -70,6 +73,9 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Contains(list, s => s.BookTitle == "Book2" && s.Quantity == 0);
         }
 
+        /// <summary>
+        /// Retrieving an existing stock should return 200 OK with the correct DTO.
+        /// </summary>
         [Fact]
         public async Task GetStock_Exists_ReturnsOk()
         {
@@ -82,6 +88,9 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal(5, dto.Quantity);
         }
 
+        /// <summary>
+        /// Retrieving a non-existent stock should return 404 NotFound.
+        /// </summary>
         [Fact]
         public async Task GetStock_NotFound_Returns404()
         {
@@ -89,6 +98,9 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.IsType<NotFoundResult>(action.Result);
         }
 
+        /// <summary>
+        /// Creating a stock for a book that already has one should return 409 Conflict.
+        /// </summary>
         [Fact]
         public async Task CreateStock_Conflict_Returns409()
         {
@@ -100,6 +112,9 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Contains("A stock entry already exists for that book.", text);
         }
 
+        /// <summary>
+        /// Creating a stock for a new book should return 201 Created.
+        /// </summary>
         [Fact]
         public async Task CreateStock_New_ReturnsCreated()
         {
@@ -119,6 +134,9 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal(7, result.Quantity);
         }
 
+        /// <summary>
+        /// Updating with mismatched IDs should return 400 BadRequest.
+        /// </summary>
         [Fact]
         public async Task UpdateStock_IdMismatch_Returns400()
         {
@@ -130,6 +148,9 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Contains("Route ID and payload StockId do not match.", text);
         }
 
+        /// <summary>
+        /// Updating a non-existent stock should return 404 NotFound.
+        /// </summary>
         [Fact]
         public async Task UpdateStock_NotFound_Returns404()
         {
@@ -138,6 +159,9 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.IsType<NotFoundResult>(action);
         }
 
+        /// <summary>
+        /// Updating an existing stock should return 204 NoContent and persist changes.
+        /// </summary>
         [Fact]
         public async Task UpdateStock_Success_ReturnsNoContent()
         {
@@ -148,6 +172,9 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Equal(8, updated!.Quantity);
         }
 
+        /// <summary>
+        /// Adjusting with zero quantity should return 400 BadRequest.
+        /// </summary>
         [Fact]
         public async Task AdjustStockQuantity_ZeroAdjustment_Returns400()
         {
@@ -159,6 +186,9 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.Contains("Adjustment cannot be zero.", text);
         }
 
+        /// <summary>
+        /// Adjusting a non-existent stock should return 404 NotFound.
+        /// </summary>
         [Fact]
         public async Task AdjustStockQuantity_NotFound_Returns404()
         {
@@ -167,6 +197,9 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.IsType<NotFoundResult>(action.Result);
         }
 
+        /// <summary>
+        /// Adjusting below zero should return 400 BadRequest.
+        /// </summary>
         [Fact]
         public async Task AdjustStockQuantity_NegativeResult_Returns400()
         {
@@ -179,43 +212,34 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Successful adjustment returns 200 OK and updates via service.
+        /// A successful adjustment should return 200 OK with message and new quantity.
         /// </summary>
         [Fact]
         public async Task AdjustStockQuantity_Success_ReturnsOk()
         {
             var dto = new StockAdjustmentDto { Adjustment = -2 };
 
-            // When AdjustQuantity is called, actually decrement the quantity
             _stockServiceMock
                 .Setup(s => s.AdjustQuantity(It.IsAny<Stock>(), dto.Adjustment))
                 .Callback<Stock, int>((st, adj) => st.Quantity += adj);
 
-            var action = await _controller.AdjustStockQuantity(
-                id: 10,
-                dto: dto,
-                cancellationToken: CancellationToken.None
-            );
+            var action = await _controller.AdjustStockQuantity(10, dto, CancellationToken.None);
 
             var okResult = Assert.IsType<OkObjectResult>(action.Result);
-            var anon      = okResult.Value!;
-            var anonType  = anon.GetType();
+            var anon     = okResult.Value!;
+            var type     = anon.GetType();
 
-            var msgProp = anonType.GetProperty("message");
-            Assert.NotNull(msgProp);
-            var message = (string)msgProp.GetValue(anon)!;
-            Assert.Equal("Stock updated successfully.", message);
-
-            var qtyProp = anonType.GetProperty("newQuantity");
-            Assert.NotNull(qtyProp);
-            var newQty = (int)qtyProp.GetValue(anon)!;
-            Assert.Equal(3, newQty);
+            Assert.Equal("Stock updated successfully.", (string)type.GetProperty("message")!.GetValue(anon)!);
+            Assert.Equal(3, (int)type.GetProperty("newQuantity")!.GetValue(anon)!);
 
             _stockServiceMock.Verify(s =>
                 s.AdjustQuantity(It.Is<Stock>(st => st.StockId == 10), -2),
                 Times.Once);
         }
 
+        /// <summary>
+        /// Deleting a non-existent stock should return 404 NotFound.
+        /// </summary>
         [Fact]
         public async Task DeleteStock_NotFound_Returns404()
         {
@@ -223,13 +247,13 @@ namespace UnitTestsBiblioMate.Controllers
             Assert.IsType<NotFoundResult>(action);
         }
 
+        /// <summary>
+        /// Deleting an existing stock should return 204 NoContent and remove the entity.
+        /// </summary>
         [Fact]
         public async Task DeleteStock_Success_ReturnsNoContent()
         {
-            var action = await _controller.DeleteStock(
-                id: 20,
-                cancellationToken: CancellationToken.None
-            );
+            var action = await _controller.DeleteStock(20, cancellationToken: CancellationToken.None);
             Assert.IsType<NoContentResult>(action);
             Assert.Null(await _context.Stocks.FindAsync(20));
         }

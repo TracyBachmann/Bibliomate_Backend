@@ -8,7 +8,7 @@ namespace UnitTestsBiblioMate.Controllers
 {
     /// <summary>
     /// Unit tests for <see cref="ZonesController"/>.
-    /// Verifies pagination, CRUD endpoints, and error handling.
+    /// Validates pagination, CRUD endpoints, and error handling.
     /// </summary>
     public class ZonesControllerTest
     {
@@ -22,7 +22,7 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Retrieving all zones returns 200 OK with the list.
+        /// Retrieving all zones should return 200 OK with the list of zones.
         /// </summary>
         [Fact]
         public async Task GetZones_ReturnsOkWithList()
@@ -46,7 +46,7 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Retrieving an existing zone returns 200 OK.
+        /// Retrieving an existing zone by ID should return 200 OK with the DTO.
         /// </summary>
         [Fact]
         public async Task GetZone_Exists_ReturnsOk()
@@ -66,7 +66,7 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Retrieving a missing zone returns 404 NotFound.
+        /// Retrieving a non-existent zone should return 404 NotFound.
         /// </summary>
         [Fact]
         public async Task GetZone_NotFound_Returns404()
@@ -84,7 +84,7 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Creating a zone returns 201 Created with the DTO.
+        /// Creating a new zone should return 201 Created with the created DTO.
         /// </summary>
         [Fact]
         public async Task CreateZone_ReturnsCreated()
@@ -107,7 +107,7 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Updating with mismatched ID returns 400 BadRequest.
+        /// Updating with mismatched IDs between route and payload should return 400 BadRequest.
         /// </summary>
         [Fact]
         public async Task UpdateZone_IdMismatch_ReturnsBadRequest()
@@ -124,7 +124,7 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Updating a non-existent zone returns 404 NotFound.
+        /// Updating a non-existent zone should return 404 NotFound.
         /// </summary>
         [Fact]
         public async Task UpdateZone_NotFound_Returns404()
@@ -143,7 +143,7 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Successful update returns 204 NoContent.
+        /// A successful update should return 204 NoContent.
         /// </summary>
         [Fact]
         public async Task UpdateZone_Success_ReturnsNoContent()
@@ -162,7 +162,7 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Deleting a non-existent zone returns 404 NotFound.
+        /// Deleting a non-existent zone should return 404 NotFound.
         /// </summary>
         [Fact]
         public async Task DeleteZone_NotFound_Returns404()
@@ -180,7 +180,7 @@ namespace UnitTestsBiblioMate.Controllers
         }
 
         /// <summary>
-        /// Successful delete returns 204 NoContent.
+        /// Successfully deleting an existing zone should return 204 NoContent.
         /// </summary>
         [Fact]
         public async Task DeleteZone_Success_ReturnsNoContent()

@@ -4778,8 +4778,6 @@
             This must correspond to an existing user in the system.
             </param>
             <param name="type">
-            The type of notification event (e.g. <see cref="!:NotificationType.Email"/>, 
-            <see cref="!:NotificationType.Sms"/>, <see cref="!:NotificationType.InApp"/>).
             </param>
             <param name="message">
             The content of the notification message to store in the log.
@@ -7017,6 +7015,63 @@
             </summary>
             <param name="author">The author entity to map.</param>
             <returns>A new <see cref="T:BackendBiblioMate.DTOs.AuthorReadDto"/> instance.</returns>
+        </member>
+        <member name="T:BackendBiblioMate.Services.Catalog.BookService">
+            <summary>
+            Provides services for managing books, including CRUD operations,
+            searching, paging, and availability management.
+            </summary>
+        </member>
+        <member name="M:BackendBiblioMate.Services.Catalog.BookService.#ctor(BackendBiblioMate.Data.BiblioMateDbContext,BackendBiblioMate.Interfaces.ISearchActivityLogService,BackendBiblioMate.Interfaces.ILocationService,BackendBiblioMate.Interfaces.IStockService)">
+            <summary>
+            Initializes a new instance of the <see cref="T:BackendBiblioMate.Services.Catalog.BookService"/> class.
+            </summary>
+            <param name="db">The EF Core database context.</param>
+            <param name="searchLog">Optional service for logging search activity.</param>
+            <param name="location">Optional service for handling book locations.</param>
+            <param name="stockSvc">Optional service for stock management.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown if <paramref name="db"/> is null.</exception>
+        </member>
+        <member name="P:BackendBiblioMate.Services.Catalog.BookService.ReadProjection">
+            <summary>
+            Defines the mapping from <see cref="T:BackendBiblioMate.Models.Book"/> entities to <see cref="T:BackendBiblioMate.DTOs.BookReadDto"/>.
+            Includes availability, stock, tags, and flattened location details.
+            </summary>
+        </member>
+        <member name="M:BackendBiblioMate.Services.Catalog.BookService.GetPagedAsync(System.Int32,System.Int32,System.String,System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Retrieves a paginated list of books with sorting support.
+            </summary>
+        </member>
+        <member name="M:BackendBiblioMate.Services.Catalog.BookService.GetByIdAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Retrieves a single book by its identifier.
+            </summary>
+        </member>
+        <member name="M:BackendBiblioMate.Services.Catalog.BookService.SearchAsync(BackendBiblioMate.DTOs.BookSearchDto,System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>
+            Searches for books based on a set of criteria (title, author, genre, etc.).
+            </summary>
+        </member>
+        <member name="M:BackendBiblioMate.Services.Catalog.BookService.GetAllGenresAsync(System.Threading.CancellationToken)">
+            <summary>
+            Retrieves the list of all genres in alphabetical order.
+            </summary>
+        </member>
+        <member name="M:BackendBiblioMate.Services.Catalog.BookService.CreateAsync(BackendBiblioMate.DTOs.BookCreateDto,System.Threading.CancellationToken)">
+            <summary>
+            Creates a new book, its stock entry, and associated tags.
+            </summary>
+        </member>
+        <member name="M:BackendBiblioMate.Services.Catalog.BookService.UpdateAsync(System.Int32,BackendBiblioMate.DTOs.BookUpdateDto,System.Threading.CancellationToken)">
+            <summary>
+            Updates an existing book and its related tags/stock.
+            </summary>
+        </member>
+        <member name="M:BackendBiblioMate.Services.Catalog.BookService.DeleteAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Deletes a book, its tags, and its stock record.
+            </summary>
         </member>
         <member name="T:BackendBiblioMate.Services.Catalog.EditorService">
             <summary>
