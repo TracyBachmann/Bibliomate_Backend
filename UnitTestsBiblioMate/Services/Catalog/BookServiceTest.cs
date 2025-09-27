@@ -1,322 +1,489 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text;
 using BackendBiblioMate.Data;
 using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Models;
-using BackendBiblioMate.Models.Mongo;
 using BackendBiblioMate.Services.Catalog;
 using BackendBiblioMate.Services.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Moq;
 using Xunit.Abstractions;
 
 namespace UnitTestsBiblioMate.Services.Catalog
 {
     /// <summary>
     /// Unit tests for <see cref="BookService"/>.
-    /// Verifies CRUD, pagination, and search logic using an in-memory EF Core provider.
+    /// Verifies:
+    /// <list type="bullet">
+    ///   <item><description>CRUD operations (Create, Read, Update, Delete)</description></item>
+    ///   <item><description>Pagination via <c>GetPagedAsync</c></description></item>
+    ///   <item><description>Search filters across multiple fields</description></item>
+    ///   <item><description>Handling of tags, stocks, and shelf locations</description></item>
+    /// </list>
+    /// Uses EF Core InMemory provider to simulate a real database.
     /// </summary>
-    public class BookServiceTest
+    public class BookServiceTest : IDisposable
     {
-        private readonly BookService _service;
         private readonly BiblioMateDbContext _db;
+        private readonly BookService _service;
         private readonly ITestOutputHelper _output;
 
         /// <summary>
-        /// Initializes the test context with an in-memory EF Core database and encryption.
+        /// Initializes a new in-memory DbContext and service instance.
         /// </summary>
         public BookServiceTest(ITestOutputHelper output)
         {
             _output = output;
 
-            // 1) Build in-memory EF options
             var options = new DbContextOptionsBuilder<BiblioMateDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-            // 2) Provide a 32-byte Base64 key for EncryptionService
-            var base64Key = Convert.ToBase64String(
-                Encoding.UTF8.GetBytes("12345678901234567890123456789012")
-            );
-            IConfiguration config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["Encryption:Key"] = base64Key
-                })
+            var base64Key = Convert.ToBase64String(Encoding.UTF8.GetBytes("12345678901234567890123456789012"));
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["Encryption:Key"] = base64Key })
                 .Build();
-            var encryptionService = new EncryptionService(config);
 
-            // 3) Instantiate DbContext with EncryptionService
-            _db = new BiblioMateDbContext(options, encryptionService);
+            var encryption = new EncryptionService(config);
+            _db = new BiblioMateDbContext(options, encryption);
 
-            // 4) Fake search-log service and BookService under test
-            var fakeSearchLog = new FakeSearchActivityLogService();
-            _service = new BookService(_db, fakeSearchLog);
+            // searchLog is optional -> null in this test setup
+            _service = new BookService(_db, searchLog: null);
         }
 
         /// <summary>
-        /// Ensures that CreateAsync adds a new book.
+        /// Disposes the in-memory DbContext after each test.
+        /// </summary>
+        public void Dispose() => _db.Dispose();
+
+        // ----------- helpers -----------
+
+        /// <summary>
+        /// Seeds the database with a minimal catalog hierarchy:
+        /// Author, Genre, Editor, Zone, Shelf, and ShelfLevel.
+        /// </summary>
+        private (Author author, Genre genre, Editor editor, Zone zone, Shelf shelf, ShelfLevel level) SeedCatalogLocation()
+        {
+            var author = _db.Authors.Add(new Author { Name = "A1" }).Entity;
+            var genre  = _db.Genres.Add(new Genre  { Name = "G1" }).Entity;
+            var editor = _db.Editors.Add(new Editor { Name = "E1" }).Entity;
+
+            var zone   = _db.Zones.Add(new Zone { Name = "Z1", FloorNumber = 2, AisleCode = "A-12" }).Entity;
+            var shelf  = _db.Shelves.Add(new Shelf { ZoneId = zone.ZoneId, Name = "R-01" }).Entity;
+            var level  = _db.ShelfLevels.Add(new ShelfLevel { ShelfId = shelf.ShelfId, LevelNumber = 3 }).Entity;
+
+            _db.SaveChanges();
+            return (author, genre, editor, zone, shelf, level);
+        }
+
+        // ----------- Create -----------
+
+        /// <summary>
+        /// CreateAsync should add a new book with a shelf level ID
+        /// and return a DTO with projected catalog/location info.
         /// </summary>
         [Fact]
-        public async Task CreateAsync_ShouldAddBook()
+        public async Task CreateAsync_WithShelfLevelId_AddsBook_MapsProjection()
         {
-            // Arrange
-            var author     = new Author { Name = "Test Author" };
-            var genre      = new Genre  { Name = "Test Genre"  };
-            var editor     = new Editor { Name = "Test Editor" };
-            var shelfLevel = new ShelfLevel { ShelfId = 1, LevelNumber = 1 };
-            _db.Authors.Add(author);
-            _db.Genres.Add(genre);
-            _db.Editors.Add(editor);
-            _db.ShelfLevels.Add(shelfLevel);
-            await _db.SaveChangesAsync();
+            var (author, genre, editor, zone, shelf, level) = SeedCatalogLocation();
 
             var dto = new BookCreateDto
             {
                 Title           = "Test Book",
-                Isbn            = "1234567890123",
-                Description     = "Une description de test",
-                PublicationDate = new DateTime(2000, 1, 1),
+                Isbn            = "9780000000001",
+                Description     = "Desc",
+                PublicationDate = new DateTime(2015, 6, 1),
                 AuthorId        = author.AuthorId,
                 GenreId         = genre.GenreId,
                 EditorId        = editor.EditorId,
-                ShelfLevelId    = shelfLevel.ShelfLevelId,
-                CoverUrl        = "https://example.com/cover.jpg",
-                TagIds          = new List<int>()
+                ShelfLevelId    = level.ShelfLevelId,
+                CoverUrl        = "cover.png",
+                TagIds          = new List<int>(),
+                StockQuantity   = 2
             };
 
-            // Act
             var result = await _service.CreateAsync(dto);
 
-            // Assert
             Assert.NotNull(result);
-            Assert.Equal(dto.Title, result.Title);
-            Assert.Equal(dto.Isbn, result.Isbn);
-            Assert.Equal(dto.Description, result.Description);
-            Assert.True(await _db.Books.AnyAsync(b => b.BookId == result.BookId));
+            Assert.True(result.BookId > 0);
+            Assert.Equal("Test Book", result.Title);
+            Assert.Equal("9780000000001", result.Isbn);
+            Assert.Equal(2015, result.PublicationYear);
+            Assert.Equal("A1", result.AuthorName);
+            Assert.Equal("G1", result.GenreName);
+            Assert.Equal("E1", result.EditorName);
+            Assert.Equal(2, result.StockQuantity);
+            Assert.Equal(2, result.Floor);
+            Assert.Equal("A-12", result.Aisle);
+            Assert.Equal("R-01", result.Rayon);
+            Assert.Equal(3, result.Shelf);
         }
 
         /// <summary>
-        /// Ensures that GetByIdAsync returns null when the book does not exist.
+        /// CreateAsync without ShelfLevelId or Location should throw a <see cref="ValidationException"/>.
         /// </summary>
         [Fact]
-        public async Task GetByIdAsync_ShouldReturnNull_WhenNotExists()
+        public async Task CreateAsync_WithoutShelfLevelIdAndWithoutLocation_ThrowsValidationException()
         {
-            // Act
-            var result = await _service.GetByIdAsync(999);
+            var (author, genre, editor, _, _, _) = SeedCatalogLocation();
 
-            // Assert
+            var dto = new BookCreateDto
+            {
+                Title           = "X",
+                Isbn            = "9780000000002",
+                PublicationDate = new DateTime(2020, 1, 1),
+                AuthorId        = author.AuthorId,
+                GenreId         = genre.GenreId,
+                EditorId        = editor.EditorId
+                // Missing ShelfLevelId and Location -> should trigger ValidationException
+            };
+
+            await Assert.ThrowsAsync<ValidationException>(() => _service.CreateAsync(dto));
+        }
+
+        /// <summary>
+        /// CreateAsync with a location DTO should call the ILocationService
+        /// to resolve or create the corresponding ShelfLevel.
+        /// </summary>
+        [Fact]
+        public async Task CreateAsync_WithLocation_UsesLocationServiceToResolveShelfLevel()
+        {
+            var (author, genre, editor, zone, shelf, level) = SeedCatalogLocation();
+
+            var locDto = new LocationEnsureDto
+            {
+                FloorNumber = zone.FloorNumber,
+                AisleCode   = zone.AisleCode,
+                ShelfName   = shelf.Name,
+                LevelNumber = level.LevelNumber
+            };
+
+            var locationSvc = new Mock<ILocationService>();
+            locationSvc
+                .Setup(s => s.EnsureAsync(It.IsAny<LocationEnsureDto>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new LocationReadDto
+                {
+                    ZoneId       = zone.ZoneId,
+                    ShelfId      = shelf.ShelfId,
+                    ShelfLevelId = level.ShelfLevelId,
+                    FloorNumber  = zone.FloorNumber,
+                    AisleCode    = zone.AisleCode,
+                    ShelfName    = shelf.Name,
+                    LevelNumber  = level.LevelNumber
+                });
+
+            var svc = new BookService(_db, searchLog: null, location: locationSvc.Object);
+
+            var dto = new BookCreateDto
+            {
+                Title           = "Loc Book",
+                Isbn            = "9780000000003",
+                PublicationDate = new DateTime(2021, 1, 1),
+                AuthorId        = author.AuthorId,
+                GenreId         = genre.GenreId,
+                EditorId        = editor.EditorId,
+                Location        = locDto
+            };
+
+            var res = await svc.CreateAsync(dto);
+
+            Assert.NotNull(res);
+            Assert.Equal("Loc Book", res.Title);
+
+            locationSvc.Verify(s => s.EnsureAsync(
+                    It.Is<LocationEnsureDto>(l =>
+                        l.FloorNumber == locDto.FloorNumber &&
+                        l.AisleCode   == locDto.AisleCode &&
+                        l.ShelfName   == locDto.ShelfName &&
+                        l.LevelNumber == locDto.LevelNumber),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+
+        // ----------- GetById -----------
+
+        /// <summary>
+        /// GetByIdAsync should return null when the book does not exist.
+        /// </summary>
+        [Fact]
+        public async Task GetByIdAsync_WhenNotExists_ReturnsNull()
+        {
+            var result = await _service.GetByIdAsync(999);
             Assert.Null(result);
         }
 
         /// <summary>
-        /// Ensures that UpdateAsync modifies an existing book.
+        /// GetByIdAsync should return a fully projected DTO when the book exists.
         /// </summary>
         [Fact]
-        public async Task UpdateAsync_ShouldModifyBook_WhenExists()
+        public async Task GetByIdAsync_WhenExists_ReturnsProjectedDto()
         {
-            // Arrange
-            var author     = new Author { Name = "Author A" };
-            var genre      = new Genre  { Name = "Genre A"  };
-            var editor     = new Editor { Name = "Editor A" };
-            var shelfLevel = new ShelfLevel { ShelfId = 1, LevelNumber = 1 };
-            _db.Authors.Add(author);
-            _db.Genres.Add(genre);
-            _db.Editors.Add(editor);
-            _db.ShelfLevels.Add(shelfLevel);
-            await _db.SaveChangesAsync();
+            var (author, genre, editor, zone, shelf, level) = SeedCatalogLocation();
 
-            var book = new Book
+            var b = _db.Books.Add(new Book
             {
-                Title           = "Old Title",
-                Isbn            = "1111111111111",
-                Description     = "Ancienne description",
-                PublicationDate = new DateTime(1999, 1, 1),
+                Title           = "B1",
+                Isbn            = "9780000000100",
+                PublicationDate = new DateTime(2010, 2, 2),
                 AuthorId        = author.AuthorId,
                 GenreId         = genre.GenreId,
                 EditorId        = editor.EditorId,
-                ShelfLevelId    = shelfLevel.ShelfLevelId
-            };
-            _db.Books.Add(book);
+                ShelfLevelId    = level.ShelfLevelId
+            }).Entity;
+
+            _db.Stocks.Add(new Stock { BookId = b.BookId, Quantity = 1 });
+            await _db.SaveChangesAsync();
+
+            var dto = await _service.GetByIdAsync(b.BookId);
+            Assert.NotNull(dto);
+            Assert.Equal("B1", dto!.Title);
+            Assert.Equal(2010, dto.PublicationYear);
+            Assert.Equal("A1", dto.AuthorName);
+            Assert.Equal("G1", dto.GenreName);
+            Assert.Equal("E1", dto.EditorName);
+        }
+
+        // ----------- Update -----------
+
+        /// <summary>
+        /// UpdateAsync should modify fields, update tags, and adjust stock quantity.
+        /// </summary>
+        [Fact]
+        public async Task UpdateAsync_ModifiesFields_AndUpdatesTagsAndStock_WhenProvided()
+        {
+            var (author, genre, editor, zone, shelf, level) = SeedCatalogLocation();
+
+            var tag1 = _db.Tags.Add(new Tag { Name = "T1" }).Entity;
+            var tag2 = _db.Tags.Add(new Tag { Name = "T2" }).Entity;
+            await _db.SaveChangesAsync();
+
+            var book = _db.Books.Add(new Book
+            {
+                Title           = "Old",
+                Isbn            = "111",
+                Description     = "D",
+                PublicationDate = new DateTime(2000, 1, 1),
+                AuthorId        = author.AuthorId,
+                GenreId         = genre.GenreId,
+                EditorId        = editor.EditorId,
+                ShelfLevelId    = level.ShelfLevelId
+            }).Entity;
+            _db.Stocks.Add(new Stock { BookId = book.BookId, Quantity = 1 });
             await _db.SaveChangesAsync();
 
             var dto = new BookUpdateDto
             {
                 BookId          = book.BookId,
-                Title           = "Updated Title",
-                Isbn            = "2222222222222",
-                Description     = "Nouvelle description",
-                PublicationDate = new DateTime(2010, 5, 5),
+                Title           = "New",
+                Isbn            = "222",
+                Description     = "ND",
+                PublicationDate = new DateTime(2012, 5, 5),
                 AuthorId        = author.AuthorId,
                 GenreId         = genre.GenreId,
                 EditorId        = editor.EditorId,
-                ShelfLevelId    = shelfLevel.ShelfLevelId
+                ShelfLevelId    = level.ShelfLevelId,
+                TagIds          = new List<int> { tag1.TagId, tag2.TagId },
+                StockQuantity   = 5
             };
 
-            // Act
-            var success = await _service.UpdateAsync(book.BookId, dto);
+            var ok = await _service.UpdateAsync(book.BookId, dto);
 
-            // Assert
-            Assert.True(success);
+            Assert.True(ok);
+
             var updated = await _db.Books.FindAsync(book.BookId);
-            Assert.Equal(dto.Title,       updated?.Title);
-            Assert.Equal(dto.Isbn,        updated?.Isbn);
-            Assert.Equal(dto.Description, updated?.Description);
+            Assert.Equal("New", updated!.Title);
+            Assert.Equal("222", updated.Isbn);
+
+            var bt = await _db.BookTags.Where(x => x.BookId == book.BookId).Select(x => x.TagId).ToListAsync();
+            Assert.True(bt.Contains(tag1.TagId) && bt.Contains(tag2.TagId));
+
+            var stock = await _db.Stocks.FirstAsync(s => s.BookId == book.BookId);
+            Assert.Equal(5, stock.Quantity);
         }
 
         /// <summary>
-        /// Ensures that DeleteAsync removes an existing book.
+        /// UpdateAsync should return false when the book does not exist.
         /// </summary>
         [Fact]
-        public async Task DeleteAsync_ShouldRemoveBook_WhenExists()
+        public async Task UpdateAsync_ReturnsFalse_WhenBookMissing()
         {
-            // Arrange
-            var author     = new Author { Name = "Author" };
-            var genre      = new Genre  { Name = "Genre"  };
-            var editor     = new Editor { Name = "Editor" };
-            var shelfLevel = new ShelfLevel { ShelfId = 1, LevelNumber = 1 };
-            _db.Authors.Add(author);
-            _db.Genres.Add(genre);
-            _db.Editors.Add(editor);
-            _db.ShelfLevels.Add(shelfLevel);
+            var dto = new BookUpdateDto { BookId = 123, Title = "X", PublicationDate = DateTime.Today };
+            var ok = await _service.UpdateAsync(123, dto);
+            Assert.False(ok);
+        }
+
+        // ----------- Delete -----------
+
+        /// <summary>
+        /// DeleteAsync should remove a book, its tags, and its stock entries.
+        /// </summary>
+        [Fact]
+        public async Task DeleteAsync_RemovesBook_Tags_AndStock()
+        {
+            var (author, genre, editor, zone, shelf, level) = SeedCatalogLocation();
+            var tag = _db.Tags.Add(new Tag { Name = "T" }).Entity;
             await _db.SaveChangesAsync();
 
-            var book = new Book
+            var b = _db.Books.Add(new Book
             {
-                Title           = "Delete Me",
-                Isbn            = "9999999999999",
-                Description     = "À supprimer",
-                PublicationDate = new DateTime(2000, 1, 1),
+                Title           = "ToDel",
+                Isbn            = "X",
+                PublicationDate = new DateTime(2011, 1, 1),
                 AuthorId        = author.AuthorId,
                 GenreId         = genre.GenreId,
                 EditorId        = editor.EditorId,
-                ShelfLevelId    = shelfLevel.ShelfLevelId
-            };
-            _db.Books.Add(book);
+                ShelfLevelId    = level.ShelfLevelId
+            }).Entity;
+            _db.BookTags.Add(new BookTag { BookId = b.BookId, TagId = tag.TagId });
+            _db.Stocks.Add(new Stock { BookId = b.BookId, Quantity = 2 });
             await _db.SaveChangesAsync();
 
-            // Act
-            var removed = await _service.DeleteAsync(book.BookId);
+            var ok = await _service.DeleteAsync(b.BookId);
+            Assert.True(ok);
 
-            // Assert
-            Assert.True(removed);
-            Assert.False(await _db.Books.AnyAsync(b => b.BookId == book.BookId));
+            Assert.False(await _db.Books.AnyAsync(x => x.BookId == b.BookId));
+            Assert.False(await _db.BookTags.AnyAsync(x => x.BookId == b.BookId));
+            Assert.False(await _db.Stocks.AnyAsync(x => x.BookId == b.BookId));
         }
 
         /// <summary>
-        /// Ensures that GetPagedAsync returns paginated results.
+        /// DeleteAsync should return false when the book does not exist.
         /// </summary>
         [Fact]
-        public async Task GetPagedAsync_ShouldReturnPagedResults()
+        public async Task DeleteAsync_ReturnsFalse_WhenBookMissing()
         {
-            // Arrange
-            var author     = new Author { Name = "Author" };
-            var genre      = new Genre  { Name = "Genre"  };
-            var editor     = new Editor { Name = "Editor" };
-            var shelfLevel = new ShelfLevel { ShelfId = 1, LevelNumber = 1 };
-            _db.Authors.Add(author);
-            _db.Genres.Add(genre);
-            _db.Editors.Add(editor);
-            _db.ShelfLevels.Add(shelfLevel);
-            await _db.SaveChangesAsync();
+            var ok = await _service.DeleteAsync(999);
+            Assert.False(ok);
+        }
+
+        // ----------- Paging -----------
+
+        /// <summary>
+        /// GetPagedAsync should return the correct slice of books,
+        /// with null ETag values when caching is not used.
+        /// NOTE: Tri sur "title" => lexicographique ("Book 1", "Book 10", "Book 2", "Book 3", ...)
+        /// Page 2 / size 3 => éléments 4-6 dans cet ordre => "Book 3", "Book 4", "Book 5".
+        /// </summary>
+        [Fact]
+        public async Task GetPagedAsync_ReturnsCorrectPage_AndNullEtags()
+        {
+            var (author, genre, editor, zone, shelf, level) = SeedCatalogLocation();
 
             for (int i = 1; i <= 10; i++)
             {
                 _db.Books.Add(new Book
                 {
                     Title           = $"Book {i}",
-                    Isbn            = $"97800000000{i}",
-                    Description     = $"Desc {i}",
+                    Isbn            = $"9780000000{i:D3}",
                     PublicationDate = new DateTime(2000 + i, 1, 1),
                     AuthorId        = author.AuthorId,
                     GenreId         = genre.GenreId,
                     EditorId        = editor.EditorId,
-                    ShelfLevelId    = shelfLevel.ShelfLevelId
+                    ShelfLevelId    = level.ShelfLevelId
                 });
             }
             await _db.SaveChangesAsync();
 
-            // Act
-            var (page, eTag, notModified) = await _service.GetPagedAsync(
-                pageNumber: 1,
-                pageSize:   5,
-                sortBy:     "Title",
-                ascending:  true
-            );
-
-            // Assert
+            var (page, eTag, notModified) = await _service.GetPagedAsync(2, 3, sortBy: "title", ascending: true);
             Assert.NotNull(page);
-            Assert.Equal(5, page.Items.Count());
-            Assert.False(string.IsNullOrWhiteSpace(eTag));
+            Assert.Equal(2, page.PageNumber);
+            Assert.Equal(3, page.PageSize);
+            Assert.Equal(10, page.TotalCount);
+            Assert.Equal(4, page.TotalPages);
+            Assert.Equal(3, page.Items.Count());
+
+            var titles = page.Items.Select(i => i.Title).ToList();
+            // Correction: tri lexicographique -> "Book 3","Book 4","Book 5"
+            Assert.Equal(new[] { "Book 3", "Book 4", "Book 5" }, titles);
+
+            Assert.Null(eTag);
             Assert.Null(notModified);
         }
 
+        // ----------- Search -----------
+
         /// <summary>
-        /// Ensures that SearchAsync filters results by title.
+        /// SearchAsync should apply filters across title, author, genre, editor, ISBN,
+        /// publication year range, tags, description, and exclusion terms.
         /// </summary>
         [Fact]
-        public async Task SearchAsync_ShouldFilterByTitle()
+        public async Task SearchAsync_FiltersByTitle_Author_Genre_Publisher_Isbn_Range_Tags_Description_Exclude()
         {
-            // Arrange
-            var author     = new Author { Name = "Author" };
-            var genre      = new Genre  { Name = "Genre"  };
-            var editor     = new Editor { Name = "Editor" };
-            var shelfLevel = new ShelfLevel { ShelfId = 1, LevelNumber = 1 };
-            _db.Authors.Add(author);
-            _db.Genres.Add(genre);
-            _db.Editors.Add(editor);
-            _db.ShelfLevels.Add(shelfLevel);
+            var (author, genre, editor, zone, shelf, level) = SeedCatalogLocation();
+            var tagFoo = _db.Tags.Add(new Tag { Name = "Foo" }).Entity;
+            var tagBar = _db.Tags.Add(new Tag { Name = "Bar" }).Entity;
             await _db.SaveChangesAsync();
 
-            _db.Books.AddRange(new[]
+            var b1 = _db.Books.Add(new Book
             {
-                new Book
-                {
-                    Title           = "SpecialTitle",
-                    Isbn            = "9781111111111",
-                    Description     = "Une description spéciale",
-                    PublicationDate = new DateTime(2010, 1, 1),
-                    AuthorId        = author.AuthorId,
-                    GenreId         = genre.GenreId,
-                    EditorId        = editor.EditorId,
-                    ShelfLevelId    = shelfLevel.ShelfLevelId
-                },
-                new Book
-                {
-                    Title           = "AnotherBook",
-                    Isbn            = "9782222222222",
-                    Description     = "Description générique",
-                    PublicationDate = new DateTime(2012, 1, 1),
-                    AuthorId        = author.AuthorId,
-                    GenreId         = genre.GenreId,
-                    EditorId        = editor.EditorId,
-                    ShelfLevelId    = shelfLevel.ShelfLevelId
-                }
-            });
+                Title           = "C# in Depth",
+                Isbn            = "9781617294532",
+                Description     = "Deep dive",
+                PublicationDate = new DateTime(2019, 1, 1),
+                AuthorId        = author.AuthorId,
+                GenreId         = genre.GenreId,
+                EditorId        = editor.EditorId,
+                ShelfLevelId    = level.ShelfLevelId
+            }).Entity;
+            var b2 = _db.Books.Add(new Book
+            {
+                Title           = "Clean Code",
+                Isbn            = "9780132350884",
+                Description     = "A handbook of agile software craftsmanship",
+                PublicationDate = new DateTime(2008, 1, 1),
+                AuthorId        = author.AuthorId,
+                GenreId         = genre.GenreId,
+                EditorId        = editor.EditorId,
+                ShelfLevelId    = level.ShelfLevelId
+            }).Entity;
+
+            _db.BookTags.AddRange(
+                new BookTag { BookId = b1.BookId, TagId = tagFoo.TagId },
+                new BookTag { BookId = b2.BookId, TagId = tagBar.TagId }
+            );
+
             await _db.SaveChangesAsync();
 
-            // Act
-            var results = await _service.SearchAsync(
-                new BookSearchDto { Title = "Special" },
-                userId: null
-            );
-            var resultsList = results.ToList();
+            var dto = new BookSearchDto
+            {
+                Title       = "Clean",
+                Author      = "A1",
+                Genre       = "G1",
+                Publisher   = "E1",
+                Isbn        = "9780132350884",
+                YearMin     = 2000,
+                YearMax     = 2020,
+                TagIds      = new List<int> { tagBar.TagId },
+                TagNames    = new List<string> { "Bar" },
+                Description = "handbook",
+                Exclude     = "Deep"
+            };
 
-            // Assert
-            Assert.Single(resultsList);
-            Assert.Contains(resultsList, b => b.Title.Contains("Special"));
+            var res = (await _service.SearchAsync(dto, userId: null)).ToList();
+
+            Assert.Single(res);
+            Assert.Equal("Clean Code", res[0].Title);
         }
 
-        /// <summary>
-        /// Fake implementation of <see cref="ISearchActivityLogService"/> for testing.
-        /// </summary>
-        private class FakeSearchActivityLogService : ISearchActivityLogService
-        {
-            public Task LogAsync(SearchActivityLogDocument doc, CancellationToken cancellationToken = default)
-                => Task.CompletedTask;
+        // ----------- Genres -----------
 
-            public Task<List<SearchActivityLogDocument>> GetByUserAsync(int userId, CancellationToken cancellationToken = default)
-                => Task.FromResult(new List<SearchActivityLogDocument>());
+        /// <summary>
+        /// GetAllGenresAsync should return all genres sorted alphabetically.
+        /// </summary>
+        [Fact]
+        public async Task GetAllGenresAsync_ReturnsAlphabetical()
+        {
+            _db.Genres.AddRange(
+                new Genre { Name = "Sci-Fi" },
+                new Genre { Name = "Fantasy" },
+                new Genre { Name = "Programming" }
+            );
+            await _db.SaveChangesAsync();
+
+            var genres = await _service.GetAllGenresAsync();
+            Assert.Equal(new[] { "Fantasy", "Programming", "Sci-Fi" }, genres);
         }
     }
 }

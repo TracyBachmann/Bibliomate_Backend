@@ -4,12 +4,14 @@ using BackendBiblioMate.Helpers;
 namespace UnitTestsBiblioMate.Helpers
 {
     /// <summary>
-    /// Tests for <see cref="TokenHelper"/> extension methods.
+    /// Unit tests for <see cref="TokenHelper"/> extension methods.
+    /// Covers behavior for extracting <c>UserId</c> from a <see cref="ClaimsPrincipal"/>.
     /// </summary>
     public class TokenHelperTests
     {
         /// <summary>
-        /// TryGetUserId should throw when principal is null.
+        /// Verifies that <see cref="TokenHelper.TryGetUserId"/> 
+        /// throws an <see cref="ArgumentNullException"/> when the provided principal is <c>null</c>.
         /// </summary>
         [Fact]
         public void TryGetUserId_NullPrincipal_Throws()
@@ -19,7 +21,8 @@ namespace UnitTestsBiblioMate.Helpers
         }
 
         /// <summary>
-        /// TryGetUserId should return false and zero when claim is absent.
+        /// Verifies that <see cref="TokenHelper.TryGetUserId"/> 
+        /// returns <c>false</c> and sets <c>id = 0</c> when the <c>NameIdentifier</c> claim is absent.
         /// </summary>
         [Fact]
         public void TryGetUserId_NoClaim_ReturnsFalse()
@@ -31,7 +34,8 @@ namespace UnitTestsBiblioMate.Helpers
         }
 
         /// <summary>
-        /// TryGetUserId should return false and zero when claim is not an integer.
+        /// Verifies that <see cref="TokenHelper.TryGetUserId"/> 
+        /// returns <c>false</c> and sets <c>id = 0</c> when the <c>NameIdentifier</c> claim is not a valid integer.
         /// </summary>
         [Fact]
         public void TryGetUserId_InvalidNumber_ReturnsFalse()
@@ -41,13 +45,16 @@ namespace UnitTestsBiblioMate.Helpers
                 new Claim(ClaimTypes.NameIdentifier, "NaN")
             });
             var user = new ClaimsPrincipal(identity);
+
             var result = user.TryGetUserId(out var id);
+
             Assert.False(result);
             Assert.Equal(0, id);
         }
 
         /// <summary>
-        /// TryGetUserId should return true and correct value when valid.
+        /// Verifies that <see cref="TokenHelper.TryGetUserId"/> 
+        /// returns <c>true</c> and outputs the correct integer value when the claim is valid.
         /// </summary>
         [Fact]
         public void TryGetUserId_ValidClaim_ReturnsTrue()
@@ -57,13 +64,16 @@ namespace UnitTestsBiblioMate.Helpers
                 new Claim(ClaimTypes.NameIdentifier, "42")
             });
             var user = new ClaimsPrincipal(identity);
+
             var result = user.TryGetUserId(out var id);
+
             Assert.True(result);
             Assert.Equal(42, id);
         }
 
         /// <summary>
-        /// GetUserId should throw when principal is null.
+        /// Verifies that <see cref="TokenHelper.GetUserId"/> 
+        /// throws an <see cref="ArgumentNullException"/> when the provided principal is <c>null</c>.
         /// </summary>
         [Fact]
         public void GetUserId_NullPrincipal_Throws()
@@ -73,18 +83,21 @@ namespace UnitTestsBiblioMate.Helpers
         }
 
         /// <summary>
-        /// GetUserId should throw if NameIdentifier claim is missing.
+        /// Verifies that <see cref="TokenHelper.GetUserId"/> 
+        /// throws an <see cref="InvalidOperationException"/> when the <c>NameIdentifier</c> claim is missing.
         /// </summary>
         [Fact]
         public void GetUserId_NoClaim_Throws()
         {
             var user = new ClaimsPrincipal(new ClaimsIdentity());
+
             Assert.Throws<InvalidOperationException>(
                 () => user.GetUserId());
         }
 
         /// <summary>
-        /// GetUserId should throw if the claim value is not an integer.
+        /// Verifies that <see cref="TokenHelper.GetUserId"/> 
+        /// throws a <see cref="FormatException"/> when the <c>NameIdentifier</c> claim is present but not a valid integer.
         /// </summary>
         [Fact]
         public void GetUserId_BadFormat_Throws()
@@ -94,12 +107,14 @@ namespace UnitTestsBiblioMate.Helpers
                 new Claim(ClaimTypes.NameIdentifier, "not-int")
             });
             var user = new ClaimsPrincipal(identity);
+
             Assert.Throws<FormatException>(
                 () => user.GetUserId());
         }
 
         /// <summary>
-        /// GetUserId should return the parsed integer when valid.
+        /// Verifies that <see cref="TokenHelper.GetUserId"/> 
+        /// successfully parses and returns the <c>UserId</c> when the claim contains a valid integer.
         /// </summary>
         [Fact]
         public void GetUserId_Valid_ReturnsInt()
@@ -109,7 +124,9 @@ namespace UnitTestsBiblioMate.Helpers
                 new Claim(ClaimTypes.NameIdentifier, "123")
             });
             var user = new ClaimsPrincipal(identity);
+
             var id = user.GetUserId();
+
             Assert.Equal(123, id);
         }
     }

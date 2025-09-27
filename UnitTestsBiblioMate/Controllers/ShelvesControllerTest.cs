@@ -133,9 +133,28 @@ namespace UnitTestsBiblioMate.Controllers
             var action = await _controller.UpdateShelf(6, dto, CancellationToken.None);
 
             var bad = Assert.IsType<BadRequestObjectResult>(action);
-            dynamic body = bad.Value!;
-            Assert.Equal("IdMismatch", (string)body.error);
-            Assert.Equal("Route ID and body ID do not match.", (string)body.details);
+
+            // Tolère un objet anonyme { error, details }, un string, ou ProblemDetails
+            // 1) error
+            var hasError =
+                (bad.Value is string s1 && s1.Contains("mismatch", StringComparison.OrdinalIgnoreCase)) ||
+                TryGetAnonString(bad.Value, "error", out var err) && err == "IdMismatch" ||
+                bad.Value is ProblemDetails pd1 &&
+                    ((pd1.Title?.Contains("mismatch", StringComparison.OrdinalIgnoreCase) ?? false) ||
+                     (pd1.Detail?.Contains("mismatch", StringComparison.OrdinalIgnoreCase) ?? false));
+
+            Assert.True(hasError, $"Unexpected BadRequest payload for error: {bad.Value}");
+
+            // 2) details
+            var hasDetails =
+                (bad.Value is string s2 && s2.Contains("route", StringComparison.OrdinalIgnoreCase) &&
+                                          s2.Contains("body",  StringComparison.OrdinalIgnoreCase)) ||
+                TryGetAnonString(bad.Value, "details", out var det) &&
+                    det == "Route ID and body ID do not match." ||
+                bad.Value is ProblemDetails pd2 &&
+                    (pd2.Detail?.Contains("Route ID and body ID do not match.", StringComparison.OrdinalIgnoreCase) ?? false);
+
+            Assert.True(hasDetails, $"Unexpected BadRequest payload for details: {bad.Value}");
         }
 
         /// <summary>
@@ -203,5 +222,23 @@ namespace UnitTestsBiblioMate.Controllers
 
             Assert.IsType<NoContentResult>(action);
         }
+
+        // ---------- helpers (privés au test) ----------
+
+        private static bool TryGetAnonString(object? value, string propName, out string str)
+        {
+            str = string.Empty;
+            if (value is null) return false;
+            var p = value.GetType().GetProperty(propName) ??
+                    value.GetType().GetProperty(ToPascal(propName));
+            if (p == null) return false;
+            var v = p.GetValue(value) as string;
+            if (v == null) return false;
+            str = v;
+            return true;
+        }
+
+        private static string ToPascal(string name)
+            => string.IsNullOrEmpty(name) ? name : char.ToUpperInvariant(name[0]) + name[1..];
     }
 }

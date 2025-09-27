@@ -13,7 +13,8 @@ namespace UnitTestsBiblioMate.Services.Users
 {
     /// <summary>
     /// Unit tests for <see cref="UserService"/>.
-    /// Validates Create, Read, Update, and Delete operations on users.
+    /// Validates Create, Read, Update, and Delete (CRUD) operations on users
+    /// using EF Core InMemory database with encryption enabled.
     /// </summary>
     public class UserServiceTests
     {
@@ -23,6 +24,7 @@ namespace UnitTestsBiblioMate.Services.Users
 
         /// <summary>
         /// Initializes an in-memory database and the <see cref="UserService"/>.
+        /// EncryptionService is required because the DbContext expects it.
         /// </summary>
         public UserServiceTests(ITestOutputHelper output)
         {
@@ -48,22 +50,23 @@ namespace UnitTestsBiblioMate.Services.Users
         }
 
         /// <summary>
-        /// Ensures that CreateAsync adds a new user to the database.
+        /// CreateAsync should add a new user with the expected properties
+        /// and persist it in the database.
         /// </summary>
         [Fact]
         public async Task CreateAsync_ShouldAddUser()
         {
             _output.WriteLine("=== CreateAsync: START ===");
 
-            // NB: UserCreateDto reste inchangé côté backend (Name/Address)
             var dto = new UserCreateDto
             {
-                Name     = "Jean Dupont",
-                Email    = "jean.dupont@example.com",
-                Password = "Secure123!",
-                Address  = "10 rue de la Paix",
-                Phone    = "0612345678",
-                Role     = UserRoles.User
+                FirstName = "Jean",
+                LastName  = "Dupont",
+                Email     = "jean.dupont@example.com",
+                Password  = "Secure123!",
+                Address1  = "10 rue de la Paix",
+                Phone     = "0612345678",
+                Role      = UserRoles.User
             };
 
             var result = await _service.CreateAsync(dto);
@@ -79,7 +82,7 @@ namespace UnitTestsBiblioMate.Services.Users
         }
 
         /// <summary>
-        /// Ensures that GetAllAsync returns all users in the database.
+        /// GetAllAsync should return all users in the database.
         /// </summary>
         [Fact]
         public async Task GetAllAsync_ShouldReturnAllUsers()
@@ -100,7 +103,7 @@ namespace UnitTestsBiblioMate.Services.Users
         }
 
         /// <summary>
-        /// Ensures that GetByIdAsync returns the correct user when it exists.
+        /// GetByIdAsync should return the correct user when it exists.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldReturnUser_WhenExists()
@@ -116,13 +119,13 @@ namespace UnitTestsBiblioMate.Services.Users
             _output.WriteLine($"Found User: {result?.Email}");
 
             Assert.NotNull(result);
-            Assert.Equal(user.Email, result!.Email);
+            Assert.Equal(user.Email, result.Email);
 
             _output.WriteLine("=== GetByIdAsync (exists): END ===");
         }
 
         /// <summary>
-        /// Ensures that GetByIdAsync returns null when the user does not exist.
+        /// GetByIdAsync should return null when the user does not exist.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldReturnNull_WhenNotExists()
@@ -139,7 +142,7 @@ namespace UnitTestsBiblioMate.Services.Users
         }
 
         /// <summary>
-        /// Ensures that UpdateAsync modifies an existing user.
+        /// UpdateAsync should update an existing user with new values.
         /// </summary>
         [Fact]
         public async Task UpdateAsync_ShouldModifyUser_WhenExists()
@@ -152,10 +155,11 @@ namespace UnitTestsBiblioMate.Services.Users
 
             var dto = new UserUpdateDto
             {
-                Name    = "Updated Name",                // UserService split -> FirstName=Updated, LastName=Name
-                Email   = "updated@example.com",
-                Address = "123 rue de la Liberté",       // -> Address1
-                Phone   = "0708091011"
+                FirstName = "Updated",
+                LastName  = "Name",
+                Email     = "updated@example.com",
+                Address1  = "123 rue de la Liberté",
+                Phone     = "0708091011"
             };
 
             var success = await _service.UpdateAsync(user.UserId, dto);
@@ -168,14 +172,14 @@ namespace UnitTestsBiblioMate.Services.Users
             Assert.Equal("Updated", updated!.FirstName);
             Assert.Equal("Name", updated.LastName);
             Assert.Equal(dto.Email, updated.Email);
-            Assert.Equal(dto.Address, updated.Address1);
+            Assert.Equal(dto.Address1, updated.Address1);
             Assert.Equal(dto.Phone, updated.Phone);
 
             _output.WriteLine("=== UpdateAsync (success): END ===");
         }
 
         /// <summary>
-        /// Ensures that UpdateAsync returns false when the user does not exist.
+        /// UpdateAsync should return false when the user does not exist.
         /// </summary>
         [Fact]
         public async Task UpdateAsync_ShouldReturnFalse_WhenNotExists()
@@ -184,10 +188,11 @@ namespace UnitTestsBiblioMate.Services.Users
 
             var dto = new UserUpdateDto
             {
-                Name    = "Doesn't matter",
-                Email   = "nope@example.com",
-                Address = "Somewhere",
-                Phone   = "000"
+                FirstName = "Doesn't",
+                LastName  = "matter",
+                Email     = "nope@example.com",
+                Address1  = "Somewhere",
+                Phone     = "000"
             };
 
             var success = await _service.UpdateAsync(999, dto);
@@ -200,7 +205,7 @@ namespace UnitTestsBiblioMate.Services.Users
         }
 
         /// <summary>
-        /// Ensures that DeleteAsync removes an existing user.
+        /// DeleteAsync should remove an existing user from the database.
         /// </summary>
         [Fact]
         public async Task DeleteAsync_ShouldRemoveUser_WhenExists()
@@ -222,7 +227,7 @@ namespace UnitTestsBiblioMate.Services.Users
         }
 
         /// <summary>
-        /// Ensures that DeleteAsync returns false when the user does not exist.
+        /// DeleteAsync should return false when the user does not exist.
         /// </summary>
         [Fact]
         public async Task DeleteAsync_ShouldReturnFalse_WhenNotExists()
@@ -240,15 +245,18 @@ namespace UnitTestsBiblioMate.Services.Users
 
         // -------------------- helpers --------------------
 
+        /// <summary>
+        /// Helper factory method to build a <see cref="User"/> entity with defaults.
+        /// </summary>
         private static User MakeUser(string first, string last, string email, string role) => new User
         {
-            FirstName = first,
-            LastName  = last,
-            Email     = email,
-            Password  = "hashed",
-            Address1  = "123 St",
-            Phone     = "0612345678",
-            Role      = role,
+            FirstName        = first,
+            LastName         = last,
+            Email            = email,
+            Password         = "hashed",
+            Address1         = "123 St",
+            Phone            = "0612345678",
+            Role             = role,
             IsEmailConfirmed = true,
             IsApproved       = true,
             SecurityStamp    = Guid.NewGuid().ToString()

@@ -10,8 +10,9 @@ using Microsoft.Extensions.Configuration;
 namespace UnitTestsBiblioMate.Services.Catalog
 {
     /// <summary>
-    /// Unit tests for <see cref="ShelfService"/> verifying CRUD operations
-    /// using the EF Core InMemory provider.
+    /// Unit tests for <see cref="ShelfService"/>.
+    /// Verifies CRUD operations using the EF Core InMemory provider,
+    /// which simulates a real database for persistence testing.
     /// </summary>
     public class ShelfServiceTests
     {
@@ -20,16 +21,19 @@ namespace UnitTestsBiblioMate.Services.Catalog
         private readonly CancellationToken _ct = CancellationToken.None;
 
         /// <summary>
-        /// Initializes the in-memory test context with seeded Zones and Genres.
+        /// Initializes the test class with:
+        /// - An in-memory EF Core context.
+        /// - A valid encryption service for DbContext initialization.
+        /// - Seeded Zones and Genres to satisfy foreign keys on Shelves.
         /// </summary>
         public ShelfServiceTests()
         {
-            // 1) Build in-memory EF options
+            // Configure EF Core InMemory provider
             var options = new DbContextOptionsBuilder<BiblioMateDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-            // 2) Provide a 32-byte Base64 key for EncryptionService
+            // Provide a valid 32-byte encryption key
             var base64Key = Convert.ToBase64String(
                 Encoding.UTF8.GetBytes("12345678901234567890123456789012")
             );
@@ -39,15 +43,16 @@ namespace UnitTestsBiblioMate.Services.Catalog
                     ["Encryption:Key"] = base64Key
                 })
                 .Build();
+
             var encryptionService = new EncryptionService(config);
 
-            // 3) Instantiate DbContext with EncryptionService
+            // Create DbContext with encryption
             _db = new BiblioMateDbContext(options, encryptionService);
 
-            // 4) Seed Zones and Genres for foreign keys
+            // Seed Zones and Genres (needed for FK integrity on Shelves)
             _db.Zones.AddRange(
-                new Zone { FloorNumber = 1, AisleCode = "A", Description = "Section Adultes" },
-                new Zone { FloorNumber = 2, AisleCode = "B", Description = "Section Jeunesse" }
+                new Zone { Name = "Z-1", FloorNumber = 1, AisleCode = "A", Description = "Adult section" },
+                new Zone { Name = "Z-2", FloorNumber = 2, AisleCode = "B", Description = "Youth section" }
             );
             _db.Genres.AddRange(
                 new Genre { Name = "Science-Fiction" },
@@ -55,68 +60,72 @@ namespace UnitTestsBiblioMate.Services.Catalog
             );
             _db.SaveChanges();
 
-            // 5) Instantiate service under test
+            // Instantiate the service under test
             _service = new ShelfService(_db);
         }
 
+        // -------------------- CREATE --------------------
+
         /// <summary>
-        /// Verifies that CreateAsync adds a new shelf to the database.
+        /// Ensures that <see cref="ShelfService.CreateAsync"/> correctly adds a new Shelf
+        /// and persists it in the database.
         /// </summary>
         [Fact]
         public async Task CreateAsync_ShouldAddShelf()
         {
-            // Arrange
             var dto = new ShelfCreateDto
             {
                 ZoneId   = _db.Zones.First().ZoneId,
                 GenreId  = _db.Genres.First().GenreId,
-                Name     = "Étagère SF",
+                Name     = "Sci-Fi Shelf",
                 Capacity = 50
             };
 
-            // Act
             var result = await _service.CreateAsync(dto, _ct);
 
-            // Assert
             Assert.NotNull(result);
             Assert.Equal(dto.Name, result.Name);
             Assert.True(await _db.Shelves.AnyAsync(s => s.Name == dto.Name, _ct));
         }
 
+        // -------------------- READ (ALL) --------------------
+
         /// <summary>
-        /// Verifies that GetAllAsync returns all shelves, with and without filtering by zone.
+        /// Ensures that <see cref="ShelfService.GetAllAsync"/> returns all shelves
+        /// and applies filtering by ZoneId when provided.
         /// </summary>
         [Fact]
         public async Task GetAllAsync_ShouldReturnAllShelves()
         {
-            // Arrange
             var zoneId  = _db.Zones.First().ZoneId;
             var genreId = _db.Genres.First().GenreId;
+
             _db.Shelves.AddRange(
                 new Shelf { ZoneId = zoneId, GenreId = genreId, Name = "Shelf A", Capacity = 30 },
                 new Shelf { ZoneId = zoneId, GenreId = genreId, Name = "Shelf B", Capacity = 40 }
             );
             await _db.SaveChangesAsync(_ct);
 
-            // Act
             var allShelves = (await _service.GetAllAsync(null, 1, 10, _ct)).ToList();
             var filtered   = (await _service.GetAllAsync(zoneId, 1, 10, _ct)).ToList();
 
-            // Assert
             Assert.Equal(2, allShelves.Count);
             Assert.Equal(2, filtered.Count);
         }
 
+        // -------------------- READ (BY ID) --------------------
+
         /// <summary>
-        /// Verifies that GetByIdAsync returns the shelf when it exists.
+        /// Ensures that <see cref="ShelfService.GetByIdAsync"/> returns a Shelf DTO
+        /// when the entity exists in the database.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldReturnShelf_WhenExists()
         {
-            // Arrange
             var zoneId  = _db.Zones.First().ZoneId;
             var genreId = _db.Genres.First().GenreId;
-            var shelf   = new Shelf
+
+            var shelf = new Shelf
             {
                 ZoneId   = zoneId,
                 GenreId  = genreId,
@@ -126,37 +135,36 @@ namespace UnitTestsBiblioMate.Services.Catalog
             _db.Shelves.Add(shelf);
             await _db.SaveChangesAsync(_ct);
 
-            // Act
             var result = await _service.GetByIdAsync(shelf.ShelfId, _ct);
 
-            // Assert
             Assert.NotNull(result);
-            Assert.Equal(shelf.Name, result.Name);
+            Assert.Equal(shelf.Name, result!.Name);
         }
 
         /// <summary>
-        /// Verifies that GetByIdAsync returns null when the shelf does not exist.
+        /// Ensures that <see cref="ShelfService.GetByIdAsync"/> returns null
+        /// when the Shelf does not exist.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldReturnNull_WhenNotExists()
         {
-            // Act
             var result = await _service.GetByIdAsync(999, _ct);
-
-            // Assert
             Assert.Null(result);
         }
 
+        // -------------------- UPDATE --------------------
+
         /// <summary>
-        /// Verifies that UpdateAsync modifies an existing shelf.
+        /// Ensures that <see cref="ShelfService.UpdateAsync"/> modifies an existing Shelf
+        /// and saves the updated values in the database.
         /// </summary>
         [Fact]
         public async Task UpdateAsync_ShouldModifyShelf_WhenExists()
         {
-            // Arrange
             var zoneId  = _db.Zones.First().ZoneId;
             var genreId = _db.Genres.First().GenreId;
-            var shelf   = new Shelf
+
+            var shelf = new Shelf
             {
                 ZoneId   = zoneId,
                 GenreId  = genreId,
@@ -175,10 +183,8 @@ namespace UnitTestsBiblioMate.Services.Catalog
                 Capacity = 60
             };
 
-            // Act
             var success = await _service.UpdateAsync(dto, _ct);
 
-            // Assert
             Assert.True(success);
             var updated = await _db.Shelves.FindAsync(new object[] { shelf.ShelfId }, _ct);
             Assert.Equal("Updated Shelf", updated?.Name);
@@ -186,12 +192,12 @@ namespace UnitTestsBiblioMate.Services.Catalog
         }
 
         /// <summary>
-        /// Verifies that UpdateAsync returns false when the shelf does not exist.
+        /// Ensures that <see cref="ShelfService.UpdateAsync"/> returns false
+        /// when the Shelf does not exist in the database.
         /// </summary>
         [Fact]
         public async Task UpdateAsync_ShouldReturnFalse_WhenNotExists()
         {
-            // Arrange
             var dto = new ShelfUpdateDto
             {
                 ShelfId  = 999,
@@ -201,23 +207,23 @@ namespace UnitTestsBiblioMate.Services.Catalog
                 Capacity = 10
             };
 
-            // Act
             var success = await _service.UpdateAsync(dto, _ct);
-
-            // Assert
             Assert.False(success);
         }
 
+        // -------------------- DELETE --------------------
+
         /// <summary>
-        /// Verifies that DeleteAsync removes an existing shelf.
+        /// Ensures that <see cref="ShelfService.DeleteAsync"/> deletes a Shelf
+        /// when it exists and returns true.
         /// </summary>
         [Fact]
         public async Task DeleteAsync_ShouldRemoveShelf_WhenExists()
         {
-            // Arrange
             var zoneId  = _db.Zones.First().ZoneId;
             var genreId = _db.Genres.First().GenreId;
-            var shelf   = new Shelf
+
+            var shelf = new Shelf
             {
                 ZoneId   = zoneId,
                 GenreId  = genreId,
@@ -227,24 +233,20 @@ namespace UnitTestsBiblioMate.Services.Catalog
             _db.Shelves.Add(shelf);
             await _db.SaveChangesAsync(_ct);
 
-            // Act
             var success = await _service.DeleteAsync(shelf.ShelfId, _ct);
 
-            // Assert
             Assert.True(success);
             Assert.False(await _db.Shelves.AnyAsync(s => s.ShelfId == shelf.ShelfId, _ct));
         }
 
         /// <summary>
-        /// Verifies that DeleteAsync returns false when the shelf does not exist.
+        /// Ensures that <see cref="ShelfService.DeleteAsync"/> returns false
+        /// when attempting to delete a Shelf that does not exist.
         /// </summary>
         [Fact]
         public async Task DeleteAsync_ShouldReturnFalse_WhenNotExists()
         {
-            // Act
             var success = await _service.DeleteAsync(999, _ct);
-
-            // Assert
             Assert.False(success);
         }
     }

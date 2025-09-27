@@ -19,18 +19,20 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.External
         private readonly HttpClient _httpClient;
 
         /// <summary>
-        /// Sets up mocks and an HttpClient with a fake handler returning canned JSON.
+        /// Constructor initializes configuration and logger mocks,
+        /// and provides a default <see cref="HttpClient"/> using a fake handler.
         /// </summary>
         public GoogleBooksServiceTest()
         {
-            // 1) Mock IConfiguration to supply an empty API key
+            // 1) Mock IConfiguration → simulate absence of API key
             _configMock = new Mock<IConfiguration>();
             _configMock.Setup(c => c["GoogleBooks:ApiKey"]).Returns(string.Empty);
 
-            // 2) Mock ILogger<T>
+            // 2) Mock ILogger for dependency injection
             _loggerMock = new Mock<ILogger<GoogleBooksService>>();
 
-            // 3) Create HttpClient with a fake handler that returns default {"items":[]} JSON
+            // 3) Provide a default HttpClient with a fake handler
+            //    By default, it returns {"items": []} to simulate empty results
             var handler = new FakeHttpMessageHandler();
             _httpClient = new HttpClient(handler)
             {
@@ -38,9 +40,11 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.External
             };
         }
 
+        // ---------------- Argument validation ----------------
+
         /// <summary>
-        /// Verifies that calling SearchAsync with a null, empty, or whitespace term
-        /// throws an <see cref="ArgumentException"/>.
+        /// SearchAsync should throw an ArgumentException when
+        /// the search term is null, empty, or whitespace.
         /// </summary>
         [Theory]
         [InlineData(null)]
@@ -51,18 +55,20 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.External
             // Arrange
             var service = new GoogleBooksService(_httpClient, _configMock.Object, _loggerMock.Object);
 
-            // Act / Assert
+            // Act + Assert
             await Assert.ThrowsAsync<ArgumentException>(() => service.SearchAsync(term!));
         }
 
+        // ---------------- JSON without items ----------------
+
         /// <summary>
-        /// Verifies that when the API response contains no "items" property,
-        /// SearchAsync returns an empty list.
+        /// When API response contains no "items", the service
+        /// should return an empty list instead of null or exception.
         /// </summary>
         [Fact]
         public async Task SearchAsync_NoItems_ReturnsEmptyList()
         {
-            // Arrange: handler returns JSON without "items"
+            // Arrange: fake handler returns JSON missing the "items" property
             var handler = new FakeHttpMessageHandler("{\"kind\":\"books#volumes\"}", HttpStatusCode.OK);
             var client  = new HttpClient(handler);
             var service = new GoogleBooksService(client, _configMock.Object, _loggerMock.Object);
@@ -75,14 +81,16 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.External
             Assert.Empty(result);
         }
 
+        // ---------------- Valid JSON mapping ----------------
+
         /// <summary>
-        /// Verifies that valid JSON with one volume is correctly mapped
-        /// to a <see cref="BookCreateDto"/>.
+        /// When API returns valid JSON with one volume,
+        /// it should be mapped into a <see cref="BookCreateDto"/>.
         /// </summary>
         [Fact]
         public async Task SearchAsync_ValidJson_MapsToDto()
         {
-            // Arrange: sample JSON containing one volumeInfo entry
+            // Arrange: JSON sample with one volumeInfo block
             const string json = @"
             {
               ""items"": [
@@ -107,19 +115,25 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.External
             // Act
             var list = await service.SearchAsync("test");
 
-            // Assert: exactly one DTO returned with correct mapping
+            // Assert: validate DTO mapping
             Assert.Single(list);
             var dto = list[0];
             Assert.Equal("Test Book", dto.Title);
             Assert.Equal("1234567890", dto.Isbn);
             Assert.Equal(new DateTime(2020, 5, 1), dto.PublicationDate);
             Assert.Equal("https://example.com/thumb.jpg", dto.CoverUrl);
+
+            // Fields that are not mapped should remain default
             Assert.Equal(0, dto.AuthorId);
             Assert.Empty(dto.TagIds!);
         }
 
+        // ---------------- Fake handler ----------------
+
         /// <summary>
-        /// Fake HTTP handler that returns a predefined HTTP response.
+        /// Fake <see cref="HttpMessageHandler"/> that intercepts requests
+        /// and always returns a canned JSON response.
+        /// This avoids external calls to the real Google Books API.
         /// </summary>
         private class FakeHttpMessageHandler : HttpMessageHandler
         {
@@ -134,6 +148,10 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.External
                 _statusCode      = statusCode;
             }
 
+            /// <summary>
+            /// Simulates sending a request by returning
+            /// the predefined JSON and status code.
+            /// </summary>
             protected override Task<HttpResponseMessage> SendAsync(
                 HttpRequestMessage request,
                 CancellationToken cancellationToken)

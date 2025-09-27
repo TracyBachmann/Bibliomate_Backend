@@ -15,19 +15,24 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Security
 
         /// <summary>
         /// Initializes a new instance of <see cref="EncryptionServiceTest"/>.
-        /// Prepares a random 32-byte key (fixed seed) and configures the service.
+        /// Prepares a deterministic 32-byte key (random but fixed seed)
+        /// and configures the service with it.
         /// </summary>
         public EncryptionServiceTest()
         {
-            // Prepare a random 32-byte key and encode it in Base64
+            // Create a reproducible random 32-byte key
             var key = new byte[32];
             new Random(123).NextBytes(key);
+
+            // Encode the key in Base64 for configuration
             var base64Key = Convert.ToBase64String(key);
 
             var settings = new Dictionary<string, string?>
             {
                 ["Encryption:Key"] = base64Key
             };
+
+            // Build IConfiguration and initialize the service
             IConfiguration config = new ConfigurationBuilder()
                 .AddInMemoryCollection(settings)
                 .Build();
@@ -35,9 +40,11 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Security
             _service = new EncryptionService(config);
         }
 
+        // ---------------- Constructor validation ----------------
+
         /// <summary>
         /// Ensures that the constructor throws <see cref="InvalidOperationException"/>
-        /// when the encryption key is missing from configuration.
+        /// when the encryption key is completely missing from configuration.
         /// </summary>
         [Fact]
         public void Constructor_ShouldThrow_WhenKeyMissing()
@@ -48,7 +55,7 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Security
 
         /// <summary>
         /// Ensures that the constructor throws <see cref="InvalidOperationException"/>
-        /// when the encryption key is not valid Base64.
+        /// when the configured encryption key is not valid Base64.
         /// </summary>
         [Fact]
         public void Constructor_ShouldThrow_WhenKeyInvalidBase64()
@@ -66,12 +73,13 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Security
 
         /// <summary>
         /// Ensures that the constructor throws <see cref="InvalidOperationException"/>
-        /// when the Base64 key decodes to a length other than 32 bytes.
+        /// when the Base64 key decodes to a length other than 32 bytes
+        /// (AES-256 requires exactly 32).
         /// </summary>
         [Fact]
         public void Constructor_ShouldThrow_WhenKeyWrongLength()
         {
-            // Base64 key that decodes to less than 32 bytes
+            // Base64 encoding of "short" → fewer than 32 bytes
             var shortKey = Convert.ToBase64String(Encoding.UTF8.GetBytes("short"));
             IConfiguration config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
@@ -84,11 +92,12 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Security
             Assert.Contains("32 bytes", ex.Message);
         }
 
+        // ---------------- Encrypt ----------------
+
         /// <summary>
-        /// Verifies that Encrypt returns an empty string
-        /// when input is null or empty.
+        /// Encrypt should return an empty string if the input
+        /// is null or empty.
         /// </summary>
-        /// <param name="input">The plaintext input.</param>
         [Theory]
         [InlineData(null)]
         [InlineData("")]
@@ -97,11 +106,12 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Security
             Assert.Equal(string.Empty, _service.Encrypt(input));
         }
 
+        // ---------------- Decrypt ----------------
+
         /// <summary>
-        /// Verifies that Decrypt returns an empty string
-        /// when input is null or empty.
+        /// Decrypt should return an empty string if the input
+        /// is null or empty.
         /// </summary>
-        /// <param name="input">The cipher text input.</param>
         [Theory]
         [InlineData(null)]
         [InlineData("")]
@@ -110,25 +120,29 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Security
             Assert.Equal(string.Empty, _service.Decrypt(input));
         }
 
+        // ---------------- Round-trip ----------------
+
         /// <summary>
-        /// Verifies that a plaintext encrypted and then decrypted
-        /// returns the original text (round-trip).
+        /// Verifies that encrypting and then decrypting the same text
+        /// returns the original string unchanged.
         /// </summary>
         [Fact]
         public void EncryptDecrypt_ShouldRoundtripSuccessfully()
         {
             const string original = "Some sensitive text 🔒";
-            var cipher = _service.Encrypt(original);
 
-            Assert.False(string.IsNullOrWhiteSpace(cipher));
+            var cipher = _service.Encrypt(original);
+            Assert.False(string.IsNullOrWhiteSpace(cipher)); // must produce something
 
             var decrypted = _service.Decrypt(cipher);
             Assert.Equal(original, decrypted);
         }
 
+        // ---------------- Error cases for Decrypt ----------------
+
         /// <summary>
-        /// Ensures that Decrypt throws a FormatException>
-        /// when the input is not valid Base64.
+        /// Ensures that Decrypt throws a <see cref="FormatException"/>
+        /// when the input string is not valid Base64.
         /// </summary>
         [Fact]
         public void Decrypt_WithInvalidBase64_ShouldThrowFormatException()
@@ -137,15 +151,17 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Security
         }
 
         /// <summary>
-        /// Ensures that Decrypt throws a CryptographicException>
-        /// when the cipher text has been tampered with.
+        /// Ensures that Decrypt throws a <see cref="CryptographicException"/>
+        /// when the ciphertext has been tampered with and is no longer valid.
         /// </summary>
         [Fact]
         public void Decrypt_WithTamperedCipher_ShouldThrowCryptographicException()
         {
             var cipher = _service.Encrypt("data");
-            // Modify the end to corrupt the ciphertext
+
+            // Tamper with the last two chars of the Base64 string to corrupt it
             var tampered = cipher[..^2] + "AA";
+
             Assert.Throws<CryptographicException>(() => _service.Decrypt(tampered));
         }
     }

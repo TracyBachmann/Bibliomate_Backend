@@ -3,12 +3,14 @@ using BackendBiblioMate.Helpers;
 namespace UnitTestsBiblioMate.Helpers
 {
     /// <summary>
-    /// Tests for <see cref="PagedResult{T}"/> and its extension methods.
+    /// Unit tests for <see cref="PagedResult{T}"/> and its extension methods.
+    /// Validates input validation, metadata calculation, and data slicing.
     /// </summary>
     public class PagedResultTests
     {
         /// <summary>
-        /// Create should throw if pageNumber is less than 1.
+        /// Verifies that <see cref="PagedResult{T}.Create"/> throws
+        /// an <see cref="ArgumentOutOfRangeException"/> when <c>pageNumber &lt; 1</c>.
         /// </summary>
         [Fact]
         public void Create_InvalidPageNumber_Throws()
@@ -18,7 +20,8 @@ namespace UnitTestsBiblioMate.Helpers
         }
 
         /// <summary>
-        /// Create should throw if pageSize is less than 1.
+        /// Verifies that <see cref="PagedResult{T}.Create"/> throws
+        /// an <see cref="ArgumentOutOfRangeException"/> when <c>pageSize &lt; 1</c>.
         /// </summary>
         [Fact]
         public void Create_InvalidPageSize_Throws()
@@ -28,7 +31,8 @@ namespace UnitTestsBiblioMate.Helpers
         }
 
         /// <summary>
-        /// Create should throw if totalCount is negative.
+        /// Verifies that <see cref="PagedResult{T}.Create"/> throws
+        /// an <see cref="ArgumentOutOfRangeException"/> when <c>totalCount &lt; 0</c>.
         /// </summary>
         [Fact]
         public void Create_NegativeTotalCount_Throws()
@@ -38,7 +42,8 @@ namespace UnitTestsBiblioMate.Helpers
         }
 
         /// <summary>
-        /// Create should treat a null items collection as empty.
+        /// Ensures that <see cref="PagedResult{T}.Create"/> treats a null <c>items</c> collection as empty.
+        /// Also validates that metadata (page number, size, counts) is initialized correctly.
         /// </summary>
         [Fact]
         public void Create_NullItems_TreatsAsEmpty()
@@ -52,31 +57,36 @@ namespace UnitTestsBiblioMate.Helpers
         }
 
         /// <summary>
-        /// TotalPages should compute ceiling(totalCount/pageSize).
+        /// Ensures that <see cref="PagedResult{T}.TotalPages"/> is computed
+        /// as the mathematical ceiling of <c>totalCount / pageSize</c>.
         /// </summary>
         [Fact]
         public void TotalPages_ComputedCorrectly()
         {
-            var result = PagedResult<int>.Create(Enumerable.Range(1,10), pageNumber: 1, pageSize: 10, totalCount: 23);
+            var result = PagedResult<int>.Create(Enumerable.Range(1, 10), pageNumber: 1, pageSize: 10, totalCount: 23);
             Assert.Equal(3, result.TotalPages);
         }
 
         /// <summary>
-        /// ToPagedResultAsync should return the correct slice and metadata.
+        /// Ensures that <see cref="PagedResultExtensions.ToPagedResultAsync{T}"/> 
+        /// returns the correct slice of items and accurate metadata.
         /// </summary>
         [Fact]
         public async Task ToPagedResultAsync_ReturnsCorrectSlice()
         {
-            // Prepare an in-memory EF-like IQueryable
+            // Arrange: simulate an EF-like IQueryable with 25 elements
             var source = Enumerable.Range(1, 25).AsQueryable();
 
+            // Act
             var paged = await source.ToPagedResultAsync(pageNumber: 2, pageSize: 10, CancellationToken.None);
 
+            // Assert metadata
             Assert.Equal(2, paged.PageNumber);
             Assert.Equal(10, paged.PageSize);
             Assert.Equal(25, paged.TotalCount);
             Assert.Equal(3, paged.TotalPages);
 
+            // Assert slice of items
             var items = paged.Items.ToList();
             Assert.Equal(10, items.Count);
             Assert.Equal(11, items.First());
@@ -84,7 +94,8 @@ namespace UnitTestsBiblioMate.Helpers
         }
 
         /// <summary>
-        /// ToPagedResultAsync should throw if pageNumber or pageSize are invalid.
+        /// Ensures that <see cref="PagedResultExtensions.ToPagedResultAsync{T}"/>
+        /// throws an <see cref="ArgumentOutOfRangeException"/> for invalid arguments.
         /// </summary>
         [Fact]
         public async Task ToPagedResultAsync_InvalidArgs_Throws()
@@ -92,6 +103,7 @@ namespace UnitTestsBiblioMate.Helpers
             await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
                 () => Enumerable.Empty<int>().AsQueryable()
                       .ToPagedResultAsync(pageNumber: 0, pageSize: 5));
+
             await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
                 () => Enumerable.Empty<int>().AsQueryable()
                       .ToPagedResultAsync(pageNumber: 1, pageSize: 0));

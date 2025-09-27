@@ -3,8 +3,8 @@ using BackendBiblioMate.Hubs;
 using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Models;
 using BackendBiblioMate.Models.Enums;
-using BackendBiblioMate.Services.Notifications;
 using BackendBiblioMate.Services.Infrastructure.Security;
+using BackendBiblioMate.Services.Notifications;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -13,9 +13,8 @@ using NSubstitute;
 namespace UnitTestsBiblioMate.Services.Notifications
 {
     /// <summary>
-    /// Unit tests for <see cref="NotificationService"/>,
-    /// verifying that notifications are sent via SignalR and email
-    /// only when the user exists in the database.
+    /// Tests for <see cref="NotificationService"/>.
+    /// Verifies SignalR + email behavior when user exists / does not exist.
     /// </summary>
     public class NotificationServiceTests : IDisposable
     {
@@ -26,46 +25,41 @@ namespace UnitTestsBiblioMate.Services.Notifications
 
         public NotificationServiceTests()
         {
-            // Set up in-memory EF Core with encryption service
+            // In-memory EF + encryption key
             var options = new DbContextOptionsBuilder<BiblioMateDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-            var encryptionConfig = new ConfigurationBuilder()
+            var cfg = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["Encryption:Key"] = Convert.ToBase64String(
                         System.Text.Encoding.UTF8.GetBytes("12345678901234567890123456789012"))
                 })
                 .Build();
-            var encryptionService = new EncryptionService(encryptionConfig);
 
-            _db = new BiblioMateDbContext(options, encryptionService);
+            var encryption = new EncryptionService(cfg);
+            _db = new BiblioMateDbContext(options, encryption);
 
-            // Mock SignalR hub context and client proxy
-            var hubContext  = Substitute.For<IHubContext<NotificationHub>>();
-            var clients     = Substitute.For<IHubClients>();
-            _clientProxy    = Substitute.For<IClientProxy>();
+            // SignalR hub context substitution
+            var hubContext = Substitute.For<IHubContext<NotificationHub>>();
+            var clients    = Substitute.For<IHubClients>();
+            _clientProxy   = Substitute.For<IClientProxy>();
 
-            // Return the same proxy for any user id to avoid tight coupling on "1"
+            // Return the same proxy for any user id
             clients.User(Arg.Any<string>()).Returns(_clientProxy);
             hubContext.Clients.Returns(clients);
 
-            // Mock email service
+            // Email service substitution
             _emailService = Substitute.For<IEmailService>();
 
             _service = new NotificationService(hubContext, _emailService, _db);
         }
 
-        /// <summary>
-        /// When the user exists, NotifyUser should
-        /// - send a SignalR message once via IClientProxy
-        /// - send an email once via IEmailService
-        /// </summary>
         [Fact]
         public async Task NotifyUser_UserExists_SendsHubAndEmail()
         {
-            // Arrange: create a user; we set UserId=1 to match the typical test flow
+            // Arrange
             _db.Users.Add(new User
             {
                 UserId          = 1,
@@ -87,28 +81,19 @@ namespace UnitTestsBiblioMate.Services.Notifications
             // Act
             await _service.NotifyUser(1, message);
 
-            // Assert: SignalR invoked exactly once
-            await _clientProxy
-                .Received(1)
-                .SendCoreAsync(
-                    "ReceiveNotification",
-                    Arg.Any<object[]>(),
-                    Arg.Any<CancellationToken>());
+            // Assert: SignalR called once with method and message
+            await _clientProxy.Received(1).SendCoreAsync(
+                "ReceiveNotification",
+                Arg.Is<object?[]>(args => args != null && args.Length >= 1 && (args[0] as string) == message),
+                Arg.Any<CancellationToken>());
 
-            // Assert: Email sent exactly once to the correct address
-            await _emailService
-                .Received(1)
-                .SendEmailAsync(
-                    "test@example.com",
-                    "BiblioMate Notification",
-                    message);
+            // Assert: email sent once to user's address with same message
+            await _emailService.Received(1).SendEmailAsync(
+                "test@example.com",
+                "BiblioMate Notification",
+                message);
         }
 
-        /// <summary>
-        /// When the user does not exist, NotifyUser should do nothing:
-        /// - no SignalR messages
-        /// - no emails sent
-        /// </summary>
         [Fact]
         public async Task NotifyUser_UserDoesNotExist_DoesNothing()
         {
@@ -116,13 +101,11 @@ namespace UnitTestsBiblioMate.Services.Notifications
             await _service.NotifyUser(42, "nobody");
 
             // Assert: no SignalR calls
-            await _clientProxy
-                .ReceivedWithAnyArgs(0)
-                .SendCoreAsync(default!, default!);
+            await _clientProxy.DidNotReceiveWithAnyArgs()
+                .SendCoreAsync(default!, default!, default);
 
             // Assert: no email calls
-            await _emailService
-                .ReceivedWithAnyArgs(0)
+            await _emailService.DidNotReceiveWithAnyArgs()
                 .SendEmailAsync(default!, default!, default!);
         }
 

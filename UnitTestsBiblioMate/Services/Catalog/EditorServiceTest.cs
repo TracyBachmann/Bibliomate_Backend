@@ -103,7 +103,7 @@ namespace UnitTestsBiblioMate.Services.Catalog
             // Assert
             Assert.Null(error);
             Assert.NotNull(dto);
-            Assert.Equal(editor.Name, dto.Name);
+            Assert.Equal(editor.Name, dto!.Name);
         }
 
         /// <summary>

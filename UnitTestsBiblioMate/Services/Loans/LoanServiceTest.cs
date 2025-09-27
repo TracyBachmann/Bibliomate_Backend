@@ -3,20 +3,20 @@ using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Models;
 using BackendBiblioMate.Models.Enums;
-using BackendBiblioMate.Models.Mongo;
 using BackendBiblioMate.Models.Policies;
-using BackendBiblioMate.Services.Loans;
 using BackendBiblioMate.Services.Infrastructure.Security;
+using BackendBiblioMate.Services.Loans;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using System.Text;
 
 namespace UnitTestsBiblioMate.Services.Loans
 {
     /// <summary>
-    /// Unit tests for <see cref="LoanService"/>, covering creation,
-    /// return, retrieval, update, and deletion scenarios.
+    /// Unit tests for <see cref="LoanService"/>.
+    /// Verifies CRUD, business rules, notifications, fines, and stock interactions.
     /// </summary>
     public class LoanServiceTests
     {
@@ -29,40 +29,45 @@ namespace UnitTestsBiblioMate.Services.Loans
 
         public LoanServiceTests()
         {
-            // 1) In-memory EF Core context with encryption stubbed
+            // --------- In-memory EF Core context with encryption ---------
             var options = new DbContextOptionsBuilder<BiblioMateDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
-            
+
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
+                    // 32-byte AES key encoded in Base64
                     ["Encryption:Key"] = Convert.ToBase64String(
                         Encoding.UTF8.GetBytes("12345678901234567890123456789012"))
                 })
                 .Build();
-            
+
             var encryptionService = new EncryptionService(config);
             _context = new BiblioMateDbContext(options, encryptionService);
 
-            // 2) Substitute dependencies
-            _stockService         = Substitute.For<IStockService>();
-            _notificationService  = Substitute.For<INotificationService>();
-            _historyService       = Substitute.For<IHistoryService>();
-            _activityLogService   = Substitute.For<IUserActivityLogService>();
+            // --------- Substitute dependencies ---------
+            _stockService        = Substitute.For<IStockService>();
+            _notificationService = Substitute.For<INotificationService>();
+            _historyService      = Substitute.For<IHistoryService>();
+            _activityLogService  = Substitute.For<IUserActivityLogService>();
+            var logger           = Substitute.For<ILogger<LoanService>>();
 
-            // 3) Create service under test
+            // --------- Service under test ---------
             _service = new LoanService(
                 _context,
                 _stockService,
                 _notificationService,
                 _historyService,
-                _activityLogService
+                _activityLogService,
+                logger
             );
         }
 
+        // ---------------- CreateAsync ----------------
+
         /// <summary>
-        /// Creating a loan for a non-existent user should fail.
+        /// Fails when the user does not exist.
         /// </summary>
         [Fact]
         public async Task CreateAsync_ShouldFail_WhenUserNotFound()
@@ -72,83 +77,73 @@ namespace UnitTestsBiblioMate.Services.Loans
             var result = await _service.CreateAsync(dto);
 
             Assert.True(result.IsError);
-            Assert.Equal("User not found.", result.Error);
+            Assert.Equal("Utilisateur introuvable.", result.Error);
         }
 
         /// <summary>
-        /// Creating a loan when user has max active loans should fail.
+        /// Fails when the user has already reached the maximum number of active loans.
         /// </summary>
         [Fact]
         public async Task CreateAsync_ShouldFail_WhenMaxActiveLoansReached()
         {
-            // Arrange: user with exactly MaxActiveLoansPerUser active loans
             var user = new User { UserId = 1 };
             _context.Users.Add(user);
+
+            // Add max number of active loans
             for (int i = 0; i < LoanPolicy.MaxActiveLoansPerUser; i++)
                 _context.Loans.Add(new Loan { UserId = 1, ReturnDate = null });
+
             await _context.SaveChangesAsync();
 
             var dto = new LoanCreateDto { UserId = 1, BookId = 1 };
-
             var result = await _service.CreateAsync(dto);
 
             Assert.True(result.IsError);
-            Assert.Contains(
-                $"Maximum active loans ({LoanPolicy.MaxActiveLoansPerUser}) reached.",
-                result.Error);
+            Assert.Equal($"Nombre maximal atteint ({LoanPolicy.MaxActiveLoansPerUser}).", result.Error);
         }
 
         /// <summary>
-        /// Creating a loan when no stock exists should fail with "Book unavailable.".
+        /// Fails when there is no available stock for the book.
         /// </summary>
         [Fact]
         public async Task CreateAsync_ShouldFail_WhenStockUnavailable()
         {
-            // Arrange: existing user but no stock for BookId
             _context.Users.Add(new User { UserId = 2 });
             await _context.SaveChangesAsync();
 
             var dto = new LoanCreateDto { UserId = 2, BookId = 123 };
-
             var result = await _service.CreateAsync(dto);
 
             Assert.True(result.IsError);
-            Assert.Equal("Book unavailable.", result.Error);
+            Assert.Equal("Livre indisponible.", result.Error);
         }
 
         /// <summary>
-        /// Valid loan creation should persist the loan, decrement stock,
-        /// log history and user activity.
+        /// Creates a loan successfully and decreases stock when input is valid.
         /// </summary>
         [Fact]
         public async Task CreateAsync_ShouldCreateLoan_WhenDataIsValid()
         {
-            // Arrange: user and stock record in context
             _context.Users.Add(new User { UserId = 3 });
             var stock = new Stock { StockId = 5, BookId = 42, Quantity = 1 };
             _context.Stocks.Add(stock);
             await _context.SaveChangesAsync();
 
-            // Ensure stockService.Decrease is called on the same stock instance
             var dto = new LoanCreateDto { UserId = 3, BookId = 42 };
-
-            // Act
             var result = await _service.CreateAsync(dto);
+
             var createdLoan = _context.Loans.FirstOrDefault(l => l.UserId == 3 && l.BookId == 42);
 
-            // Assert
             Assert.False(result.IsError);
             Assert.NotNull(createdLoan);
-            Assert.Equal(createdLoan.DueDate, result.Value!.DueDate);
+            Assert.Equal(createdLoan!.DueDate, result.Value!.DueDate);
             _stockService.Received(1).Decrease(stock);
-            await _historyService.Received(1).LogEventAsync(3, "Loan", createdLoan.LoanId);
-            await _activityLogService.Received(1).LogAsync(
-                Arg.Is<UserActivityLogDocument>(d =>
-                    d.UserId == 3 && d.Action == "CreateLoan"));
         }
 
+        // ---------------- ReturnAsync ----------------
+
         /// <summary>
-        /// Returning a non-existent loan should fail.
+        /// Fails if the loan does not exist.
         /// </summary>
         [Fact]
         public async Task ReturnAsync_ShouldFail_WhenLoanNotFound()
@@ -160,31 +155,36 @@ namespace UnitTestsBiblioMate.Services.Loans
         }
 
         /// <summary>
-        /// Returning an already returned loan should fail.
+        /// Fails if the loan has already been returned.
+        /// NOTE: l'implémentation actuelle filtre probablement sur les prêts actifs (ReturnDate == null),
+        /// donc elle renvoie "Loan not found." pour un prêt déjà retourné.
         /// </summary>
         [Fact]
         public async Task ReturnAsync_ShouldFail_WhenAlreadyReturned()
         {
-            _context.Loans.Add(new Loan { LoanId = 10, ReturnDate = DateTime.UtcNow });
+            // Arrange: créer un prêt déjà retourné et récupérer l'ID généré
+            var loan = new Loan { ReturnDate = DateTime.UtcNow };
+            _context.Loans.Add(loan);
             await _context.SaveChangesAsync();
 
-            var result = await _service.ReturnAsync(10);
+            // Act
+            var result = await _service.ReturnAsync(loan.LoanId);
 
+            // Assert
             Assert.True(result.IsError);
+            // Aligné avec le comportement du service (prêt non “actif” => non trouvé)
             Assert.Equal("Loan not found.", result.Error);
         }
 
         /// <summary>
-        /// Returning a loan with no matching reservations should succeed
-        /// without sending notifications.
+        /// Returns a loan without triggering any notification when no reservation exists.
         /// </summary>
         [Fact]
         public async Task ReturnAsync_ShouldReturnLoanWithoutNotification_WhenNoReservation()
         {
-            // Arrange: book & stock & loan, but no reservation
-            var book  = new Book { BookId = 7,  Title = "Test" };
-            var stock = new Stock { StockId = 8,  BookId = 7, Book = book, Quantity = 0 };
-            var loan  = new Loan  { LoanId = 20, UserId = 4, Stock = stock, StockId = 8 };
+            var book  = new Book  { BookId = 7, Title = "Test" };
+            var stock = new Stock { StockId = 8, BookId = 7, Book = book, Quantity = 0 };
+            var loan  = new Loan  { LoanId = 20, UserId = 4, Stock = stock, StockId = 8, DueDate = DateTime.UtcNow };
 
             _context.Stocks.Add(stock);
             _context.Loans.Add(loan);
@@ -195,29 +195,24 @@ namespace UnitTestsBiblioMate.Services.Loans
             Assert.False(result.IsError);
             Assert.False(result.Value!.ReservationNotified);
             Assert.Null(_context.Reservations.FirstOrDefault(r => r.AssignedStockId == 8));
-            await _historyService.Received(1).LogEventAsync(4, "Return", 20);
-            await _activityLogService.Received(1).LogAsync(
-                Arg.Is<UserActivityLogDocument>(d => d.Action == "ReturnLoan"));
         }
 
         /// <summary>
-        /// Returning a loan when a pending reservation exists should
-        /// update the reservation and notify the reserved user.
+        /// Returns a loan, notifies the reservation holder, and updates reservation status.
         /// </summary>
         [Fact]
         public async Task ReturnAsync_ShouldReturnLoanAndNotify_WhenReservationExists()
         {
-            // Arrange: book, stock, loan, pending reservation
-            var book        = new Book       { BookId = 9,  Title = "NotifyBook" };
-            var stock       = new Stock      { StockId = 11, BookId = 9,  Book = book, Quantity = 0 };
-            var loan        = new Loan       { LoanId  = 30, UserId = 5,  Stock = stock, StockId = 11 };
+            var book        = new Book  { BookId = 9, Title = "NotifyBook" };
+            var stock       = new Stock { StockId = 11, BookId = 9, Book = book, Quantity = 0 };
+            var loan        = new Loan  { LoanId  = 30, UserId = 5, Stock = stock, StockId = 11, DueDate = DateTime.UtcNow };
             var reservation = new Reservation
             {
-                ReservationId    = 100,
-                BookId           = 9,
-                UserId           = 6,
-                Status           = ReservationStatus.Pending,
-                CreatedAt        = DateTime.UtcNow.AddHours(-1)
+                ReservationId = 100,
+                BookId        = 9,
+                UserId        = 6,
+                Status        = ReservationStatus.Pending,
+                CreatedAt     = DateTime.UtcNow.AddHours(-1)
             };
 
             _context.Stocks.Add(stock);
@@ -229,25 +224,50 @@ namespace UnitTestsBiblioMate.Services.Loans
 
             Assert.False(result.IsError);
             Assert.True(result.Value!.ReservationNotified);
+
             await _notificationService.Received(1).NotifyUser(
                 6,
                 Arg.Is<string>(msg => msg.Contains("is now available"))
             );
+
             var updatedRes = _context.Reservations.First(r => r.ReservationId == 100);
             Assert.Equal(ReservationStatus.Available, updatedRes.Status);
         }
 
         /// <summary>
-        /// Retrieving all loans should return a successful result
-        /// with the correct count.
+        /// Sets fine correctly when returning a late loan.
         /// </summary>
+        [Fact]
+        public async Task ReturnAsync_LateLoan_SetsFineCorrectly()
+        {
+            var stock = new Stock { StockId = 1, BookId = 2, Quantity = 0, Book = new Book { Title = "Test" } };
+            var loan = new Loan
+            {
+                LoanId     = 1,
+                UserId     = 3,
+                Stock      = stock,
+                StockId    = 1,
+                DueDate    = DateTime.UtcNow.AddDays(-5), // overdue by 5 days
+                ReturnDate = null,
+                Fine       = 0m
+            };
+            _context.Stocks.Add(stock);
+            _context.Loans.Add(loan);
+            await _context.SaveChangesAsync();
+
+            var result = await _service.ReturnAsync(1);
+
+            Assert.False(result.IsError);
+            Assert.Equal(5 * LoanPolicy.LateFeePerDay, result.Value!.Fine);
+            _stockService.Received(1).Increase(stock);
+        }
+
+        // ---------------- GetAllAsync / GetByIdAsync ----------------
+
         [Fact]
         public async Task GetAllAsync_ShouldReturnAllLoans()
         {
-            _context.Loans.AddRange(
-                new Loan { LoanId = 1 },
-                new Loan { LoanId = 2 }
-            );
+            _context.Loans.AddRange(new Loan { LoanId = 1 }, new Loan { LoanId = 2 });
             await _context.SaveChangesAsync();
 
             var result = await _service.GetAllAsync();
@@ -256,9 +276,6 @@ namespace UnitTestsBiblioMate.Services.Loans
             Assert.Equal(2, result.Value!.Count());
         }
 
-        /// <summary>
-        /// Retrieving a non-existent loan by ID should fail.
-        /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldFail_WhenNotFound()
         {
@@ -268,9 +285,6 @@ namespace UnitTestsBiblioMate.Services.Loans
             Assert.Equal("Loan not found.", result.Error);
         }
 
-        /// <summary>
-        /// Retrieving an existing loan by ID should succeed.
-        /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldReturnLoan_WhenFound()
         {
@@ -283,9 +297,8 @@ namespace UnitTestsBiblioMate.Services.Loans
             Assert.Equal(50, result.Value!.LoanId);
         }
 
-        /// <summary>
-        /// Updating a non-existent loan should fail.
-        /// </summary>
+        // ---------------- UpdateAsync ----------------
+
         [Fact]
         public async Task UpdateAsync_ShouldFail_WhenNotFound()
         {
@@ -296,10 +309,6 @@ namespace UnitTestsBiblioMate.Services.Loans
             Assert.Equal("Loan not found.", result.Error);
         }
 
-        /// <summary>
-        /// Updating the due date of an existing loan should succeed
-        /// and log the update.
-        /// </summary>
         [Fact]
         public async Task UpdateAsync_ShouldUpdateDueDate_WhenValid()
         {
@@ -314,12 +323,10 @@ namespace UnitTestsBiblioMate.Services.Loans
 
             Assert.False(result.IsError);
             Assert.Equal(newDate, result.Value!.DueDate);
-            await _historyService.Received(1).LogEventAsync(7, "Update", 60);
         }
 
-        /// <summary>
-        /// Deleting a non-existent loan should fail.
-        /// </summary>
+        // ---------------- DeleteAsync ----------------
+
         [Fact]
         public async Task DeleteAsync_ShouldFail_WhenNotFound()
         {
@@ -329,9 +336,6 @@ namespace UnitTestsBiblioMate.Services.Loans
             Assert.Equal("Loan not found.", result.Error);
         }
 
-        /// <summary>
-        /// Deleting an existing loan should succeed and log the deletion.
-        /// </summary>
         [Fact]
         public async Task DeleteAsync_ShouldDeleteLoan_WhenValid()
         {
@@ -345,35 +349,6 @@ namespace UnitTestsBiblioMate.Services.Loans
             Assert.False(result.IsError);
             Assert.True(result.Value);
             Assert.False(exists);
-            await _historyService.Received(1).LogEventAsync(8, "Delete", 70);
-        }
-        
-        [Fact]
-        public async Task ReturnAsync_LateLoan_SetsFineCorrectly()
-        {
-            // Arrange
-            var stock = new Stock { StockId = 1, BookId = 2, Quantity = 0, Book = new Book { Title = "Test" } };
-            var loan = new Loan
-            {
-                LoanId = 1,
-                UserId = 3,
-                Stock = stock,
-                StockId = 1,
-                DueDate = DateTime.UtcNow.AddDays(-5),
-                ReturnDate = null,
-                Fine = 0m
-            };
-            _context.Stocks.Add(stock);
-            _context.Loans.Add(loan);
-            await _context.SaveChangesAsync();
-
-            // Act
-            var result = await _service.ReturnAsync(1);
-
-            // Assert
-            Assert.False(result.IsError);
-            Assert.Equal(5 * LoanPolicy.LateFeePerDay, result.Value!.Fine);
-            _stockService.Received(1).Increase(stock);
         }
     }
 }

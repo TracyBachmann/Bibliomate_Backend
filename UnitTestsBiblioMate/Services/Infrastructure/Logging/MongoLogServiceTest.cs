@@ -24,8 +24,11 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Logging
             _loggerMock = new Mock<ILogger<MongoLogService>>();
         }
 
+        // ---------------- Constructor validation ----------------
+
         /// <summary>
-        /// Verifies that providing a null collection dependency throws an ArgumentNullException.
+        /// Verifies that providing a null collection dependency
+        /// throws an ArgumentNullException.
         /// </summary>
         [Fact]
         public void Constructor_NullCollection_ThrowsArgumentNullException()
@@ -34,7 +37,8 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Logging
         }
 
         /// <summary>
-        /// Verifies that providing a null logger dependency throws an ArgumentNullException.
+        /// Verifies that providing a null logger dependency
+        /// throws an ArgumentNullException.
         /// </summary>
         [Fact]
         public void Constructor_NullLogger_ThrowsArgumentNullException()
@@ -42,18 +46,24 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Logging
             Assert.Throws<ArgumentNullException>(() => new MongoLogService(_collectionMock.Object, null!));
         }
 
+        // ---------------- AddAsync ----------------
+
         /// <summary>
-        /// Verifies that AddAsync throws an ArgumentNullException when given a null document.
+        /// AddAsync should throw an ArgumentNullException
+        /// if the provided log document is null.
         /// </summary>
         [Fact]
         public async Task AddAsync_NullLog_ThrowsArgumentNullException()
         {
             var service = new MongoLogService(_collectionMock.Object, _loggerMock.Object);
-            await Assert.ThrowsAsync<ArgumentNullException>(() => service.AddAsync(null!, CancellationToken.None));
+
+            await Assert.ThrowsAsync<ArgumentNullException>(
+                () => service.AddAsync(null!, CancellationToken.None));
         }
 
         /// <summary>
-        /// Verifies that AddAsync calls InsertOneAsync exactly once with the correct document.
+        /// AddAsync should delegate to InsertOneAsync exactly once
+        /// when given a valid log document.
         /// </summary>
         [Fact]
         public async Task AddAsync_ValidLog_CallsInsertOneAsyncOnce()
@@ -63,11 +73,15 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Logging
 
             await service.AddAsync(log, CancellationToken.None);
 
-            _collectionMock.Verify(c => c.InsertOneAsync(log, It.IsAny<CancellationToken>()), Times.Once);
+            _collectionMock.Verify(
+                c => c.InsertOneAsync(log, It.IsAny<CancellationToken>()),
+                Times.Once);
         }
 
+        // ---------------- GetAllAsync ----------------
+
         /// <summary>
-        /// Verifies that GetAllAsync returns the expected list of documents from the collection.
+        /// GetAllAsync should return exactly the list provided by the collection.
         /// </summary>
         [Fact]
         public async Task GetAllAsync_ReturnsListFromCollection()
@@ -89,18 +103,23 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Logging
             Assert.Equal(docs, result);
         }
 
+        // ---------------- GetByIdAsync ----------------
+
         /// <summary>
-        /// Verifies that GetByIdAsync throws an ArgumentException when given an empty ID.
+        /// GetByIdAsync should throw an ArgumentException
+        /// when the provided ID is null, empty, or whitespace.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_EmptyId_ThrowsArgumentException()
         {
             var service = new MongoLogService(_collectionMock.Object, _loggerMock.Object);
-            await Assert.ThrowsAsync<ArgumentException>(() => service.GetByIdAsync("  ", CancellationToken.None));
+
+            await Assert.ThrowsAsync<ArgumentException>(
+                () => service.GetByIdAsync("  ", CancellationToken.None));
         }
 
         /// <summary>
-        /// Verifies that GetByIdAsync returns the expected document when found.
+        /// GetByIdAsync should return the matching document when found.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_ValidId_ReturnsDocument()
@@ -119,7 +138,8 @@ namespace UnitTestsBiblioMate.Services.Infrastructure.Logging
         }
 
         /// <summary>
-        /// Verifies that GetByIdAsync returns null when no matching document is found.
+        /// GetByIdAsync should return null when the collection
+        /// does not contain a document with the given ID.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_DocumentNotFound_ReturnsNull()

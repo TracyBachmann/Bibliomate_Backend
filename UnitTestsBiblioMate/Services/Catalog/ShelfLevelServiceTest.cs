@@ -11,7 +11,8 @@ namespace UnitTestsBiblioMate.Services.Catalog
 {
     /// <summary>
     /// Unit tests for <see cref="ShelfLevelService"/>.
-    /// Verifies CRUD operations using an in-memory EF Core provider.
+    /// Uses EF Core InMemory provider to test persistence and CRUD behavior
+    /// without a real database.
     /// </summary>
     public class ShelfLevelServiceTest
     {
@@ -20,16 +21,18 @@ namespace UnitTestsBiblioMate.Services.Catalog
         private readonly CancellationToken _ct = CancellationToken.None;
 
         /// <summary>
-        /// Initializes the in-memory test context with encryption and seeds a Shelf.
+        /// Initializes the in-memory test context with encryption support,
+        /// seeds a <see cref="Shelf"/> entity (required by FK),
+        /// and sets up the service under test.
         /// </summary>
         public ShelfLevelServiceTest()
         {
-            // 1) Build in-memory EF options
+            // 1) Configure EF Core to use an isolated in-memory database for each test run
             var options = new DbContextOptionsBuilder<BiblioMateDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-            // 2) Provide a 32-byte Base64 key for EncryptionService
+            // 2) Provide a 32-byte encryption key required by BiblioMateDbContext
             var base64Key = Convert.ToBase64String(
                 Encoding.UTF8.GetBytes("12345678901234567890123456789012")
             );
@@ -39,12 +42,13 @@ namespace UnitTestsBiblioMate.Services.Catalog
                     ["Encryption:Key"] = base64Key
                 })
                 .Build();
+
             var encryptionService = new EncryptionService(config);
 
             // 3) Instantiate DbContext with EncryptionService
             _db = new BiblioMateDbContext(options, encryptionService);
 
-            // 4) Seed a Shelf for the foreign key
+            // 4) Seed a Shelf so that ShelfLevel foreign keys are valid
             var shelf = new Shelf
             {
                 Name        = "Test Shelf",
@@ -56,14 +60,20 @@ namespace UnitTestsBiblioMate.Services.Catalog
             _db.Shelves.Add(shelf);
             _db.SaveChanges();
 
-            // 5) Instantiate service under test
+            // 5) Instantiate the ShelfLevelService being tested
             _service = new ShelfLevelService(_db);
         }
 
+        /// <summary>
+        /// Helper method to retrieve the seeded ShelfId.
+        /// </summary>
         private int GetShelfId() => _db.Shelves.First().ShelfId;
 
+        // -------------------- CREATE --------------------
+
         /// <summary>
-        /// Verifies that CreateAsync adds a new ShelfLevel.
+        /// Ensures that <see cref="ShelfLevelService.CreateAsync"/> inserts a new ShelfLevel
+        /// and returns the correct DTO projection.
         /// </summary>
         [Fact]
         public async Task CreateAsync_ShouldAddShelfLevel()
@@ -84,16 +94,21 @@ namespace UnitTestsBiblioMate.Services.Catalog
             // Assert
             Assert.NotNull(result);
             Assert.Equal(dto.LevelNumber, result.LevelNumber);
-            Assert.Equal(dto.ShelfId,     result.ShelfId);
-            Assert.Equal(dto.MaxHeight,   result.MaxHeight);
-            Assert.Equal(dto.Capacity,    result.Capacity);
+            Assert.Equal(dto.ShelfId, result.ShelfId);
+            Assert.Equal(dto.MaxHeight, result.MaxHeight);
+            Assert.Equal(dto.Capacity, result.Capacity);
             Assert.Equal(dto.CurrentLoad, result.CurrentLoad);
+
+            // Verify persistence
             Assert.True(await _db.ShelfLevels
                 .AnyAsync(sl => sl.ShelfLevelId == result.ShelfLevelId, _ct));
         }
 
+        // -------------------- READ (ALL) --------------------
+
         /// <summary>
-        /// Verifies that GetAllAsync returns all ShelfLevels.
+        /// Ensures that <see cref="ShelfLevelService.GetAllAsync"/> retrieves all ShelfLevels
+        /// inserted in the database.
         /// </summary>
         [Fact]
         public async Task GetAllAsync_ShouldReturnAllShelfLevels()
@@ -112,8 +127,11 @@ namespace UnitTestsBiblioMate.Services.Catalog
             Assert.Equal(2, result.Count);
         }
 
+        // -------------------- READ (BY ID) --------------------
+
         /// <summary>
-        /// Verifies that GetByIdAsync returns the ShelfLevel when it exists.
+        /// Ensures that <see cref="ShelfLevelService.GetByIdAsync"/> returns the ShelfLevel DTO
+        /// when the entity exists.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldReturnShelfLevel_WhenExists()
@@ -136,13 +154,14 @@ namespace UnitTestsBiblioMate.Services.Catalog
             // Assert
             Assert.NotNull(result);
             Assert.Equal(level.LevelNumber, result.LevelNumber);
-            Assert.Equal(level.MaxHeight,   result.MaxHeight);
-            Assert.Equal(level.Capacity,    result.Capacity);
+            Assert.Equal(level.MaxHeight, result.MaxHeight);
+            Assert.Equal(level.Capacity, result.Capacity);
             Assert.Equal(level.CurrentLoad, result.CurrentLoad);
         }
 
         /// <summary>
-        /// Verifies that GetByIdAsync returns null when the ShelfLevel does not exist.
+        /// Ensures that <see cref="ShelfLevelService.GetByIdAsync"/> returns null
+        /// when the ShelfLevel does not exist.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldReturnNull_WhenNotExists()
@@ -154,8 +173,11 @@ namespace UnitTestsBiblioMate.Services.Catalog
             Assert.Null(result);
         }
 
+        // -------------------- UPDATE --------------------
+
         /// <summary>
-        /// Verifies that UpdateAsync modifies an existing ShelfLevel.
+        /// Ensures that <see cref="ShelfLevelService.UpdateAsync"/> modifies an existing ShelfLevel
+        /// and persists the changes.
         /// </summary>
         [Fact]
         public async Task UpdateAsync_ShouldModifyShelfLevel_WhenExists()
@@ -187,16 +209,19 @@ namespace UnitTestsBiblioMate.Services.Catalog
 
             // Assert
             Assert.True(success);
+
             var updated = await _db.ShelfLevels.FindAsync(
                 new object[] { level.ShelfLevelId }, _ct);
+
             Assert.Equal(dto.LevelNumber, updated?.LevelNumber);
-            Assert.Equal(dto.MaxHeight,   updated?.MaxHeight);
-            Assert.Equal(dto.Capacity,    updated?.Capacity);
+            Assert.Equal(dto.MaxHeight, updated?.MaxHeight);
+            Assert.Equal(dto.Capacity, updated?.Capacity);
             Assert.Equal(dto.CurrentLoad, updated?.CurrentLoad);
         }
 
         /// <summary>
-        /// Verifies that UpdateAsync returns false when the ShelfLevel does not exist.
+        /// Ensures that <see cref="ShelfLevelService.UpdateAsync"/> returns false
+        /// when the ShelfLevel does not exist.
         /// </summary>
         [Fact]
         public async Task UpdateAsync_ShouldReturnFalse_WhenNotExists()
@@ -219,8 +244,11 @@ namespace UnitTestsBiblioMate.Services.Catalog
             Assert.False(success);
         }
 
+        // -------------------- DELETE --------------------
+
         /// <summary>
-        /// Verifies that DeleteAsync removes an existing ShelfLevel.
+        /// Ensures that <see cref="ShelfLevelService.DeleteAsync"/> removes an existing ShelfLevel
+        /// and returns true.
         /// </summary>
         [Fact]
         public async Task DeleteAsync_ShouldRemoveShelfLevel_WhenExists()
@@ -247,7 +275,8 @@ namespace UnitTestsBiblioMate.Services.Catalog
         }
 
         /// <summary>
-        /// Verifies that DeleteAsync returns false when the ShelfLevel does not exist.
+        /// Ensures that <see cref="ShelfLevelService.DeleteAsync"/> returns false
+        /// when the ShelfLevel does not exist.
         /// </summary>
         [Fact]
         public async Task DeleteAsync_ShouldReturnFalse_WhenNotExists()

@@ -1,3 +1,4 @@
+using System.Text;
 using BackendBiblioMate.Data;
 using BackendBiblioMate.DTOs;
 using BackendBiblioMate.Models;
@@ -17,18 +18,23 @@ namespace UnitTestsBiblioMate.Services.Reports
         private readonly ReportService       _service;
         private readonly BiblioMateDbContext _db;
 
+        /// <summary>
+        /// Initializes an EF Core InMemory database and a ReportService instance.
+        /// Uses <see cref="EncryptionService"/> since DbContext requires it.
+        /// </summary>
         public ReportServiceTest()
         {
-            // In-memory EF Core + EncryptionService (required by DbContext constructor)
+            // Configure EncryptionService with a fixed 32-byte Base64 key
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["Encryption:Key"] = Convert.ToBase64String(
-                        System.Text.Encoding.UTF8.GetBytes("12345678901234567890123456789012"))
+                        Encoding.UTF8.GetBytes("12345678901234567890123456789012"))
                 })
                 .Build();
             var encryptionService = new EncryptionService(config);
 
+            // Use InMemory EF Core for isolated unit testing
             var options = new DbContextOptionsBuilder<BiblioMateDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
@@ -38,12 +44,12 @@ namespace UnitTestsBiblioMate.Services.Reports
         }
 
         /// <summary>
-        /// GetAllAsync should return all persisted reports.
+        /// Ensures GetAllAsync returns all reports from the database.
         /// </summary>
         [Fact]
         public async Task GetAllAsync_ShouldReturnAllReports()
         {
-            // Arrange: seed users and two reports
+            // Arrange: seed users and reports
             _db.Users.Add(new User { UserId = 1, FirstName = "User1", LastName = "" });
             _db.Users.Add(new User { UserId = 2, FirstName = "User2", LastName = "" });
             _db.Reports.Add(new Report
@@ -72,7 +78,7 @@ namespace UnitTestsBiblioMate.Services.Reports
         }
 
         /// <summary>
-        /// GetByIdAsync returns the DTO when the report exists.
+        /// Ensures GetByIdAsync returns a DTO when the report exists.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldReturnReport_WhenExists()
@@ -98,7 +104,7 @@ namespace UnitTestsBiblioMate.Services.Reports
         }
 
         /// <summary>
-        /// GetByIdAsync returns null when the report does not exist.
+        /// Ensures GetByIdAsync returns null when the report does not exist.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldReturnNull_WhenNotExists()
@@ -111,13 +117,15 @@ namespace UnitTestsBiblioMate.Services.Reports
         }
 
         /// <summary>
-        /// CreateAsync generates report content based on monthly loan stats,
-        /// saves it, and returns the created DTO.
+        /// Ensures CreateAsync generates a report containing:
+        /// - Loan statistics (this month vs last month).
+        /// - Titles of the books involved.
+        /// Also verifies persistence in the database.
         /// </summary>
         [Fact]
         public async Task CreateAsync_ShouldGenerateAndSaveReport()
         {
-            // Arrange: seed a user and loans in this and last month
+            // Arrange: seed a user and some loans across two months
             const int userId = 10;
             _db.Users.Add(new User { UserId = userId, FirstName = "User10", LastName = "" });
 
@@ -125,12 +133,12 @@ namespace UnitTestsBiblioMate.Services.Reports
             var thisMonthStart = new DateTime(now.Year, now.Month, 1);
             var lastMonthStart = thisMonthStart.AddMonths(-1);
 
-            // Two loans this month, one last month
+            // Two loans in this month, one in the previous month
             _db.Loans.Add(new Loan { LoanDate = thisMonthStart.AddDays(1), BookId = 1 });
             _db.Loans.Add(new Loan { LoanDate = thisMonthStart.AddDays(2), BookId = 2 });
             _db.Loans.Add(new Loan { LoanDate = lastMonthStart.AddDays(1), BookId = 1 });
 
-            // Seed books for title inclusion
+            // Books for inclusion in the report
             _db.Books.Add(new Book { BookId = 1, Title = "Book A" });
             _db.Books.Add(new Book { BookId = 2, Title = "Book B" });
 
@@ -141,7 +149,7 @@ namespace UnitTestsBiblioMate.Services.Reports
             // Act
             var created = await _service.CreateAsync(createDto, userId);
 
-            // Assert
+            // Assert: verify mapping and generated content
             Assert.NotNull(created);
             Assert.Equal("Monthly Stats", created.Title);
             Assert.False(string.IsNullOrWhiteSpace(created.Content));
@@ -150,12 +158,13 @@ namespace UnitTestsBiblioMate.Services.Reports
             Assert.Contains("Book A", created.Content);
             Assert.Contains("Book B", created.Content);
 
-            // Confirm persistence
+            // Confirm report was persisted
             Assert.True(await _db.Reports.AnyAsync(r => r.ReportId == created.ReportId));
         }
 
         /// <summary>
-        /// UpdateAsync modifies an existing report and returns true.
+        /// Ensures UpdateAsync modifies an existing report
+        /// and persists the changes.
         /// </summary>
         [Fact]
         public async Task UpdateAsync_ShouldModifyReport_WhenExists()
@@ -190,12 +199,11 @@ namespace UnitTestsBiblioMate.Services.Reports
         }
 
         /// <summary>
-        /// UpdateAsync returns false when the report does not exist.
+        /// Ensures UpdateAsync returns false when trying to update a non-existing report.
         /// </summary>
         [Fact]
         public async Task UpdateAsync_ShouldReturnFalse_WhenNotExists()
         {
-            // Arrange
             var updateDto = new ReportUpdateDto
             {
                 ReportId = 999,
@@ -203,15 +211,13 @@ namespace UnitTestsBiblioMate.Services.Reports
                 Content  = "Y"
             };
 
-            // Act
             var success = await _service.UpdateAsync(updateDto);
 
-            // Assert
             Assert.False(success);
         }
 
         /// <summary>
-        /// DeleteAsync removes an existing report and returns true.
+        /// Ensures DeleteAsync removes an existing report from the database.
         /// </summary>
         [Fact]
         public async Task DeleteAsync_ShouldRemoveReport_WhenExists()
@@ -237,15 +243,12 @@ namespace UnitTestsBiblioMate.Services.Reports
         }
 
         /// <summary>
-        /// DeleteAsync returns false when the report does not exist.
+        /// Ensures DeleteAsync returns false when trying to delete a non-existing report.
         /// </summary>
         [Fact]
         public async Task DeleteAsync_ShouldReturnFalse_WhenNotExists()
         {
-            // Act
             var success = await _service.DeleteAsync(999);
-
-            // Assert
             Assert.False(success);
         }
     }

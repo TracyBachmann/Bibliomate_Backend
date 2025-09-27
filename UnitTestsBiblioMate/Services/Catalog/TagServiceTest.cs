@@ -6,237 +6,258 @@ using BackendBiblioMate.Services.Catalog;
 using BackendBiblioMate.Services.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Xunit.Abstractions;
 
 namespace UnitTestsBiblioMate.Services.Catalog
 {
     /// <summary>
-    /// Unit tests for <see cref="TagService"/> validating CRUD operations.
+    /// Unit tests for <see cref="TagService"/>.
+    /// Verifies CRUD operations, <c>SearchAsync</c>, and <c>EnsureAsync</c>
+    /// using the EF Core InMemory provider.
     /// </summary>
-    public class TagsServiceTests
+    public class TagServiceTests : IDisposable
     {
-        private readonly TagService _service;
         private readonly BiblioMateDbContext _db;
-        private readonly ITestOutputHelper _output;
+        private readonly TagService _service;
         private readonly CancellationToken _ct = CancellationToken.None;
 
         /// <summary>
-        /// Sets up the in-memory database context, encryption service, and TagService.
+        /// Initializes an in-memory EF Core context with encryption service
+        /// and prepares a TagService instance for testing.
         /// </summary>
-        public TagsServiceTests(ITestOutputHelper output)
+        public TagServiceTests()
         {
-            _output = output;
-
-            // 1) Build in-memory EF Core options
+            // Configure EF Core InMemory database
             var options = new DbContextOptionsBuilder<BiblioMateDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-            // 2) Provide a 32-byte Base64 key for EncryptionService
-            var base64Key = Convert.ToBase64String(
-                Encoding.UTF8.GetBytes("12345678901234567890123456789012")
-            );
+            // EncryptionService dependency for DbContext
+            var base64Key = Convert.ToBase64String(Encoding.UTF8.GetBytes("12345678901234567890123456789012"));
             IConfiguration config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["Encryption:Key"] = base64Key
-                })
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["Encryption:Key"] = base64Key })
                 .Build();
-            var encryptionService = new EncryptionService(config);
+            var encryption = new EncryptionService(config);
 
-            // 3) Instantiate DbContext with EncryptionService
-            _db = new BiblioMateDbContext(options, encryptionService);
-
-            // 4) Instantiate TagService under test
+            // Initialize DbContext and service
+            _db = new BiblioMateDbContext(options, encryption);
             _service = new TagService(_db);
         }
 
+        public void Dispose() => _db.Dispose();
+
+        // ----------------- Create -----------------
+
         /// <summary>
-        /// Verifies that CreateAsync adds a new tag to the database.
+        /// CreateAsync should add a new tag and persist it in the database.
         /// </summary>
         [Fact]
         public async Task CreateAsync_ShouldAddTag()
         {
-            _output.WriteLine("=== CreateAsync: START ===");
-
-            // Arrange
             var dto = new TagCreateDto { Name = "Classic" };
 
-            // Act
             var result = await _service.CreateAsync(dto, _ct);
 
-            _output.WriteLine($"Created Tag: {result.Name}");
-
-            // Assert
             Assert.NotNull(result);
-            Assert.Equal(dto.Name, result.Name);
-            Assert.True(await _db.Tags.AnyAsync(t => t.Name == dto.Name, _ct));
-
-            _output.WriteLine("=== CreateAsync: END ===");
+            Assert.Equal("Classic", result.Name);
+            Assert.True(await _db.Tags.AnyAsync(t => t.Name == "Classic", _ct));
         }
 
+        // ----------------- Read -----------------
+
         /// <summary>
-        /// Verifies that GetAllAsync returns all tags present in the database.
+        /// GetAllAsync should return all tags from the database.
         /// </summary>
         [Fact]
         public async Task GetAllAsync_ShouldReturnAllTags()
         {
-            _output.WriteLine("=== GetAllAsync: START ===");
-
-            // Arrange
-            _db.Tags.AddRange(
-                new Tag { Name = "Adventure" },
-                new Tag { Name = "Coming-of-Age" }
-            );
+            _db.Tags.AddRange(new Tag { Name = "Adventure" }, new Tag { Name = "Coming-of-Age" });
             await _db.SaveChangesAsync(_ct);
 
-            // Act
             var tags = (await _service.GetAllAsync(_ct)).ToList();
 
-            _output.WriteLine($"Found Tags Count: {tags.Count}");
-
-            // Assert
             Assert.Equal(2, tags.Count);
-
-            _output.WriteLine("=== GetAllAsync: END ===");
+            Assert.Contains(tags, t => t.Name == "Adventure");
+            Assert.Contains(tags, t => t.Name == "Coming-of-Age");
         }
 
         /// <summary>
-        /// Verifies that GetByIdAsync returns the tag DTO when it exists.
+        /// GetByIdAsync should return the tag when it exists.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldReturnTag_WhenExists()
         {
-            _output.WriteLine("=== GetByIdAsync (exists): START ===");
-
-            // Arrange
-            var tag = new Tag { Name = "Post-apocalyptique" };
-            _db.Tags.Add(tag);
+            var tag = _db.Tags.Add(new Tag { Name = "Post-apocalyptique" }).Entity;
             await _db.SaveChangesAsync(_ct);
 
-            // Act
             var dto = await _service.GetByIdAsync(tag.TagId, _ct);
 
-            _output.WriteLine($"Found Tag: {dto?.Name}");
-
-            // Assert
             Assert.NotNull(dto);
+            Assert.Equal(tag.TagId, dto!.TagId);
             Assert.Equal(tag.Name, dto.Name);
-
-            _output.WriteLine("=== GetByIdAsync (exists): END ===");
         }
 
         /// <summary>
-        /// Verifies that GetByIdAsync returns null when the tag does not exist.
+        /// GetByIdAsync should return null when the tag does not exist.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldReturnNull_WhenNotExists()
         {
-            _output.WriteLine("=== GetByIdAsync (not exists): START ===");
-
-            // Act
             var dto = await _service.GetByIdAsync(999, _ct);
-
-            _output.WriteLine($"Result: {dto}");
-
-            // Assert
             Assert.Null(dto);
-
-            _output.WriteLine("=== GetByIdAsync (not exists): END ===");
         }
 
+        // ----------------- Update -----------------
+
         /// <summary>
-        /// Verifies that UpdateAsync successfully updates an existing tag.
+        /// UpdateAsync should modify an existing tag.
         /// </summary>
         [Fact]
         public async Task UpdateAsync_ShouldModifyTag_WhenExists()
         {
-            _output.WriteLine("=== UpdateAsync (success): START ===");
-
-            // Arrange
-            var tag = new Tag { Name = "Old Tag" };
-            _db.Tags.Add(tag);
+            var tag = _db.Tags.Add(new Tag { Name = "Old" }).Entity;
             await _db.SaveChangesAsync(_ct);
 
-            var dto = new TagUpdateDto { TagId = tag.TagId, Name = "Updated Tag" };
+            var ok = await _service.UpdateAsync(new TagUpdateDto { TagId = tag.TagId, Name = "New" }, _ct);
 
-            // Act
-            var success = await _service.UpdateAsync(dto, _ct);
+            Assert.True(ok);
             var updated = await _db.Tags.FindAsync(new object[] { tag.TagId }, _ct);
-
-            _output.WriteLine($"Success: {success}, Updated Name: {updated?.Name}");
-
-            // Assert
-            Assert.True(success);
-            Assert.Equal("Updated Tag", updated?.Name);
-
-            _output.WriteLine("=== UpdateAsync (success): END ===");
+            Assert.Equal("New", updated!.Name);
         }
 
         /// <summary>
-        /// Verifies that UpdateAsync returns false when the tag to update does not exist.
+        /// UpdateAsync should return false when the tag does not exist.
         /// </summary>
         [Fact]
         public async Task UpdateAsync_ShouldReturnFalse_WhenNotExists()
         {
-            _output.WriteLine("=== UpdateAsync (fail): START ===");
-
-            // Arrange
-            var dto = new TagUpdateDto { TagId = 999, Name = "Doesn't matter" };
-
-            // Act
-            var success = await _service.UpdateAsync(dto, _ct);
-
-            _output.WriteLine($"Success: {success}");
-
-            // Assert
-            Assert.False(success);
-
-            _output.WriteLine("=== UpdateAsync (fail): END ===");
+            var ok = await _service.UpdateAsync(new TagUpdateDto { TagId = 12345, Name = "X" }, _ct);
+            Assert.False(ok);
         }
 
+        // ----------------- Delete -----------------
+
         /// <summary>
-        /// Verifies that DeleteAsync removes an existing tag.
+        /// DeleteAsync should remove a tag from the database when it exists.
         /// </summary>
         [Fact]
         public async Task DeleteAsync_ShouldRemoveTag_WhenExists()
         {
-            _output.WriteLine("=== DeleteAsync (success): START ===");
-
-            // Arrange
-            var tag = new Tag { Name = "ToDelete" };
-            _db.Tags.Add(tag);
+            var tag = _db.Tags.Add(new Tag { Name = "ToDelete" }).Entity;
             await _db.SaveChangesAsync(_ct);
 
-            // Act
-            var success = await _service.DeleteAsync(tag.TagId, _ct);
+            var ok = await _service.DeleteAsync(tag.TagId, _ct);
 
-            _output.WriteLine($"Success: {success}");
-
-            // Assert
-            Assert.True(success);
+            Assert.True(ok);
             Assert.False(await _db.Tags.AnyAsync(t => t.TagId == tag.TagId, _ct));
-
-            _output.WriteLine("=== DeleteAsync (success): END ===");
         }
 
         /// <summary>
-        /// Verifies that DeleteAsync returns false when the tag to delete does not exist.
+        /// DeleteAsync should return false when the tag does not exist.
         /// </summary>
         [Fact]
         public async Task DeleteAsync_ShouldReturnFalse_WhenNotExists()
         {
-            _output.WriteLine("=== DeleteAsync (fail): START ===");
+            var ok = await _service.DeleteAsync(999, _ct);
+            Assert.False(ok);
+        }
 
-            // Act
-            var success = await _service.DeleteAsync(999, _ct);
+        // ----------------- SearchAsync -----------------
 
-            _output.WriteLine($"Success: {success}");
+        /// <summary>
+        /// SearchAsync should return ordered results by name
+        /// when search term is null, respecting the "take" limit.
+        /// </summary>
+        [Fact]
+        public async Task SearchAsync_WhenSearchIsNull_TakesAndOrdersByName()
+        {
+            _db.Tags.AddRange(
+                new Tag { Name = "zeta" },
+                new Tag { Name = "alpha" },
+                new Tag { Name = "beta" }
+            );
+            await _db.SaveChangesAsync(_ct);
 
-            // Assert
-            Assert.False(success);
+            var res = (await _service.SearchAsync(null, take: 2, _ct)).ToList();
 
-            _output.WriteLine("=== DeleteAsync (fail): END ===");
+            Assert.Equal(2, res.Count);
+            Assert.Equal(new[] { "alpha", "beta" }, res.Select(r => r.Name).ToArray());
+        }
+
+        /// <summary>
+        /// SearchAsync should filter results case-insensitively
+        /// when a search term is provided.
+        /// </summary>
+        [Fact]
+        public async Task SearchAsync_FiltersBySubstring_CaseInsensitive()
+        {
+            _db.Tags.AddRange(
+                new Tag { Name = "Fantasy" },
+                new Tag { Name = "High Fantasy" },
+                new Tag { Name = "Science Fiction" }
+            );
+            await _db.SaveChangesAsync(_ct);
+
+            var res = (await _service.SearchAsync("fant", take: 10, _ct)).Select(r => r.Name).ToList();
+
+            Assert.Equal(2, res.Count);
+            Assert.Contains("Fantasy", res);
+            Assert.Contains("High Fantasy", res);
+        }
+
+        /// <summary>
+        /// SearchAsync should clamp the "take" parameter to a maximum of 100 results.
+        /// </summary>
+        [Fact]
+        public async Task SearchAsync_ClampsTakeToMax100()
+        {
+            var tags = Enumerable.Range(1, 105).Select(i => new Tag { Name = $"Tag{i:D3}" });
+            _db.Tags.AddRange(tags);
+            await _db.SaveChangesAsync(_ct);
+
+            var res = (await _service.SearchAsync(null, take: 500, _ct)).ToList();
+
+            Assert.Equal(100, res.Count);
+        }
+
+        // ----------------- EnsureAsync -----------------
+
+        /// <summary>
+        /// EnsureAsync should return an existing tag if the name already exists.
+        /// </summary>
+        [Fact]
+        public async Task EnsureAsync_ReturnsExisting_WhenAlreadyPresent()
+        {
+            var existing = _db.Tags.Add(new Tag { Name = "Existing" }).Entity;
+            await _db.SaveChangesAsync(_ct);
+
+            var (dto, created) = await _service.EnsureAsync("Existing", _ct);
+
+            Assert.False(created);
+            Assert.Equal(existing.TagId, dto.TagId);
+            Assert.Equal("Existing", dto.Name);
+        }
+
+        /// <summary>
+        /// EnsureAsync should create a new tag if the name does not exist.
+        /// </summary>
+        [Fact]
+        public async Task EnsureAsync_Creates_WhenMissing()
+        {
+            var (dto, created) = await _service.EnsureAsync("BrandNew", _ct);
+
+            Assert.True(created);
+            Assert.True(dto.TagId > 0);
+            Assert.Equal("BrandNew", dto.Name);
+            Assert.True(await _db.Tags.AnyAsync(t => t.TagId == dto.TagId, _ct));
+        }
+
+        /// <summary>
+        /// EnsureAsync should throw if the name is empty or invalid.
+        /// </summary>
+        [Fact]
+        public async Task EnsureAsync_Throws_WhenNameEmpty()
+        {
+            await Assert.ThrowsAsync<ArgumentException>(() => _service.EnsureAsync("", _ct));
         }
     }
 }

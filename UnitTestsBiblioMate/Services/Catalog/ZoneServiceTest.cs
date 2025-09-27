@@ -11,7 +11,8 @@ using Xunit.Abstractions;
 namespace UnitTestsBiblioMate.Services.Catalog
 {
     /// <summary>
-    /// Unit tests for <see cref="ZoneService"/> validating CRUD operations.
+    /// Unit tests for <see cref="ZoneService"/>.
+    /// Verifies all CRUD operations using EF Core InMemory provider.
     /// </summary>
     public class ZonesServiceTests
     {
@@ -21,154 +22,153 @@ namespace UnitTestsBiblioMate.Services.Catalog
         private readonly CancellationToken _ct = CancellationToken.None;
 
         /// <summary>
-        /// Sets up the in-memory database context, encryption service, and ZoneService.
+        /// Initializes an in-memory EF Core database, sets up encryption,
+        /// and instantiates a <see cref="ZoneService"/> for testing.
         /// </summary>
         public ZonesServiceTests(ITestOutputHelper output)
         {
             _output = output;
 
-            // 1) Build in-memory EF Core options
+            // Configure EF Core InMemory provider
             var options = new DbContextOptionsBuilder<BiblioMateDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-            // 2) Provide a 32-byte Base64 key for EncryptionService
+            // EncryptionService dependency for DbContext
             var base64Key = Convert.ToBase64String(
                 Encoding.UTF8.GetBytes("12345678901234567890123456789012")
             );
             IConfiguration config = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["Encryption:Key"] = base64Key
-                })
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["Encryption:Key"] = base64Key })
                 .Build();
-            var encryptionService = new EncryptionService(config);
+            var encryption = new EncryptionService(config);
 
-            // 3) Instantiate DbContext with EncryptionService
-            _db = new BiblioMateDbContext(options, encryptionService);
-
-            // 4) Instantiate ZoneService under test
+            _db = new BiblioMateDbContext(options, encryption);
             _service = new ZoneService(_db);
         }
 
+        // ----------------- Create -----------------
+
         /// <summary>
-        /// Verifies that CreateAsync adds a new zone to the database.
+        /// CreateAsync should add a new zone and persist it in the database.
         /// </summary>
         [Fact]
         public async Task CreateAsync_ShouldAddZone()
         {
             _output.WriteLine("=== CreateAsync: START ===");
 
-            // Arrange
             var dto = new ZoneCreateDto
             {
+                Name        = "Zone A",
                 FloorNumber = 1,
                 AisleCode   = "A",
-                Description = "Littérature jeunesse et albums illustrés"
+                Description = "Children's literature and illustrated albums"
             };
 
-            // Act
             var result = await _service.CreateAsync(dto, _ct);
 
-            _output.WriteLine($"Created Zone: {result.Description}");
+            _output.WriteLine($"Created Zone: {result.ZoneId} - {result.Name}");
 
-            // Assert
             Assert.NotNull(result);
+            Assert.Equal(dto.Name, result.Name);
             Assert.Equal(dto.Description, result.Description);
-            Assert.True(await _db.Zones.AnyAsync(z => z.Description == dto.Description, _ct));
+            Assert.True(await _db.Zones.AnyAsync(z => z.ZoneId == result.ZoneId && z.Name == "Zone A", _ct));
 
             _output.WriteLine("=== CreateAsync: END ===");
         }
 
+        // ----------------- Read All -----------------
+
         /// <summary>
-        /// Verifies that GetAllAsync returns all zones (paginated).
+        /// GetAllAsync should return all zones with pagination applied.
         /// </summary>
         [Fact]
-        public async Task GetAllAsync_ShouldReturnAllZones()
+        public async Task GetAllAsync_ShouldReturnAllZones_Paginated()
         {
             _output.WriteLine("=== GetAllAsync: START ===");
 
-            // Arrange
             _db.Zones.AddRange(
-                new Zone { FloorNumber = 1, AisleCode = "B", Description = "Romans et nouvelles" },
-                new Zone { FloorNumber = 2, AisleCode = "C", Description = "Bandes dessinées" }
+                new Zone { Name = "Z1", FloorNumber = 1, AisleCode = "B", Description = "Novels and short stories" },
+                new Zone { Name = "Z2", FloorNumber = 2, AisleCode = "C", Description = "Comics" }
             );
             await _db.SaveChangesAsync(_ct);
 
-            // Act
-            var zones = (await _service.GetAllAsync(1, 10, _ct)).ToList();
+            var zones = (await _service.GetAllAsync(page: 1, pageSize: 10, _ct)).ToList();
 
             _output.WriteLine($"Found Zones Count: {zones.Count}");
 
-            // Assert
             Assert.Equal(2, zones.Count);
+            Assert.Contains(zones, z => z.Name == "Z1");
+            Assert.Contains(zones, z => z.Name == "Z2");
 
             _output.WriteLine("=== GetAllAsync: END ===");
         }
 
+        // ----------------- Read by Id -----------------
+
         /// <summary>
-        /// Verifies that GetByIdAsync returns the zone DTO when it exists.
+        /// GetByIdAsync should return a zone when it exists.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldReturnZone_WhenExists()
         {
             _output.WriteLine("=== GetByIdAsync (exists): START ===");
 
-            // Arrange
             var zone = new Zone
             {
+                Name        = "Sciences",
                 FloorNumber = 0,
                 AisleCode   = "D",
-                Description = "Sciences humaines"
+                Description = "Human sciences"
             };
             _db.Zones.Add(zone);
             await _db.SaveChangesAsync(_ct);
 
-            // Act
             var dto = await _service.GetByIdAsync(zone.ZoneId, _ct);
 
-            _output.WriteLine($"Found Zone: {dto?.Description}");
+            _output.WriteLine($"Found Zone: {dto?.ZoneId} - {dto?.Name}");
 
-            // Assert
             Assert.NotNull(dto);
+            Assert.Equal(zone.ZoneId, dto!.ZoneId);
+            Assert.Equal(zone.Name, dto.Name);
             Assert.Equal(zone.Description, dto.Description);
 
             _output.WriteLine("=== GetByIdAsync (exists): END ===");
         }
 
         /// <summary>
-        /// Verifies that GetByIdAsync returns null when the zone does not exist.
+        /// GetByIdAsync should return null when the zone does not exist.
         /// </summary>
         [Fact]
         public async Task GetByIdAsync_ShouldReturnNull_WhenNotExists()
         {
             _output.WriteLine("=== GetByIdAsync (not exists): START ===");
 
-            // Act
             var dto = await _service.GetByIdAsync(999, _ct);
 
-            _output.WriteLine($"Result: {dto}");
+            _output.WriteLine($"Result: {(dto is null ? "null" : "not null")}");
 
-            // Assert
             Assert.Null(dto);
 
             _output.WriteLine("=== GetByIdAsync (not exists): END ===");
         }
 
+        // ----------------- Update -----------------
+
         /// <summary>
-        /// Verifies that UpdateAsync updates an existing zone and returns true.
+        /// UpdateAsync should modify an existing zone when found.
         /// </summary>
         [Fact]
         public async Task UpdateAsync_ShouldModifyZone_WhenExists()
         {
             _output.WriteLine("=== UpdateAsync (success): START ===");
 
-            // Arrange
             var zone = new Zone
             {
+                Name        = "Zone E",
                 FloorNumber = 0,
                 AisleCode   = "E",
-                Description = "Ancienne description"
+                Description = "Old description"
             };
             _db.Zones.Add(zone);
             await _db.SaveChangesAsync(_ct);
@@ -176,76 +176,75 @@ namespace UnitTestsBiblioMate.Services.Catalog
             var dto = new ZoneUpdateDto
             {
                 ZoneId      = zone.ZoneId,
+                Name        = "Zone E - Updated",
                 FloorNumber = 1,
                 AisleCode   = "E",
-                Description = "Nouvelle description"
+                Description = "New description"
             };
 
-            // Act
             var success = await _service.UpdateAsync(zone.ZoneId, dto, _ct);
             var updated = await _db.Zones.FindAsync(new object[] { zone.ZoneId }, _ct);
 
-            _output.WriteLine($"Success: {success}, Updated Description: {updated?.Description}");
+            _output.WriteLine($"Success: {success}, Updated: {updated?.Name} - {updated?.Description}");
 
-            // Assert
             Assert.True(success);
-            Assert.Equal("Nouvelle description", updated?.Description);
+            Assert.Equal(dto.Name, updated!.Name);
+            Assert.Equal(dto.Description, updated.Description);
+            Assert.Equal(dto.FloorNumber, updated.FloorNumber);
 
             _output.WriteLine("=== UpdateAsync (success): END ===");
         }
 
         /// <summary>
-        /// Verifies that UpdateAsync returns false when the zone does not exist.
+        /// UpdateAsync should return false when the zone does not exist.
         /// </summary>
         [Fact]
         public async Task UpdateAsync_ShouldReturnFalse_WhenNotExists()
         {
             _output.WriteLine("=== UpdateAsync (fail): START ===");
 
-            // Arrange
             var dto = new ZoneUpdateDto
             {
                 ZoneId      = 999,
+                Name        = "Should not exist",
                 FloorNumber = 1,
                 AisleCode   = "Z",
-                Description = "Ne devrait pas exister"
+                Description = "Should not exist"
             };
 
-            // Act
             var success = await _service.UpdateAsync(999, dto, _ct);
 
             _output.WriteLine($"Success: {success}");
 
-            // Assert
             Assert.False(success);
 
             _output.WriteLine("=== UpdateAsync (fail): END ===");
         }
 
+        // ----------------- Delete -----------------
+
         /// <summary>
-        /// Verifies that DeleteAsync removes an existing zone and returns true.
+        /// DeleteAsync should remove an existing zone.
         /// </summary>
         [Fact]
         public async Task DeleteAsync_ShouldRemoveZone_WhenExists()
         {
             _output.WriteLine("=== DeleteAsync (success): START ===");
 
-            // Arrange
             var zone = new Zone
             {
+                Name        = "Zone F",
                 FloorNumber = 1,
                 AisleCode   = "F",
-                Description = "Zone à supprimer"
+                Description = "Zone to be deleted"
             };
             _db.Zones.Add(zone);
             await _db.SaveChangesAsync(_ct);
 
-            // Act
             var success = await _service.DeleteAsync(zone.ZoneId, _ct);
 
             _output.WriteLine($"Success: {success}");
 
-            // Assert
             Assert.True(success);
             Assert.False(await _db.Zones.AnyAsync(z => z.ZoneId == zone.ZoneId, _ct));
 
@@ -253,19 +252,17 @@ namespace UnitTestsBiblioMate.Services.Catalog
         }
 
         /// <summary>
-        /// Verifies that DeleteAsync returns false when the zone does not exist.
+        /// DeleteAsync should return false when the zone does not exist.
         /// </summary>
         [Fact]
         public async Task DeleteAsync_ShouldReturnFalse_WhenNotExists()
         {
             _output.WriteLine("=== DeleteAsync (fail): START ===");
 
-            // Act
             var success = await _service.DeleteAsync(999, _ct);
 
             _output.WriteLine($"Success: {success}");
 
-            // Assert
             Assert.False(success);
 
             _output.WriteLine("=== DeleteAsync (fail): END ===");

@@ -8,52 +8,62 @@ namespace UnitTestsBiblioMate.Middlewares
 {
     /// <summary>
     /// Unit tests for <see cref="ExceptionHandlingMiddleware"/>.
-    /// Verifies that various exception types produce the correct HTTP status,
-    /// content type, and JSON error payload.
+    /// Ensures that different exception types are mapped to the correct
+    /// HTTP status codes, JSON payloads, and content type headers.
     /// </summary>
     public class ExceptionHandlingMiddlewareTests
     {
         /// <summary>
-        /// Helper to execute the middleware with a given exception thrown by the "next" delegate.
+        /// Executes the middleware with a fake <see cref="HttpContext"/> and a "next" delegate
+        /// that always throws the given <paramref name="exception"/>.
+        /// This helper rewires the response body to a memory buffer so that the test can
+        /// inspect the produced JSON payload afterwards.
         /// </summary>
+        /// <param name="exception">The exception to be thrown by the simulated request delegate.</param>
+        /// <returns>
+        /// A task containing the <see cref="HttpContext"/> whose response has been written
+        /// by the middleware after handling the exception.
+        /// </returns>
         private static async Task<HttpContext> InvokeWithExceptionAsync(Exception exception)
         {
-            // Arrange: create a default context and swap its response body to a buffer
+            // Arrange: build a test HttpContext and redirect response body to a MemoryStream
             var context = new DefaultHttpContext();
             var buffer = new MemoryStream();
             context.Response.Body = buffer;
 
-            // Next delegate simply throws the provided exception
+            // Simulated pipeline: next delegate that throws the supplied exception
             RequestDelegate next = _ => throw exception;
 
+            // Middleware under test (using a NullLogger to avoid side effects)
             var middleware = new ExceptionHandlingMiddleware(next, NullLogger<ExceptionHandlingMiddleware>.Instance);
 
-            // Act
+            // Act: run the middleware
             await middleware.InvokeAsync(context);
 
-            // Rewind body for inspection
+            // Reset stream position so the test can read the response body
             buffer.Seek(0, SeekOrigin.Begin);
             return context;
         }
 
         /// <summary>
-        /// ValidationException should produce a 400 Bad Request with a "ValidationError" payload.
+        /// Verifies that a <see cref="ValidationException"/> is translated into:
+        /// <list type="bullet">
+        ///   <item><description>HTTP 400 Bad Request</description></item>
+        ///   <item><description><c>application/json</c> content type</description></item>
+        ///   <item><description>A JSON body with <c>error = "ValidationError"</c> and the validation details</description></item>
+        /// </list>
         /// </summary>
         [Fact]
         public async Task InvokeAsync_ValidationException_Produces400Json()
         {
-            // Arrange
             var validationResult = new ValidationResult("Invalid data");
             var vex = new ValidationException(validationResult, null, null);
 
-            // Act
             var context = await InvokeWithExceptionAsync(vex);
 
-            // Assert status and headers
             Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
             Assert.Equal("application/json", context.Response.ContentType);
 
-            // Read and parse JSON
             var payload = await JsonDocument.ParseAsync(context.Response.Body);
             var root = payload.RootElement;
             Assert.Equal("ValidationError", root.GetProperty("error").GetString());
@@ -61,22 +71,23 @@ namespace UnitTestsBiblioMate.Middlewares
         }
 
         /// <summary>
-        /// KeyNotFoundException should produce a 404 Not Found with a "NotFound" payload.
+        /// Verifies that a <see cref="KeyNotFoundException"/> is translated into:
+        /// <list type="bullet">
+        ///   <item><description>HTTP 404 Not Found</description></item>
+        ///   <item><description><c>application/json</c> content type</description></item>
+        ///   <item><description>A JSON body with <c>error = "NotFound"</c> and the exception message</description></item>
+        /// </list>
         /// </summary>
         [Fact]
         public async Task InvokeAsync_KeyNotFoundException_Produces404Json()
         {
-            // Arrange
             var knf = new KeyNotFoundException("Resource missing");
 
-            // Act
             var context = await InvokeWithExceptionAsync(knf);
 
-            // Assert status and headers
             Assert.Equal(StatusCodes.Status404NotFound, context.Response.StatusCode);
             Assert.Equal("application/json", context.Response.ContentType);
 
-            // Read and parse JSON
             var payload = await JsonDocument.ParseAsync(context.Response.Body);
             var root = payload.RootElement;
             Assert.Equal("NotFound", root.GetProperty("error").GetString());
@@ -84,22 +95,25 @@ namespace UnitTestsBiblioMate.Middlewares
         }
 
         /// <summary>
-        /// Any other exception should produce a 500 Internal Server Error with an "InternalError" payload.
+        /// Verifies that any generic <see cref="Exception"/> (e.g. <see cref="InvalidOperationException"/>)
+        /// is translated into:
+        /// <list type="bullet">
+        ///   <item><description>HTTP 500 Internal Server Error</description></item>
+        ///   <item><description><c>application/json</c> content type</description></item>
+        ///   <item><description>A JSON body with <c>error = "InternalError"</c> and a generic message,
+        ///   without leaking the internal exception text</description></item>
+        /// </list>
         /// </summary>
         [Fact]
         public async Task InvokeAsync_GenericException_Produces500Json()
         {
-            // Arrange
             var ex = new InvalidOperationException("Boom");
 
-            // Act
             var context = await InvokeWithExceptionAsync(ex);
 
-            // Assert status and headers
             Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
             Assert.Equal("application/json", context.Response.ContentType);
 
-            // Read and parse JSON
             var payload = await JsonDocument.ParseAsync(context.Response.Body);
             var root = payload.RootElement;
             Assert.Equal("InternalError", root.GetProperty("error").GetString());
