@@ -57,6 +57,16 @@
       - serverSQL
       - mongo
 
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.tests
+    container_name: tests
+
+    volumes:
+      - ./artifacts:/artifacts
+    restart: "no"
+
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus

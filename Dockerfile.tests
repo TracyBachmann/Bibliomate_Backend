@@ -1,0 +1,31 @@
+# ---------------- Image dédiée aux tests .NET ----------------
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS tests
+WORKDIR /src
+
+# Copie tout le dépôt (solution + projets)
+COPY . .
+
+# Restaure et build (fail-fast si compilation KO)
+RUN dotnet restore ./backend.sln
+RUN dotnet build   ./backend.sln -c Release --no-restore
+
+# Installe l'outil ReportGenerator (pour produire un rapport HTML)
+RUN dotnet tool install -g dotnet-reportgenerator-globaltool
+ENV PATH="$PATH:/root/.dotnet/tools"
+
+# Exécute UNIQUEMENT les tests du projet UnitTestsBiblioMate
+# - TRX + couverture Cobertura dans /artifacts/tests
+# - Rapport HTML dans /artifacts/coverage-report/index.html
+# NB: on passe par 'bash -lc' pour chaîner test && reportgenerator
+CMD bash -lc '\
+  dotnet test ./UnitTestsBiblioMate/UnitTestsBiblioMate.csproj \
+    -c Release --no-build \
+    --logger:"trx;LogFileName=test-results.trx" \
+    --collect:"XPlat Code Coverage" \
+    --results-directory /artifacts/tests \
+  && \
+  reportgenerator \
+    -reports:/artifacts/tests/**/coverage.cobertura.xml \
+    -targetdir:/artifacts/coverage-report \
+    -reporttypes:Html \
+'
