@@ -1,4 +1,4 @@
-name: Backend - Build, Push & Deploy
+name: Build & Push Images
 
 on:
   push:
@@ -6,75 +6,77 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY_NS: tracybachmann   # <-- adapte si besoin
-  TAG: latest
+  REGISTRY: docker.io
+  DOCKERHUB_NAMESPACE: tracybachmann
+  # tag court basé sur le commit
+  SHORT_SHA: ${{ github.sha || 'local' }}
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-push-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build-push-backend:
+  backend:
+    name: Backend — build & push
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USER }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build & Push backend image
+      - name: Build & Push (Backend)
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile      # <-- si ton Dockerfile est ailleurs, adapte ce chemin
-          platforms: linux/amd64
+          file: BackendBiblioMate/Dockerfile   # <— chemin correct du Dockerfile backend
           push: true
           tags: |
-            ${{ env.REGISTRY_NS }}/backend-backend:${{ env.TAG }}
-            ${{ env.REGISTRY_NS }}/backend-backend:${{ github.sha }}
+            ${{ env.DOCKERHUB_NAMESPACE }}/backend-backend:latest
+            ${{ env.DOCKERHUB_NAMESPACE }}/backend-backend:${{ env.SHORT_SHA }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            ASPNETCORE_ENVIRONMENT=Production
 
-  deploy:
-    needs: build-push-backend
+  frontend:
+    name: Frontend — build & push
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to VPS (pull & up)
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: root
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -e
-            cd /opt/bibliomate
-            echo "Login Docker Hub"
-            docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-            echo "Pull latest images (front & back)"
-            docker compose --env-file /opt/bibliomate/.env -f deploy/docker-compose.prod.yml pull
-
-            echo "Start/Update stack"
-            docker compose --env-file /opt/bibliomate/.env -f deploy/docker-compose.prod.yml up -d
-
-            echo "Stack status"
-            docker compose -f deploy/docker-compose.prod.yml ps
-
-      - name: Smoke tests
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Build & Push (Frontend)
+        uses: docker/build-push-action@v6
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: root
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -e
-            sleep 5
-            echo "Health via Nginx"
-            if command -v jq >/dev/null 2>&1; then
-              curl -fsS http://127.0.0.1/api/health | jq -r '.status' | grep -qi "Healthy"
-            else
-              curl -fsS http://127.0.0.1/api/health | grep -qi "Healthy"
-            fi
-            echo "Swagger head"
-            curl -fsS http://127.0.0.1/swagger/index.html | head -n1
-            echo "All smoke tests passed ✅"
+          context: .
+          file: FrontendBiblioMate/Dockerfile  # <— adapte ce chemin si besoin
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_NAMESPACE }}/backend-frontend:latest
+            ${{ env.DOCKERHUB_NAMESPACE }}/backend-frontend:${{ env.SHORT_SHA }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
