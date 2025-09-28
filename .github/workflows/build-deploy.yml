@@ -1,82 +1,56 @@
-name: Build & Push Images
+name: Backend — Build & Push
 
 on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
 
-env:
-  REGISTRY: docker.io
-  DOCKERHUB_NAMESPACE: tracybachmann
-  # tag court basé sur le commit
-  SHORT_SHA: ${{ github.sha || 'local' }}
-
 permissions:
   contents: read
-  packages: write
-
-concurrency:
-  group: build-push-${{ github.ref }}
-  cancel-in-progress: false
+  packages: read
 
 jobs:
-  backend:
-    name: Backend — build & push
+  build-and-push:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Buildx
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # ⬇️ Login Docker Hub — utilise les SECRETS du dépôt backend :
+      # DOCKERHUB_USER = ton identifiant Docker Hub
+      # DOCKERHUB_TOKEN = un "Access Token" Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Génère les tags/labels (latest + sha) pour tracybachmann/backend-backend
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: docker.io/${{ secrets.DOCKERHUB_USER }}/backend-backend
+          tags: |
+            type=raw,value=latest
+            type=sha,format=long
+
+      # Build & push l’image en utilisant le Dockerfile du dossier BackendBiblioMate
       - name: Build & Push (Backend)
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: BackendBiblioMate/Dockerfile   # <— chemin correct du Dockerfile backend
+          file: BackendBiblioMate/Dockerfile
           push: true
-          tags: |
-            ${{ env.DOCKERHUB_NAMESPACE }}/backend-backend:latest
-            ${{ env.DOCKERHUB_NAMESPACE }}/backend-backend:${{ env.SHORT_SHA }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            ASPNETCORE_ENVIRONMENT=Production
-
-  frontend:
-    name: Frontend — build & push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build & Push (Frontend)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: FrontendBiblioMate/Dockerfile  # <— adapte ce chemin si besoin
-          push: true
-          tags: |
-            ${{ env.DOCKERHUB_NAMESPACE }}/backend-frontend:latest
-            ${{ env.DOCKERHUB_NAMESPACE }}/backend-frontend:${{ env.SHORT_SHA }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
