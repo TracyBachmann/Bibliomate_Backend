@@ -1,0 +1,80 @@
+name: Backend - Build, Push & Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  REGISTRY_NS: tracybachmann   # <-- adapte si besoin
+  TAG: latest
+
+jobs:
+  build-push-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & Push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile      # <-- si ton Dockerfile est ailleurs, adapte ce chemin
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.REGISTRY_NS }}/backend-backend:${{ env.TAG }}
+            ${{ env.REGISTRY_NS }}/backend-backend:${{ github.sha }}
+
+  deploy:
+    needs: build-push-backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS (pull & up)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/bibliomate
+            echo "Login Docker Hub"
+            docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+
+            echo "Pull latest images (front & back)"
+            docker compose --env-file /opt/bibliomate/.env -f deploy/docker-compose.prod.yml pull
+
+            echo "Start/Update stack"
+            docker compose --env-file /opt/bibliomate/.env -f deploy/docker-compose.prod.yml up -d
+
+            echo "Stack status"
+            docker compose -f deploy/docker-compose.prod.yml ps
+
+      - name: Smoke tests
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            sleep 5
+            echo "Health via Nginx"
+            if command -v jq >/dev/null 2>&1; then
+              curl -fsS http://127.0.0.1/api/health | jq -r '.status' | grep -qi "Healthy"
+            else
+              curl -fsS http://127.0.0.1/api/health | grep -qi "Healthy"
+            fi
+            echo "Swagger head"
+            curl -fsS http://127.0.0.1/swagger/index.html | head -n1
+            echo "All smoke tests passed ✅"
