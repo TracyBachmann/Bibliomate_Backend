@@ -96,6 +96,12 @@
       - "8080:80"
     depends_on:
       - backend
+    volumes:
+      - /opt/bibliomate/deploy/nginx.default.conf:/etc/nginx/conf.d/default.conf:ro
+      - /opt/bibliomate/certs/etc-letsencrypt:/etc/letsencrypt
+      - /opt/bibliomate/certs/var-lib-letsencrypt:/var/lib/letsencrypt
+      - /opt/bibliomate/certs/var-www-certbot:/var/www/certbot
+
 
 volumes:
   sqlDB_data:
