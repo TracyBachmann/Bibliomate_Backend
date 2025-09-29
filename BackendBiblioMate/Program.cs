@@ -423,19 +423,21 @@ var app = builder.Build();
  * - Root URL redirects to /swagger
  */
 var apiVersions = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        foreach (var desc in apiVersions.ApiVersionDescriptions)
-            c.SwaggerEndpoint($"/swagger/{desc.GroupName}/swagger.json", $"BiblioMate API {desc.ApiVersion}");
-        c.RoutePrefix = "swagger";
-    });
 
-    app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
-}
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    foreach (var desc in apiVersions.ApiVersionDescriptions)
+    {
+        c.SwaggerEndpoint($"/swagger/{desc.GroupName}/swagger.json",
+            $"BiblioMate API {desc.ApiVersion}");
+    }
+    c.RoutePrefix = "swagger"; // /swagger et /swagger/index.html
+});
+
+app.MapGet("/", () => Results.Redirect("/swagger"))
+    .ExcludeFromDescription();
+
 #endregion
 
 #region HTTP security and CORS
@@ -453,7 +455,7 @@ if (app.Environment.IsDevelopment())
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
-    app.UseHttpsRedirection();
+    // app.UseHttpsRedirection();
 }
 
 if (app.Environment.IsDevelopment())

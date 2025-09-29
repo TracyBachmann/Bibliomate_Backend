@@ -5748,6 +5748,18 @@
         <member name="M:BackendBiblioMate.Migrations.CheckNoChanges.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:BackendBiblioMate.Migrations.TentativeDébug">
+            <inheritdoc />
+        </member>
+        <member name="M:BackendBiblioMate.Migrations.TentativeDébug.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:BackendBiblioMate.Migrations.TentativeDébug.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:BackendBiblioMate.Migrations.TentativeDébug.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
         <member name="T:BackendBiblioMate.Models.Author">
             <summary>
             Represents an author of a book in the system.
