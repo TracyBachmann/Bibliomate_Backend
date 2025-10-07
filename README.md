@@ -1,6 +1,6 @@
 # BiblioMate – Backend (.NET)
 
-**BiblioMate** est l’API REST de gestion de bibliothèque (ASP.NET Core 9 / C#) adossée à **SQL Server** pour l’état métier et à **MongoDB** pour la journalisation applicative (append‑only).
+API REST de BiblioMate, application de gestion de bibliothèque (ASP.NET Core 9 / C#) adossée à **SQL Server** pour l’état métier et à **MongoDB** pour la journalisation applicative (append‑only).
 
 ## 🚀 Vue d’ensemble
 
