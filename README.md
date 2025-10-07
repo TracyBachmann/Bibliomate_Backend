@@ -2,8 +2,6 @@
 
 **BiblioMate** est l’API REST de gestion de bibliothèque (ASP.NET Core 9 / C#) adossée à **SQL Server** pour l’état métier et à **MongoDB** pour la journalisation applicative (append‑only).
 
----
-
 ## 🚀 Vue d’ensemble
 
 - **Domaines couverts** : livres, stocks, emprunts, réservations, notifications, historique.
@@ -12,8 +10,6 @@
 - **AuthN/AuthZ** : JWT Bearer + rôles (`User`, `Librarian`, `Admin`).
 - **Observabilité** : Health checks `/health`, métriques Prometheus `/metrics`.
 - **Docs** : Swagger/OpenAPI versionnée.
-
----
 
 ## 🧰 Technologies
 
@@ -25,11 +21,8 @@
 - **CI/CD** : GitHub Actions (build & push image Docker)
 - **Container** : Docker / Docker Compose
 
----
-
 ## 🗂️ Structure (extrait)
 
-```
 BackendBiblioMate/
 ├── Controllers/
 │   ├── BooksController.cs
@@ -52,7 +45,6 @@ BackendBiblioMate/
 └── appsettings*.json
 ```
 
----
 
 ## ⚙️ Configuration
 
@@ -81,7 +73,6 @@ Les *secrets* ne sont pas commités. Les paramètres se trouvent dans `appsettin
 > **Bonnes pratiques** : connexion Mongo externalisée, compte Mongo à droits minimaux (rôle limité sur la base ciblée).  
 > **Healthcheck Mongo** : activé si une chaîne est fournie (voir `Program.cs`).
 
----
 
 ## ▶️ Démarrage local
 
@@ -100,7 +91,6 @@ dotnet run                     # démarre l’API sur http://localhost:5000 (ou 
 
 Swagger : `http://localhost:5001/swagger` (selon votre port mapping).
 
----
 
 ## 🐳 Docker & Compose
 
@@ -152,7 +142,6 @@ Démarrer :
 docker compose up -d --build
 ```
 
----
 
 ## 🧪 API représentative (extraits)
 
@@ -186,7 +175,6 @@ docker compose up -d --build
 
 > Les routes sont versionnées (`/api/v1/...`) via API Versioning. Voir `Program.cs`.
 
----
 
 ## 🧱 Modèle de données (noyau)
 
@@ -194,7 +182,6 @@ docker compose up -d --build
 - Contraintes d’intégrité : unicité `Users.Email`, `Books.Isbn`, FK et clés composites (`BookTag`, `UserGenre`).  
 - Politique de suppression stricte pour préserver l’historique (voir `OnModelCreating` et Migrations).
 
----
 
 ## 🔄 CI/CD (GitHub Actions)
 
@@ -223,7 +210,6 @@ Deux workflows (extraits) construisent et poussent les images Docker :
 
 > Les **secrets** (Docker Hub, SQL, Mongo, JWT, SMTP/SendGrid, …) sont stockés dans *Settings ▸ Secrets and variables* et injectés à l’exécution.
 
----
 
 ## 📎 Divers
 
@@ -231,7 +217,6 @@ Deux workflows (extraits) construisent et poussent les images Docker :
 - Health : `/health`
 - Metrics : `/metrics`
 
----
 
 ## 📝 Licence
 
