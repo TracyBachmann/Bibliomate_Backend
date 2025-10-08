@@ -60,7 +60,6 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
-      # Écrit la clé privée depuis le secret et supprime les CRLF Windows
       - name: Write SSH key file
         run: |
           umask 077
@@ -68,17 +67,22 @@ jobs:
           printf '%s' "${{ secrets.VPS_SSH_KEY }}" | sed 's/\r$//' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-      - name: Relax SSH host checking
+      - name: Check SSH secrets
         run: |
-          mkdir -p ~/.ssh
-          printf "Host *\n  StrictHostKeyChecking no\n" > ~/.ssh/config
+          if [ -z "${{ secrets.SSH_USER }}" ] || [ -z "${{ secrets.SSH_HOST }}" ]; then
+            echo "::error::Missing SSH_USER or SSH_HOST secret"; exit 1
+          fi
 
       - name: Pull & restart backend service
         env:
           DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} <<'EOF'
+          DEST="${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
+          PORT_OPT=""
+          if [ -n "${{ secrets.SSH_PORT }}" ]; then PORT_OPT="-p ${{ secrets.SSH_PORT }}"; fi
+          
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key $PORT_OPT "$DEST" <<'EOF'
           set -euo pipefail
           cd /opt/bibliomate
           docker login -u "$DOCKERHUB_USER" -p "$DOCKERHUB_TOKEN"
