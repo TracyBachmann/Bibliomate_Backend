@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diagram>
+  <ID>DATABASE</ID>
+  <OriginalElement>aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.__EFMigrationsHistory</OriginalElement>
+  <nodes>
+    <node x="-1084.0" y="420.0">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Editors</node>
+    <node x="-1334.0" y="720.0">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Authors</node>
+    <node x="-104.92468134414821" y="1906.5573580533026">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Notifications</node>
+    <node x="-556.0" y="1866.4055619930477">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Tags</node>
+    <node x="-259.0" y="495.0">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Genres</node>
+    <node x="-259.0" y="672.0">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Shelves</node>
+    <node x="-425.5" y="1516.0">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Reports</node>
+    <node x="-815.0" y="1098.0">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Loans</node>
+    <node x="-821.5" y="1372.0">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Histories</node>
+    <node x="-1106.5" y="624.0">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Books</node>
+    <node x="-447.5" y="672.0">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.ShelfLevels</node>
+    <node x="-831.0" y="1644.4055619930477">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Reservations</node>
+    <node x="103.0" y="495.5">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.UserGenres</node>
+    <node x="-1065.0" y="1866.9055619930477">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.BookTags</node>
+    <node x="-782.5" y="933.0">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Stocks</node>
+    <node x="-154.9246813441482" y="1372.0">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Users</node>
+    <node x="-52.5" y="684.0">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Zones</node>
+    <node x="-581.0" y="983.0">aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Recommendation</node>
+  </nodes>
+  <notes />
+  <edges>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Books" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Editors" relationship="REFERENCES">
+      <point x="0.0" y="-140.0" />
+      <point x="0.0" y="44.0" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Histories" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Users" relationship="REFERENCES">
+      <point x="91.5" y="0.0" />
+      <point x="-68.0" y="1464.0" />
+      <point x="-60.5" y="1464.0" />
+      <point x="-60.5" y="1798.0" />
+      <point x="-51.25" y="1807.25" />
+      <point x="-140.5" y="57.25" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Notifications" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Users" relationship="REFERENCES">
+      <point x="-67.75" y="-80.0" />
+      <point x="-67.75" y="224.0" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Histories" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Reservations" relationship="REFERENCES">
+      <point x="0.0" y="92.0" />
+      <point x="0.0" y="-116.0" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Shelves" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Zones" relationship="REFERENCES">
+      <point x="79.0" y="0.0" />
+      <point x="-97.5" y="0.0" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.UserGenres" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Genres" relationship="REFERENCES">
+      <point x="-31.0" y="43.5" />
+      <point x="139.0" y="625.0" />
+      <point x="122.0" y="642.0" />
+      <point x="-163.0" y="642.0" />
+      <point x="-180.0" y="625.0" />
+      <point x="0.0" y="44.0" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Loans" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Users" relationship="REFERENCES">
+      <point x="85.0" y="11.0" />
+      <point x="-509.0" y="1225.0" />
+      <point x="-451.33333333333337" y="1282.6666666666665" />
+      <point x="-451.33333333333337" y="1399.6666666666665" />
+      <point x="-387.0" y="1464.0" />
+      <point x="-68.0" y="1464.0" />
+      <point x="-60.5" y="1464.0" />
+      <point x="-60.5" y="1798.0" />
+      <point x="-51.25" y="1807.25" />
+      <point x="-140.5" y="57.25" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Books" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Authors" relationship="REFERENCES">
+      <point x="-101.5" y="0.0" />
+      <point x="79.0" y="0.0" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.BookTags" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Tags" relationship="REFERENCES">
+      <point x="60.0" y="12.833333333333258" />
+      <point x="-76.0" y="12.833333333333258" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Stocks" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Books" relationship="REFERENCES">
+      <point x="0.0" y="-56.0" />
+      <point x="-730.0" y="883.0" />
+      <point x="-750.7142857142858" y="862.2857142857142" />
+      <point x="101.5" y="98.28571428571428" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Shelves" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Genres" relationship="REFERENCES">
+      <point x="0.0" y="-92.0" />
+      <point x="0.0" y="44.0" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.ShelfLevels" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Shelves" relationship="REFERENCES">
+      <point x="67.5" y="0.0" />
+      <point x="-79.0" y="0.0" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Recommendation" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Books" relationship="REFERENCES">
+      <point x="-46.75" y="-56.0" />
+      <point x="-526.75" y="846.25" />
+      <point x="-584.1428571428571" y="788.8571428571429" />
+      <point x="101.5" y="24.85714285714289" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Loans" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Books" relationship="REFERENCES">
+      <point x="-85.0" y="0.0" />
+      <point x="-852.0" y="1214.0" />
+      <point x="-867.25" y="1198.75" />
+      <point x="-867.25" y="872.75" />
+      <point x="-877.7142857142858" y="862.2857142857142" />
+      <point x="101.5" y="98.28571428571428" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.UserGenres" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Users" relationship="REFERENCES">
+      <point x="31.0" y="43.5" />
+      <point x="201.0" y="1161.0" />
+      <point x="137.0" y="1225.0" />
+      <point x="-386.9999999999999" y="1225.0" />
+      <point x="-451.33333333333337" y="1289.3333333333335" />
+      <point x="-451.33333333333337" y="1399.6666666666665" />
+      <point x="-387.0" y="1464.0" />
+      <point x="-68.0" y="1464.0" />
+      <point x="-60.5" y="1464.0" />
+      <point x="-60.5" y="1798.0" />
+      <point x="-51.25" y="1807.25" />
+      <point x="-140.5" y="57.25" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Reservations" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Books" relationship="REFERENCES">
+      <point x="-101.0" y="-36.83333333333326" />
+      <point x="-856.8333333333333" y="1723.5722286597147" />
+      <point x="-867.25" y="1713.1555619930477" />
+      <point x="-867.25" y="872.75" />
+      <point x="-877.7142857142858" y="862.2857142857142" />
+      <point x="101.5" y="98.28571428571428" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Reservations" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Users" relationship="REFERENCES">
+      <point x="101.0" y="0.0" />
+      <point x="-598.0" y="1760.4055619930477" />
+      <point x="-586.0" y="1748.4055619930477" />
+      <point x="-586.0" y="1528.0" />
+      <point x="-522.0" y="1464.0" />
+      <point x="-68.0" y="1464.0" />
+      <point x="-60.5" y="1464.0" />
+      <point x="-60.5" y="1798.0" />
+      <point x="-51.25" y="1807.25" />
+      <point x="-140.5" y="57.25" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Recommendation" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Users" relationship="REFERENCES">
+      <point x="28.66666666666663" y="56.0" />
+      <point x="-451.33333333333337" y="1399.6666666666665" />
+      <point x="-387.0" y="1464.0" />
+      <point x="-68.0" y="1464.0" />
+      <point x="-60.5" y="1464.0" />
+      <point x="-60.5" y="1798.0" />
+      <point x="-51.25" y="1807.25" />
+      <point x="-140.5" y="57.25" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Books" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.ShelfLevels" relationship="REFERENCES">
+      <point x="101.5" y="-48.571428571428555" />
+      <point x="-67.5" y="-48.571428571428555" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.BookTags" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Books" relationship="REFERENCES">
+      <point x="60.0" y="-38.5" />
+      <point x="-890.5" y="1871.9055619930477" />
+      <point x="-867.25" y="1848.6555619930477" />
+      <point x="-867.25" y="872.75" />
+      <point x="-877.7142857142858" y="862.2857142857142" />
+      <point x="101.5" y="98.28571428571428" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Books" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Genres" relationship="REFERENCES">
+      <point x="101.5" y="-122.0" />
+      <point x="-197.0" y="642.0" />
+      <point x="-180.0" y="625.0" />
+      <point x="0.0" y="44.0" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Loans" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Stocks" relationship="REFERENCES">
+      <point x="0.0" y="-116.0" />
+      <point x="0.0" y="56.0" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Histories" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Loans" relationship="REFERENCES">
+      <point x="0.0" y="-92.0" />
+      <point x="0.0" y="116.0" />
+    </edge>
+    <edge source="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Reports" target="aa308105-e569-49b5-a310-ada7f70a99b0.TABLE:BiblioMateDb.dbo.Users" relationship="REFERENCES">
+      <point x="97.5" y="57.25" />
+      <point x="-140.5" y="57.25" />
+    </edge>
+  </edges>
+  <settings layout="Hierarchic" zoom="0.414306289006241" showDependencies="false" x="-501.50000000000045" y="1290.5" />
+  <SelectedNodes />
+  <Categories>
+    <Category>Columns</Category>
+    <Category>Comments</Category>
+    <Category>Key columns</Category>
+    <Category>Virtual foreign keys</Category>
+  </Categories>
+</Diagram>
+

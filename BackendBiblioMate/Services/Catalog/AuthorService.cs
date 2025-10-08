@@ -15,7 +15,7 @@ namespace BackendBiblioMate.Services.Catalog
         private readonly BiblioMateDbContext _db;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="AuthorService"/> class.
+        /// Initializes a new instance of the <see cref="AuthorService"/> class
         /// </summary>
         /// <param name="db">Database context for BiblioMate.</param>
         public AuthorService(BiblioMateDbContext db)
