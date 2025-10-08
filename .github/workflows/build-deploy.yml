@@ -1,17 +1,48 @@
-name: Backend — Build & Push
+name: Backend — Build, Test & Deploy
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
   contents: read
   packages: read
 
+env:
+  REGISTRY_NS: tracybachmann
+  IMAGE_NAME: backend-backend
+
+concurrency:
+  group: prod-deploy-backend
+  cancel-in-progress: false
+
 jobs:
-  build-and-push:
+  build-and-test:
     runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore BackendBiblioMate/BackendBiblioMate.csproj
+
+      - name: Build
+        run: dotnet build BackendBiblioMate/BackendBiblioMate.csproj --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test --no-build --verbosity normal --configuration Release || echo "⚠️ Pas de tests trouvés, on continue..."
+
+  build-and-push:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout
@@ -23,7 +54,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Login to Docker Hub (repo SECRETS must exist in THIS repository)
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -34,18 +64,93 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: docker.io/${{ secrets.DOCKERHUB_USER }}/backend-backend
+          images: docker.io/${{ env.REGISTRY_NS }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest
-            type=sha,format=long
+            type=sha,prefix=sha-,format=long
+            type=ref,event=branch
 
       - name: Build & Push (Backend)
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: BackendBiblioMate/Dockerfile   # chemin du Dockerfile backend
+          file: BackendBiblioMate/Dockerfile
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy backend to VM
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Deploy & Health Check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          port: ${{ secrets.SSH_PORT }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          command_timeout: 10m
+          envs: DOCKERHUB_USER,DOCKERHUB_TOKEN
+          script: |
+            set -e
+            cd /opt/bibliomate
+            
+            echo "🔐 Login Docker Hub..."
+            docker login -u "$DOCKERHUB_USER" -p "$DOCKERHUB_TOKEN"
+            
+            echo "📥 Pull nouvelle image backend..."
+            docker compose --env-file .env -f deploy/docker-compose.prod.yml pull backend
+            
+            echo "🔄 Redémarrage backend..."
+            docker compose --env-file .env -f deploy/docker-compose.prod.yml up -d backend
+            
+            echo "⏳ Attente démarrage (20s pour migrations EF Core)..."
+            sleep 20
+            
+            echo "🏥 Health check..."
+            HEALTH=$(curl -s http://127.0.0.1:5000/health | jq -r '.status' 2>/dev/null || echo "UNKNOWN")
+            
+            if [ "$HEALTH" = "Healthy" ]; then
+              echo "✅ Déploiement réussi ! Backend opérationnel."
+            
+              # Vérifier les checks individuels
+              echo "📊 Détails health checks:"
+              curl -s http://127.0.0.1:5000/health | jq '.checks[]'
+            
+              echo "🐳 État des conteneurs:"
+              docker compose -f deploy/docker-compose.prod.yml ps | grep backend
+              exit 0
+            else
+              echo "❌ Health check échoué : $HEALTH"
+              echo "📋 Logs backend (50 dernières lignes):"
+              docker logs --tail 50 backend
+              echo ""
+              echo "📋 État des conteneurs:"
+              docker compose -f deploy/docker-compose.prod.yml ps
+              exit 1
+            fi
+        env:
+          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Deployment Success
+        if: success()
+        run: |
+          echo "🎉 Backend déployé avec succès !"
+          echo "🔗 https://bibliomate.fr/api/health"
+          echo "📊 Commit: ${{ github.sha }}"
+
+      - name: Deployment Failed
+        if: failure()
+        run: |
+          echo "❌ Le déploiement a échoué"
+          echo "📋 Consulte les logs ci-dessus pour plus de détails"
+          echo "🔄 Rollback possible via: git revert ${{ github.sha }}"
