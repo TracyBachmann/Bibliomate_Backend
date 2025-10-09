@@ -23,6 +23,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Mvc.Versioning;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -415,12 +417,10 @@ builder.Services
 
 var app = builder.Build();
 
-#region Swagger UI (development)
+#region Swagger UI (accessible en production via nginx)
 /*
- * Developer-friendly Swagger UI:
- * - Available only in Development environment
- * - Versioned endpoints listed in UI
- * - Root URL redirects to /swagger
+ * Swagger UI accessible en production sans authentification
+ * Les endpoints sont rendus accessibles anonymement via le middleware ci-dessous
  */
 var apiVersions = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
 
@@ -432,12 +432,11 @@ app.UseSwaggerUI(c =>
         c.SwaggerEndpoint($"/swagger/{desc.GroupName}/swagger.json",
             $"BiblioMate API {desc.ApiVersion}");
     }
-    c.RoutePrefix = "swagger"; // /swagger et /swagger/index.html
+    c.RoutePrefix = "swagger";
+    
+    // Permet d'utiliser le JWT directement dans Swagger UI pour tester les endpoints
+    c.ConfigObject.AdditionalItems["persistAuthorization"] = true;
 });
-
-app.MapGet("/", () => Results.Redirect("/swagger"))
-    .ExcludeFromDescription();
-
 #endregion
 
 #region HTTP security and CORS
@@ -492,6 +491,34 @@ app.UseMetricServer();
 app.UseHttpMetrics();
 #endregion
 
+#region Swagger anonymous access middleware
+/*
+ * IMPORTANT : Ce middleware doit être AVANT UseAuthentication()
+ * Il court-circuite l'authentification pour les endpoints Swagger uniquement
+ */
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path.Value?.ToLower() ?? "";
+    
+    // Autoriser l'accès anonyme à Swagger et aux documents OpenAPI
+    if (path.StartsWith("/swagger") || path.Contains("swagger.json"))
+    {
+        // Skip authentication/authorization pour Swagger
+        var endpoint = new RouteEndpoint(
+            requestDelegate: async (ctx) => await next(),
+            routePattern: RoutePatternFactory.Pattern("/swagger"),
+            order: 0,
+            metadata: new EndpointMetadataCollection(new AllowAnonymousAttribute()),
+            displayName: "Swagger"
+        );
+        
+        context.SetEndpoint(endpoint);
+    }
+    
+    await next();
+});
+#endregion
+
 #region Authentication / Authorization
 /*
  * Authentication must precede Authorization.
@@ -520,6 +547,18 @@ using (var scope = app.Services.CreateScope())
  */
 app.MapControllers();
 app.MapHub<NotificationHub>("/hubs/notifications");
+
+// Endpoint racine qui retourne les infos de l'API
+app.MapGet("/", () => Results.Json(new 
+{ 
+    service = "BiblioMate API",
+    status = "running",
+    version = "1.0",
+    documentation = "/swagger",
+    health = "/health"
+}))
+.AllowAnonymous()
+.ExcludeFromDescription();
 
 // Health check endpoint (anonymous for external probes)
 app.MapHealthChecks("/health", new HealthCheckOptions
