@@ -191,7 +191,7 @@ namespace BackendBiblioMate.Controllers
         /// <item><description><c>409 Conflict</c> if an active reservation already exists.</description></item>
         /// </list>
         /// </returns>
-        [Authorize(Roles = UserRoles.User)]
+        [Authorize]
         [HttpPost]
         [MapToApiVersion("1.0")]
         [SwaggerOperation(
