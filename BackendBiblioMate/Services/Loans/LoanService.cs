@@ -5,6 +5,7 @@ using BackendBiblioMate.Interfaces;
 using BackendBiblioMate.Models;
 using BackendBiblioMate.Models.Enums;
 using BackendBiblioMate.Models.Policies;
+using BackendBiblioMate.Models.Mongo;
 
 namespace BackendBiblioMate.Services.Loans
 {
@@ -113,6 +114,18 @@ namespace BackendBiblioMate.Services.Loans
                 _context.Loans.Add(loan);
                 _stockService.Decrease(stock);
                 await _context.SaveChangesAsync(cancellationToken);
+
+// 🆕 AJOUT : Log de l'activité dans MongoDB
+                await _activityLogService.LogAsync(
+                    new UserActivityLogDocument
+                    {
+                        UserId = dto.UserId.Value,
+                        Action = "CreateLoan",
+                        Details = $"LoanId={loan.LoanId}, BookId={loan.BookId}, StockId={loan.StockId}, DueDate={loan.DueDate:yyyy-MM-dd}",
+                        Timestamp = DateTime.UtcNow
+                    },
+                    cancellationToken
+                );
 
                 return Result<LoanCreatedResult, string>.Ok(new LoanCreatedResult { DueDate = loan.DueDate });
             }
