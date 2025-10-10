@@ -6963,7 +6963,7 @@
         </member>
         <member name="M:BackendBiblioMate.Services.Catalog.AuthorService.#ctor(BackendBiblioMate.Data.BiblioMateDbContext)">
             <summary>
-            Initializes a new instance of the <see cref="T:BackendBiblioMate.Services.Catalog.AuthorService"/> class.
+            Initializes a new instance of the <see cref="T:BackendBiblioMate.Services.Catalog.AuthorService"/> class
             </summary>
             <param name="db">Database context for BiblioMate.</param>
         </member>
