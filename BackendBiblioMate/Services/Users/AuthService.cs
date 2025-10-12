@@ -393,5 +393,29 @@ namespace BackendBiblioMate.Services.Users
             first = parts.Length > 0 ? parts[0] : string.Empty;
             last  = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : string.Empty;
         }
+        
+        /// <summary>
+        /// Rejects a pending user account.
+        /// </summary>
+        public async Task<(bool Success, IActionResult Result)> RejectUserAsync(
+            int userId,
+            string? reason = null,
+            CancellationToken cancellationToken = default)
+        {
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId, cancellationToken);
+            if (user == null)
+                return (false, new NotFoundResult());
+
+            user.IsApproved = false;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            // TODO: Optionnel - envoyer un email de notification avec la raison
+            // if (!string.IsNullOrWhiteSpace(reason))
+            // {
+            //     await _emailService.SendEmailAsync(user.Email, "Compte rejeté", $"Raison: {reason}");
+            // }
+
+            return (true, new OkObjectResult("User rejected successfully."));
+        }
     }
 }

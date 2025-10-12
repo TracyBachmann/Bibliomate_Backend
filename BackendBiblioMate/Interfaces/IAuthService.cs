@@ -121,5 +121,23 @@ namespace BackendBiblioMate.Interfaces
         Task<(bool Success, IActionResult Result)> ResendConfirmationAsync(
             string email,
             CancellationToken cancellationToken = default);
+        
+        /// <summary>
+        /// Rejects a pending user account.
+        /// </summary>
+        /// <param name="userId">The identifier of the user to reject.</param>
+        /// <param name="reason">Optional reason for rejection.</param>
+        /// <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+        /// <returns>
+        /// A task producing a tuple:
+        /// <list type="bullet">
+        ///   <item><description><c>Success</c>: <c>true</c> if the user was rejected; otherwise <c>false</c>.</description></item>
+        ///   <item><description><see cref="IActionResult"/>: The HTTP response.</description></item>
+        /// </list>
+        /// </returns>
+        Task<(bool Success, IActionResult Result)> RejectUserAsync(
+            int userId,
+            string? reason = null,
+            CancellationToken cancellationToken = default);
     }
 }

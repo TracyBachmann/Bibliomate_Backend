@@ -258,6 +258,11 @@
             <param name="cancellationToken">Token to monitor for cancellation requests.</param>
             <returns><c>200 OK</c> if the confirmation email was successfully sent.</returns>
         </member>
+        <member name="M:BackendBiblioMate.Controllers.AuthsController.RejectUser(System.Int32,BackendBiblioMate.DTOs.RejectUserDto,System.Threading.CancellationToken)">
+            <summary>
+            Rejects a pending user account.
+            </summary>
+        </member>
         <member name="T:BackendBiblioMate.Controllers.BooksController">
             <summary>
             API controller for managing books.
@@ -1796,6 +1801,16 @@
             Gets or sets the list of preferred genre identifiers (optional).
             </summary>
             <example>[1, 3, 7]</example>
+        </member>
+        <member name="T:BackendBiblioMate.DTOs.RejectUserDto">
+            <summary>
+            DTO for rejecting a user account.
+            </summary>
+        </member>
+        <member name="P:BackendBiblioMate.DTOs.RejectUserDto.Reason">
+            <summary>
+            Optional reason for rejection.
+            </summary>
         </member>
         <member name="T:BackendBiblioMate.DTOs.RequestPasswordResetDto">
             <summary>
@@ -4104,6 +4119,21 @@
             <list type="bullet">
               <item><description><c>Success</c>: <c>true</c> if the confirmation email was resent; otherwise <c>false</c>.</description></item>
               <item><description><see cref="T:Microsoft.AspNetCore.Mvc.IActionResult"/>: The HTTP response (e.g. <c>NotFound</c>, <c>Ok</c>).</description></item>
+            </list>
+            </returns>
+        </member>
+        <member name="M:BackendBiblioMate.Interfaces.IAuthService.RejectUserAsync(System.Int32,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Rejects a pending user account.
+            </summary>
+            <param name="userId">The identifier of the user to reject.</param>
+            <param name="reason">Optional reason for rejection.</param>
+            <param name="cancellationToken">Token to monitor for cancellation requests.</param>
+            <returns>
+            A task producing a tuple:
+            <list type="bullet">
+              <item><description><c>Success</c>: <c>true</c> if the user was rejected; otherwise <c>false</c>.</description></item>
+              <item><description><see cref="T:Microsoft.AspNetCore.Mvc.IActionResult"/>: The HTTP response.</description></item>
             </list>
             </returns>
         </member>
@@ -8355,6 +8385,11 @@
         <member name="M:BackendBiblioMate.Services.Users.AuthService.SplitName(System.String,System.String@,System.String@)">
             <summary>
             Splits a full name into first and last name parts.
+            </summary>
+        </member>
+        <member name="M:BackendBiblioMate.Services.Users.AuthService.RejectUserAsync(System.Int32,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Rejects a pending user account.
             </summary>
         </member>
         <member name="T:BackendBiblioMate.Services.Users.HistoryService">

@@ -215,5 +215,27 @@ namespace BackendBiblioMate.Controllers
             var result = await _authService.ResendConfirmationAsync(dto.Email, cancellationToken);
             return result.Result;
         }
+        
+        /// <summary>
+        /// Rejects a pending user account.
+        /// </summary>
+        [Authorize(Roles = UserRoles.Admin)]
+        [HttpPost("reject/{id}")]
+        [MapToApiVersion("1.0")]
+        [SwaggerOperation(
+            Summary = "Rejects a pending user account (v1)",
+            Description = "Admin-only endpoint to reject new user accounts.",
+            Tags = ["Auths"]
+        )]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> RejectUser(
+            [FromRoute] int id,
+            [FromBody] RejectUserDto dto,
+            CancellationToken cancellationToken)
+        {
+            var result = await _authService.RejectUserAsync(id, dto.Reason, cancellationToken);
+            return result.Result;
+        }
     }
 }
