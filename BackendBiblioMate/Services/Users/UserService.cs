@@ -184,7 +184,9 @@ namespace BackendBiblioMate.Services.Users
             Phone            = u.Phone,
             DateOfBirth      = u.DateOfBirth,
             ProfileImagePath = u.ProfileImagePath,
-            FavoriteGenreIds = u.UserGenres.Select(g => g.GenreId).ToArray()
+            FavoriteGenreIds = u.UserGenres.Select(g => g.GenreId).ToArray(),
+            IsEmailConfirmed = u.IsEmailConfirmed,
+            IsApproved       = u.IsApproved,
         };
     }
 }

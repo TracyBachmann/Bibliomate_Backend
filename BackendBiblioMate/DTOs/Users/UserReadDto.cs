@@ -74,5 +74,17 @@
         /// </summary>
         /// <example>[1, 3, 7]</example>
         public IEnumerable<int> FavoriteGenreIds { get; init; } = Array.Empty<int>();
+        
+        /// <summary>
+        /// Gets or sets whether the user account has been approved by an administrator.
+        /// </summary>
+        /// <example>true</example>
+        public bool IsApproved { get; init; }
+
+        /// <summary>
+        /// Gets or sets whether the user's email has been confirmed.
+        /// </summary>
+        /// <example>true</example>
+        public bool IsEmailConfirmed { get; init; }
     }
 }
