@@ -31,6 +31,7 @@
         <PackageReference Include="NWebsec.AspNetCore.Middleware" Version="3.0.0" />
         <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
         <PackageReference Include="SendGrid" Version="9.29.3" />
+        <PackageReference Include="SendinBlue.Api" Version="0.1.1" />
 
         <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.1" />
         <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="6.5.0" />

@@ -311,6 +311,7 @@ builder.Services.AddSingleton<IMongoClient>(sp =>
  *       scenarios where the concrete implementation is injected directly.
  */
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IHistoryService, HistoryService>();
@@ -340,11 +341,19 @@ builder.Services.AddSingleton<EncryptionService>();
 builder.Services.AddHttpClient<IGoogleBooksService, GoogleBooksService>();
 
 // Email provider selection based on configuration
-var smtpHost = builder.Configuration["Smtp:Host"];
-if (!string.IsNullOrWhiteSpace(smtpHost))
-    builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+var brevoApiKey = builder.Configuration["Brevo:ApiKey"];
+if (!string.IsNullOrWhiteSpace(brevoApiKey))
+{
+    builder.Services.AddScoped<IEmailService, BrevoEmailService>();
+}
 else
-    builder.Services.AddScoped<IEmailService, SendGridEmailService>();
+{
+    var smtpHost = builder.Configuration["Smtp:Host"];
+    if (!string.IsNullOrWhiteSpace(smtpHost))
+        builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+    else
+        builder.Services.AddScoped<IEmailService, SendGridEmailService>();
+}
 
 // Background services & contextual infrastructure
 builder.Services.AddScoped<IReservationCleanupService, ReservationCleanupService>();
