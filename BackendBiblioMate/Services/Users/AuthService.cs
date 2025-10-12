@@ -93,7 +93,7 @@ namespace BackendBiblioMate.Services.Users
         FirstName              = firstName,
         LastName               = lastName,
         Email                  = dto.Email,
-        Password               = BCrypt.Net.BCrypt.HashPassword(dto.Password, workFactor: 10), // ✅ CORRIGÉ
+        Password               = BCrypt.Net.BCrypt.HashPassword(dto.Password, workFactor: 10),
         Address1               = address1,
         Address2               = address2,
         Phone                  = dto.Phone,
@@ -408,12 +408,6 @@ namespace BackendBiblioMate.Services.Users
 
             user.IsApproved = false;
             await _db.SaveChangesAsync(cancellationToken);
-
-            // TODO: Optionnel - envoyer un email de notification avec la raison
-            // if (!string.IsNullOrWhiteSpace(reason))
-            // {
-            //     await _emailService.SendEmailAsync(user.Email, "Compte rejeté", $"Raison: {reason}");
-            // }
 
             return (true, new OkObjectResult("User rejected successfully."));
         }
