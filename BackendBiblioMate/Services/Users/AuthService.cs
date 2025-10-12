@@ -53,84 +53,84 @@ namespace BackendBiblioMate.Services.Users
         /// </list>
         /// </returns>
         public async Task<(bool Success, IActionResult Result)> RegisterAsync(
-            RegisterDto dto,
-            CancellationToken cancellationToken = default)
+    RegisterDto dto,
+    CancellationToken cancellationToken = default)
+{
+    if (await _db.Users.AnyAsync(u => u.Email == dto.Email, cancellationToken))
+    {
+        return (false,
+            new ConflictObjectResult(new { error = "An account with that email already exists." }));
+    }
+
+    // --- helpers for DTO compatibility (support old/new frontend models) ---
+    static string? GetStringProp(object obj, string prop)
+        => obj.GetType().GetProperty(prop)?.GetValue(obj) as string;
+
+    static DateTime? GetDateProp(object obj, string prop)
+        => obj.GetType().GetProperty(prop)?.GetValue(obj) as DateTime?;
+
+    static IEnumerable<int>? GetIntEnumerableProp(object obj, string prop)
+        => obj.GetType().GetProperty(prop)?.GetValue(obj) as IEnumerable<int>;
+
+    var firstName = GetStringProp(dto, "FirstName");
+    var lastName  = GetStringProp(dto, "LastName");
+    if (firstName is null || lastName is null)
+    {
+        var fullName = GetStringProp(dto, "Name") ?? string.Empty;
+        SplitName(fullName, out firstName, out lastName);
+    }
+
+    var address1 = GetStringProp(dto, "Address1") ?? GetStringProp(dto, "Address") ?? string.Empty;
+    var address2 = GetStringProp(dto, "Address2");
+
+    var dateOfBirth      = GetDateProp(dto, "DateOfBirth");
+    var profileImagePath = GetStringProp(dto, "ProfileImagePath");
+    var favoriteGenreIds = GetIntEnumerableProp(dto, "FavoriteGenreIds");
+
+    var token = Guid.NewGuid().ToString();
+    var user = new User
+    {
+        FirstName              = firstName,
+        LastName               = lastName,
+        Email                  = dto.Email,
+        Password               = BCrypt.Net.BCrypt.HashPassword(dto.Password, workFactor: 10), // ✅ CORRIGÉ
+        Address1               = address1,
+        Address2               = address2,
+        Phone                  = dto.Phone,
+        DateOfBirth            = dateOfBirth,
+        ProfileImagePath       = profileImagePath,
+        Role                   = UserRoles.User,
+        IsEmailConfirmed       = false,
+        EmailConfirmationToken = token
+    };
+
+    _db.Users.Add(user);
+    await _db.SaveChangesAsync(cancellationToken);
+
+    // Preferred genres
+    if (favoriteGenreIds is not null && favoriteGenreIds.Any())
+    {
+        foreach (var genreId in favoriteGenreIds.Distinct())
         {
-            if (await _db.Users.AnyAsync(u => u.Email == dto.Email, cancellationToken))
+            _db.UserGenres.Add(new UserGenre
             {
-                return (false,
-                    new ConflictObjectResult(new { error = "An account with that email already exists." }));
-            }
+                UserId = user.UserId,
+                GenreId = genreId
+            });
+        }
+        await _db.SaveChangesAsync(cancellationToken);
+    }
 
-            // --- helpers for DTO compatibility (support old/new frontend models) ---
-            static string? GetStringProp(object obj, string prop)
-                => obj.GetType().GetProperty(prop)?.GetValue(obj) as string;
+    // ---- Confirmation email ----
+    var baseUrl   = _config["Frontend:BaseUrl"] ?? "http://localhost:4200";
+    var confirmUrl = $"{baseUrl}/confirm-email?token={token}";
 
-            static DateTime? GetDateProp(object obj, string prop)
-                => obj.GetType().GetProperty(prop)?.GetValue(obj) as DateTime?;
+    var subject = "Confirmez votre inscription – BiblioMate";
+    var first   = WebUtility.HtmlEncode(user.FirstName ?? "");
 
-            static IEnumerable<int>? GetIntEnumerableProp(object obj, string prop)
-                => obj.GetType().GetProperty(prop)?.GetValue(obj) as IEnumerable<int>;
-
-            var firstName = GetStringProp(dto, "FirstName");
-            var lastName  = GetStringProp(dto, "LastName");
-            if (firstName is null || lastName is null)
-            {
-                var fullName = GetStringProp(dto, "Name") ?? string.Empty;
-                SplitName(fullName, out firstName, out lastName);
-            }
-
-            var address1 = GetStringProp(dto, "Address1") ?? GetStringProp(dto, "Address") ?? string.Empty;
-            var address2 = GetStringProp(dto, "Address2");
-
-            var dateOfBirth      = GetDateProp(dto, "DateOfBirth");
-            var profileImagePath = GetStringProp(dto, "ProfileImagePath");
-            var favoriteGenreIds = GetIntEnumerableProp(dto, "FavoriteGenreIds");
-
-            var token = Guid.NewGuid().ToString();
-            var user = new User
-            {
-                FirstName              = firstName,
-                LastName               = lastName,
-                Email                  = dto.Email,
-                Password               = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                Address1               = address1,
-                Address2               = address2,
-                Phone                  = dto.Phone,
-                DateOfBirth            = dateOfBirth,
-                ProfileImagePath       = profileImagePath,
-                Role                   = UserRoles.User,
-                IsEmailConfirmed       = false,
-                EmailConfirmationToken = token
-            };
-
-            _db.Users.Add(user);
-            await _db.SaveChangesAsync(cancellationToken);
-
-            // Preferred genres
-            if (favoriteGenreIds is not null && favoriteGenreIds.Any())
-            {
-                foreach (var genreId in favoriteGenreIds.Distinct())
-                {
-                    _db.UserGenres.Add(new UserGenre
-                    {
-                        UserId = user.UserId,
-                        GenreId = genreId
-                    });
-                }
-                await _db.SaveChangesAsync(cancellationToken);
-            }
-
-            // ---- Confirmation email ----
-            var baseUrl   = _config["Frontend:BaseUrl"] ?? "http://localhost:4200";
-            var confirmUrl = $"{baseUrl}/confirm-email?token={token}";
-
-            var subject = "Confirmez votre inscription – BiblioMate";
-            var first   = WebUtility.HtmlEncode(user.FirstName ?? "");
-
-            var html = $@"
+    var html = $@"
 <div style=""font-family:Segoe UI,Roboto,Arial,sans-serif;max-width:560px;margin:auto;background:#f7fbff;
-             border:1px solid #e6f0f7;border-radius:12px;padding:24px"">
+         border:1px solid #e6f0f7;border-radius:12px;padding:24px"">
   <h2 style=""margin:0 0 12px;color:#04446b;font-weight:600"">Bienvenue sur BiblioMate 👋</h2>
   <p style=""margin:0 0 16px;color:#0f2a3a"">Bonjour {first},</p>
   <p style=""margin:0 0 16px;color:#0f2a3a"">
@@ -152,10 +152,10 @@ namespace BackendBiblioMate.Services.Users
   </p>
 </div>";
 
-            await _emailService.SendEmailAsync(user.Email, subject, html);
+    await _emailService.SendEmailAsync(user.Email, subject, html);
 
-            return (true, new OkObjectResult("Registration successful. Check your email."));
-        }
+    return (true, new OkObjectResult("Registration successful. Check your email."));
+}
 
         /// <summary>
         /// Authenticates a user against stored credentials and returns a signed JWT.
@@ -268,7 +268,7 @@ namespace BackendBiblioMate.Services.Users
                 return (false, new BadRequestObjectResult("Invalid or expired token."));
             }
 
-            user.Password               = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            user.Password               = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword, workFactor: 10);
             user.PasswordResetToken     = null;
             user.PasswordResetTokenExpires = null;
             user.SecurityStamp          = Guid.NewGuid().ToString();
